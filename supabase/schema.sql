@@ -31,6 +31,8 @@ create table if not exists public.posts (
   meta_description text,
   seo_title text,
   cover_image text,
+  author_name text,
+  scheduled_at timestamptz,
 
   -- Integração Amazon (cache dos itens citados no post)
   amazon_products jsonb,

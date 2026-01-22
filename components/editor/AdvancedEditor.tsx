@@ -75,8 +75,10 @@ export function AdvancedEditor({ post }: { post: PostWithSilo }) {
     metaDescription: post.meta_description ?? "",
     coverImage: post.cover_image ?? "",
     published: Boolean(post.published),
-    author: "Equipe",
-    publicationDate: "",
+    author: post.author_name ?? "Equipe",
+    publicationDate: post.scheduled_at
+      ? new Date(post.scheduled_at).toISOString().slice(0, 16)
+      : "",
   });
   const [supportingRaw, setSupportingRaw] = useState((post.supporting_keywords ?? []).join("\n"));
   const [slugTouched, setSlugTouched] = useState(false);
@@ -266,9 +268,11 @@ export function AdvancedEditor({ post }: { post: PostWithSilo }) {
           seo_title: meta.seoTitle || meta.title,
           slug: meta.slug,
           target_keyword: meta.focusKeyword,
-          meta_description: meta.metaDescription || undefined,
+          meta_description: meta.metaDescription,
           supporting_keywords: supporting,
-          cover_image: meta.coverImage || undefined,
+          cover_image: meta.coverImage,
+          author_name: meta.author,
+          scheduled_at: meta.publicationDate,
           content_json: docJson,
           content_html: docHtml,
           amazon_products: products,

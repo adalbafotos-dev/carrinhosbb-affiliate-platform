@@ -19,6 +19,8 @@ export type Post = {
   supporting_keywords: string[] | null;
   meta_description: string | null;
   cover_image?: string | null;
+  author_name?: string | null;
+  scheduled_at?: string | null;
   amazon_products: any | null;
   published: boolean | null;
   updated_at: string;

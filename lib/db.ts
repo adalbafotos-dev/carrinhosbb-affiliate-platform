@@ -158,6 +158,8 @@ export async function adminCreatePost(args: {
   supporting_keywords?: string[] | null;
   meta_description?: string | null;
   cover_image?: string | null;
+  author_name?: string | null;
+  scheduled_at?: string | null;
 }): Promise<PostWithSilo> {
   const supabase = await getAdminSupabaseClient();
   const now = new Date().toISOString();
@@ -173,6 +175,8 @@ export async function adminCreatePost(args: {
       supporting_keywords: args.supporting_keywords ?? [],
       meta_description: args.meta_description ?? null,
       cover_image: args.cover_image ?? null,
+      author_name: args.author_name ?? null,
+      scheduled_at: args.scheduled_at ?? null,
       published: false,
       updated_at: now,
     })
@@ -198,27 +202,34 @@ export async function adminUpdatePost(args: {
   supporting_keywords?: string[] | null;
   meta_description?: string | null;
   cover_image?: string | null;
+  author_name?: string | null;
+  scheduled_at?: string | null;
   content_json: any;
   content_html: string;
   amazon_products?: any;
 }): Promise<void> {
   const supabase = await getAdminSupabaseClient();
 
+  const update: Record<string, any> = {
+    content_json: args.content_json,
+    content_html: args.content_html,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (typeof args.title !== "undefined") update.title = args.title;
+  if (typeof args.seo_title !== "undefined") update.seo_title = args.seo_title;
+  if (typeof args.slug !== "undefined") update.slug = args.slug;
+  if (typeof args.target_keyword !== "undefined") update.target_keyword = args.target_keyword;
+  if (typeof args.supporting_keywords !== "undefined") update.supporting_keywords = args.supporting_keywords;
+  if (typeof args.meta_description !== "undefined") update.meta_description = args.meta_description;
+  if (typeof args.cover_image !== "undefined") update.cover_image = args.cover_image;
+  if (typeof args.author_name !== "undefined") update.author_name = args.author_name;
+  if (typeof args.scheduled_at !== "undefined") update.scheduled_at = args.scheduled_at;
+  if (typeof args.amazon_products !== "undefined") update.amazon_products = args.amazon_products;
+
   const { error } = await supabase
     .from("posts")
-    .update({
-      title: args.title,
-      seo_title: args.seo_title ?? null,
-      slug: args.slug,
-      target_keyword: args.target_keyword,
-      supporting_keywords: args.supporting_keywords ?? [],
-      meta_description: args.meta_description ?? null,
-      cover_image: args.cover_image ?? null,
-      content_json: args.content_json,
-      content_html: args.content_html,
-      amazon_products: args.amazon_products ?? null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq("id", args.id);
 
   if (error) throw error;
