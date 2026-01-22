@@ -1,0 +1,132 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --brand-primary: #F1BC99;
+  --brand-secondary: #E6E4E2;
+  --brand-accent: #A57764;
+  --brand-hot: #F36141;
+  --ink: #2B2C30;
+  --paper: #FFFFFF;
+  --bg: var(--brand-secondary);
+  --surface: var(--paper);
+  --surface-muted: var(--brand-secondary);
+  --accent-soft: rgba(241, 188, 153, 0.35);
+  --text: var(--ink);
+  --muted: rgba(43, 44, 48, 0.72);
+  --muted-2: rgba(43, 44, 48, 0.56);
+  --muted-3: rgba(43, 44, 48, 0.4);
+  --border: rgba(43, 44, 48, 0.12);
+  --border-strong: rgba(43, 44, 48, 0.2);
+  --shadow: rgba(43, 44, 48, 0.08);
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-body), "Segoe UI", sans-serif;
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(241, 188, 153, 0.35), transparent 60%),
+    linear-gradient(180deg, var(--brand-secondary), var(--paper) 60%);
+  color: var(--text);
+}
+
+h1, h2, h3, h4, h5, h6, .display {
+  font-family: var(--font-display), "Georgia", serif;
+  letter-spacing: -0.01em;
+}
+
+a {
+  text-decoration: none;
+}
+
+.prose {
+  max-width: 72ch;
+}
+
+/* Conteúdo do editor (HTML gerado pelo Tiptap) */
+.content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+}
+.content h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+.content p {
+  line-height: 1.75;
+  margin: 0.75rem 0;
+  color: var(--text);
+}
+.content ul {
+  list-style: disc;
+  padding-left: 1.25rem;
+  margin: 0.75rem 0;
+}
+.content a {
+  color: var(--brand-hot);
+  text-decoration: underline;
+  text-decoration-color: rgba(243, 97, 65, 0.5);
+  text-underline-offset: 4px;
+}
+
+/* Card de produto renderizado no frontend */
+.affiliate-card {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 16px;
+  margin: 16px 0;
+}
+.affiliate-card .cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(243, 97, 65, 0.35);
+  background: var(--brand-hot);
+  color: var(--paper);
+  font-weight: 600;
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-in {
+  animation: riseIn 700ms ease-out both;
+}
+
+.stagger-grid > * {
+  animation: riseIn 700ms ease-out both;
+}
+
+.stagger-grid > *:nth-child(1) { animation-delay: 80ms; }
+.stagger-grid > *:nth-child(2) { animation-delay: 140ms; }
+.stagger-grid > *:nth-child(3) { animation-delay: 200ms; }
+.stagger-grid > *:nth-child(4) { animation-delay: 260ms; }
+.stagger-grid > *:nth-child(5) { animation-delay: 320ms; }
+.stagger-grid > *:nth-child(6) { animation-delay: 380ms; }
+.stagger-grid > *:nth-child(7) { animation-delay: 440ms; }
+.stagger-grid > *:nth-child(8) { animation-delay: 500ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .page-in,
+  .stagger-grid > * {
+    animation: none;
+  }
+}

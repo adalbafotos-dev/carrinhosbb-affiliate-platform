@@ -1,0 +1,93 @@
+[
+  {
+    "silo_name": "Cabines e Equipamentos",
+    "slug": "equipamentos",
+    "description": "Cabines UV/LED, lixadeiras, aspiradores e acessórios para manicure.",
+    "posts": [
+      {
+        "h1": "Cabine de Unha Profissional Original: Qual Escolher?",
+        "slug": "cabine-de-unha-profissional-original",
+        "kgr_keyword": "cabine de unha profissional original",
+        "supporting": [
+          "qual a melhor cabine para unha de gel",
+          "luz uv para unhas faz mal"
+        ]
+      },
+      {
+        "h1": "Esmalte Normal Seca na Cabine? A Verdade Revelada",
+        "slug": "esmalte-normal-seca-na-cabine",
+        "kgr_keyword": "esmalte normal seca na cabine",
+        "supporting": [
+          "cabine uv seca esmalte comum",
+          "quanto tempo para secar esmalte comum"
+        ]
+      }
+    ]
+  },
+  {
+    "silo_name": "Review de Géis",
+    "slug": "geis",
+    "description": "Comparativos, prós e contras, e recomendações de géis e finalizadores.",
+    "posts": [
+      {
+        "h1": "Qual a Melhor Marca de Gel para Unhas em 2025",
+        "slug": "qual-a-melhor-marca-de-gel-para-unhas",
+        "kgr_keyword": "qual a melhor marca de gel para unhas",
+        "supporting": [
+          "qual o melhor gel para unhas de fibra",
+          "esmalte top coat para que serve"
+        ]
+      }
+    ]
+  },
+  {
+    "silo_name": "Kits e Materiais",
+    "slug": "kits",
+    "description": "Kits completos, materiais de fibra, tips, colas, primers e itens essenciais.",
+    "posts": [
+      {
+        "h1": "Kit para Fazer Unhas de Fibra de Vidro: Vale a Pena?",
+        "slug": "kit-para-fazer-unhas-de-fibra-de-vidro",
+        "kgr_keyword": "kit para fazer unhas de fibra de vidro",
+        "supporting": [
+          "quanto custa para fazer unha de fibra",
+          "unha de fibra preço"
+        ]
+      },
+      {
+        "h1": "Onde Comprar Unha Postiça Realista Decorada",
+        "slug": "unha-postica-para-comprar",
+        "kgr_keyword": "unha postiça para comprar",
+        "supporting": [
+          "modelo de unha postiça realista decorada",
+          "tabela de preço de unhas postiças"
+        ]
+      }
+    ]
+  },
+  {
+    "silo_name": "Inspiração e Decoração",
+    "slug": "decoracao",
+    "description": "Modelos, ideias, tendências e variações de francesinha e encapsuladas.",
+    "posts": [
+      {
+        "h1": "Unhas de Gel com Francesinha Branca: 50 Modelos",
+        "slug": "unhas-de-gel-com-francesinha-branca",
+        "kgr_keyword": "unhas de gel com francesinha branca",
+        "supporting": [
+          "unha encapsulada branca francesinha",
+          "modelos de unhas com francesinha"
+        ]
+      },
+      {
+        "h1": "Tudo Sobre Unha Francesinha Encapsulada",
+        "slug": "unha-francesinha-encapsulada",
+        "kgr_keyword": "unha francesinha encapsulada",
+        "supporting": [
+          "unha de gel encapsulada francesinha",
+          "encapsulada unha em gel francesinha"
+        ]
+      }
+    ]
+  }
+]

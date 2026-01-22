@@ -1,0 +1,11 @@
+node_modules
+.next
+out
+.vercel
+.env
+.env.local
+.env.*.local
+*.log
+playwright-report
+test-results
+AGENTS.md

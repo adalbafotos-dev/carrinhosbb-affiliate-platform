@@ -1,0 +1,178 @@
+"use client";
+
+import Mention from "@tiptap/extension-mention";
+import type { SuggestionOptions } from "@tiptap/suggestion";
+
+type Item = { id: string; title: string; slug: string; siloSlug: string };
+
+async function fetchItems(query: string): Promise<Item[]> {
+  const url = `/api/admin/mentions?q=${encodeURIComponent(query)}`;
+  const res = await fetch(url);
+  if (!res.ok) return [];
+  const data = await res.json();
+  return (data.items ?? []) as Item[];
+}
+
+function renderList() {
+  let dom: HTMLDivElement | null = null;
+  let ul: HTMLDivElement | null = null;
+  let currentIndex = 0;
+  let currentItems: Item[] = [];
+
+  function select(index: number, command: (item: Item) => void) {
+    const item = currentItems[index];
+    if (item) command(item);
+  }
+
+  return {
+    onStart: (props: any) => {
+      currentItems = props.items;
+      currentIndex = 0;
+
+      dom = document.createElement("div");
+      dom.className = "rounded-2xl border border-[color:var(--border)] bg-[color:rgba(255,255,255,0.96)] p-2 shadow-xl";
+
+      ul = document.createElement("div");
+      ul.className = "flex flex-col";
+      dom.appendChild(ul);
+
+      props.clientRect && Object.assign(dom.style, { position: "absolute", zIndex: 9999 });
+
+      document.body.appendChild(dom);
+      update(props);
+    },
+
+    onUpdate: (props: any) => {
+      currentItems = props.items;
+      update(props);
+    },
+
+    onKeyDown: (props: any) => {
+      if (props.event.key === "ArrowDown") {
+        currentIndex = (currentIndex + 1) % currentItems.length;
+        update(props);
+        return true;
+      }
+
+      if (props.event.key === "ArrowUp") {
+        currentIndex = (currentIndex - 1 + currentItems.length) % currentItems.length;
+        update(props);
+        return true;
+      }
+
+      if (props.event.key === "Enter") {
+        select(currentIndex, props.command);
+        return true;
+      }
+
+      return false;
+    },
+
+    onExit: () => {
+      dom?.remove();
+      dom = null;
+      ul = null;
+    },
+  };
+
+  function update(props: any) {
+    if (!dom || !ul) return;
+
+    const rect = props.clientRect?.();
+    if (rect) {
+      dom.style.left = rect.left + "px";
+      dom.style.top = rect.bottom + 8 + "px";
+    }
+
+    ul.innerHTML = "";
+
+    const items: Item[] = props.items ?? [];
+    if (!items.length) {
+      const empty = document.createElement("div");
+      empty.className = "px-3 py-2 text-xs text-[color:var(--muted-2)]";
+      empty.textContent = "Nenhum artigo encontrado";
+      ul.appendChild(empty);
+      return;
+    }
+
+    items.slice(0, 8).forEach((item, idx) => {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = `text-left rounded-xl px-3 py-2 text-xs transition ${
+        idx === currentIndex
+          ? "bg-[color:var(--brand-primary)] text-[color:var(--ink)]"
+          : "text-[color:var(--muted)] hover:bg-[color:var(--surface-muted)]"
+      }`;
+
+      const title = document.createElement("div");
+      title.className = "text-[color:var(--ink)]";
+      title.textContent = item.title;
+
+      const meta = document.createElement("div");
+      meta.className = "text-[10px] text-[color:var(--muted-2)]";
+      meta.textContent = `/${item.siloSlug}/${item.slug}`;
+
+      row.appendChild(title);
+      row.appendChild(meta);
+      row.onclick = () => props.command(item);
+      ul.appendChild(row);
+    });
+  }
+}
+
+const suggestion: Partial<SuggestionOptions<Item>> = {
+  char: "@",
+  startOfLine: false,
+  items: async ({ query }) => {
+    if (!query || query.length < 2) return [];
+    return await fetchItems(query);
+  },
+  render: renderList as any,
+  command: ({ editor, range, props }) => {
+    const href = `/${props.siloSlug}/${props.slug}`;
+    editor
+      .chain()
+      .focus()
+      .insertContentAt(range, [
+        {
+          type: "mention",
+          attrs: {
+            id: props.id,
+            label: props.title,
+            href,
+          },
+        },
+        { type: "text", text: " " },
+      ])
+      .run();
+  },
+};
+
+export const InternalLinkMention = Mention.extend({
+  name: "mention",
+
+  addAttributes() {
+    return {
+      id: { default: null },
+      label: { default: null },
+      href: { default: null },
+    };
+  },
+
+  renderHTML({ node, HTMLAttributes }) {
+    const href = (node.attrs as any).href || "#";
+    const label = (node.attrs as any).label || "";
+
+    return [
+      "a",
+      {
+        ...HTMLAttributes,
+        href,
+        class: "internal-link underline underline-offset-4 decoration-[color:var(--brand-primary)] text-[color:var(--brand-hot)]",
+      },
+      label,
+    ];
+  },
+}).configure({
+  suggestion: suggestion as any,
+});
