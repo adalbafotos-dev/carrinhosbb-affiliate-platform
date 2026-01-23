@@ -7,6 +7,7 @@ import { requireAdminSession } from "@/lib/admin/auth";
 
 const SaveSchema = z.object({
   id: z.string().uuid(),
+  silo_id: z.string().uuid().nullable().optional(),
   title: z.string().min(3).max(180),
   seo_title: z.string().max(180).optional(),
   slug: z.string().min(3).max(180),
@@ -63,6 +64,7 @@ export async function saveEditorPost(payload: unknown) {
 
   await adminUpdatePost({
     id: data.id,
+    silo_id: data.silo_id ?? undefined,
     title: data.title,
     seo_title: data.seo_title?.trim() || null,
     slug: data.slug,

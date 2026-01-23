@@ -195,6 +195,7 @@ export async function adminCreatePost(args: {
 
 export async function adminUpdatePost(args: {
   id: string;
+  silo_id?: string | null;
   title?: string;
   seo_title?: string | null;
   slug?: string;
@@ -216,6 +217,7 @@ export async function adminUpdatePost(args: {
     updated_at: new Date().toISOString(),
   };
 
+  if (typeof args.silo_id !== "undefined") update.silo_id = args.silo_id;
   if (typeof args.title !== "undefined") update.title = args.title;
   if (typeof args.seo_title !== "undefined") update.seo_title = args.seo_title;
   if (typeof args.slug !== "undefined") update.slug = args.slug;

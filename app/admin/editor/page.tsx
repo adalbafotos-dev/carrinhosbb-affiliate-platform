@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { adminGetPostById, adminListPosts } from "@/lib/db";
+import { adminGetPostById, adminListPosts, adminListSilos } from "@/lib/db";
 import { AdvancedEditor } from "@/components/editor/AdvancedEditor";
 
 export const revalidate = 0;
@@ -13,9 +13,9 @@ export default async function EditorRootPage({
   const { id } = await searchParams;
 
   if (id) {
-    const post = await adminGetPostById(id);
+    const [post, silos] = await Promise.all([adminGetPostById(id), adminListSilos()]);
     if (!post) return notFound();
-    return <AdvancedEditor post={post} />;
+    return <AdvancedEditor post={post} silos={silos} />;
   }
 
   const posts = await adminListPosts();
