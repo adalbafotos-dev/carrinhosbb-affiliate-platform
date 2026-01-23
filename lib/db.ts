@@ -40,6 +40,7 @@ const REQUIRED_POST_COLUMNS = [
   "hero_image_alt",
   "og_image_url",
   "images",
+  "cover_image",
   "author_name",
   "expert_name",
   "expert_role",
@@ -51,6 +52,8 @@ const REQUIRED_POST_COLUMNS = [
   "disclaimer",
   "faq_json",
   "howto_json",
+  "content_json",
+  "content_html",
   "status",
   "published",
   "published_at",
@@ -263,11 +266,28 @@ export async function adminCreatePost(args: {
   published_at?: string | null;
   faq_json?: any | null;
   howto_json?: any | null;
+  amazon_products?: any | null;
+  content_json?: any | null;
+  content_html?: string | null;
 }): Promise<PostWithSilo> {
   const supabase = await getAdminSupabaseClient();
   const now = new Date().toISOString();
   const status = args.status ?? "draft";
   const published = status === "published";
+  const defaultDoc = {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: args.target_keyword ? `Comece falando sobre ${args.target_keyword}.` : "Comece a escrever seu review.",
+          },
+        ],
+      },
+    ],
+  };
 
   let body: Record<string, any> = {
     silo_id: args.silo_id ?? null,
@@ -299,8 +319,11 @@ export async function adminCreatePost(args: {
     published,
     published_at: published ? args.published_at ?? now : null,
     status,
-    faq_json: args.faq_json ?? null,
-    howto_json: args.howto_json ?? null,
+    faq_json: args.faq_json ?? [],
+    howto_json: args.howto_json ?? [],
+    amazon_products: args.amazon_products ?? [],
+    content_json: args.content_json ?? defaultDoc,
+    content_html: args.content_html ?? "",
     updated_at: now,
   };
 
@@ -403,18 +426,18 @@ export async function adminUpdatePost(args: {
   if (typeof args.meta_title !== "undefined") update.meta_title = args.meta_title;
   if (typeof args.slug !== "undefined") update.slug = args.slug;
   if (typeof args.target_keyword !== "undefined") update.target_keyword = args.target_keyword;
-  if (typeof args.supporting_keywords !== "undefined") update.supporting_keywords = args.supporting_keywords;
+  if (typeof args.supporting_keywords !== "undefined") update.supporting_keywords = args.supporting_keywords ?? [];
   if (typeof args.meta_description !== "undefined") update.meta_description = args.meta_description;
   if (typeof args.canonical_path !== "undefined") update.canonical_path = args.canonical_path;
   if (typeof args.entities !== "undefined") update.entities = args.entities;
-  if (typeof args.faq_json !== "undefined") update.faq_json = args.faq_json;
-  if (typeof args.howto_json !== "undefined") update.howto_json = args.howto_json;
+  if (typeof args.faq_json !== "undefined") update.faq_json = args.faq_json ?? [];
+  if (typeof args.howto_json !== "undefined") update.howto_json = args.howto_json ?? [];
   if (typeof args.schema_type !== "undefined") update.schema_type = args.schema_type;
   if (typeof args.cover_image !== "undefined") update.cover_image = args.cover_image;
   if (typeof args.hero_image_url !== "undefined") update.hero_image_url = args.hero_image_url;
   if (typeof args.hero_image_alt !== "undefined") update.hero_image_alt = args.hero_image_alt;
   if (typeof args.og_image_url !== "undefined") update.og_image_url = args.og_image_url;
-  if (typeof args.images !== "undefined") update.images = args.images;
+  if (typeof args.images !== "undefined") update.images = args.images ?? [];
   if (typeof args.author_name !== "undefined") update.author_name = args.author_name;
   if (typeof args.expert_name !== "undefined") update.expert_name = args.expert_name;
   if (typeof args.expert_role !== "undefined") update.expert_role = args.expert_role;
@@ -422,7 +445,7 @@ export async function adminUpdatePost(args: {
   if (typeof args.expert_credentials !== "undefined") update.expert_credentials = args.expert_credentials;
   if (typeof args.reviewed_by !== "undefined") update.reviewed_by = args.reviewed_by;
   if (typeof args.reviewed_at !== "undefined") update.reviewed_at = args.reviewed_at;
-  if (typeof args.sources !== "undefined") update.sources = args.sources;
+  if (typeof args.sources !== "undefined") update.sources = args.sources ?? [];
   if (typeof args.disclaimer !== "undefined") update.disclaimer = args.disclaimer;
   if (typeof args.scheduled_at !== "undefined") update.scheduled_at = args.scheduled_at;
   if (typeof args.published_at !== "undefined") update.published_at = args.published_at;
@@ -437,7 +460,7 @@ export async function adminUpdatePost(args: {
   }
   if (typeof args.content_json !== "undefined") update.content_json = args.content_json;
   if (typeof args.content_html !== "undefined") update.content_html = args.content_html;
-  if (typeof args.amazon_products !== "undefined") update.amazon_products = args.amazon_products;
+  if (typeof args.amazon_products !== "undefined") update.amazon_products = args.amazon_products ?? [];
 
   const { error } = await supabase
     .from("posts")

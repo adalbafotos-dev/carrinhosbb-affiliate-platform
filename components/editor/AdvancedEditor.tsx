@@ -351,6 +351,7 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
   }, [meta.slug, meta.siloId, post.id]);
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3, 4] },

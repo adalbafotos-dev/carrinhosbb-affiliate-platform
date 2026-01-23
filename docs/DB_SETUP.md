@@ -23,6 +23,15 @@ supabase db push
 NOTIFY pgrst, 'reload schema';
 ```
 
+## Se voce ja tem uma tabela posts
+Se a tabela `public.posts` ja existia e voce esta vendo erros de coluna ausente ou constraints (ex.: `faq_json`, `supporting_keywords`, `amazon_products`), rode a migration de sincronizacao:
+
+1) No SQL Editor do Supabase, cole o conteudo de `supabase/migrations/20260123_01_sync_posts_schema.sql` e execute.  
+2) Em seguida, force o recarregamento do schema:
+```sql
+NOTIFY pgrst, 'reload schema';
+```
+
 ## Conferindo se as colunas existem
 Rode no SQL Editor:
 ```sql
