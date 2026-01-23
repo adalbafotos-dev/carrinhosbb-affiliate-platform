@@ -1,15 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin/auth";
-import { adminGetSiloById } from "@/lib/db";
+import { adminGetSiloBySlug } from "@/lib/db";
 import { updateSiloAction } from "@/app/admin/silos/actions";
 
 export const revalidate = 0;
 
-export default async function EditSiloPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function EditSiloPage({ params }: { params: Promise<{ slug: string }> }) {
   await requireAdminSession();
-  const { id } = await params;
-  const silo = await adminGetSiloById(id);
+  const { slug } = await params;
+  const silo = await adminGetSiloBySlug(slug);
   if (!silo) return notFound();
 
   return (

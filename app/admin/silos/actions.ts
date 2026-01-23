@@ -80,5 +80,5 @@ export async function updateSiloAction(formData: FormData) {
   });
 
   await adminUpdateSilo(payload.id, payload);
-  redirect(`/admin/silos/${payload.id}`);
+  redirect(`/admin/silos/${payload.slug}`);
 }

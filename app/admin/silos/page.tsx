@@ -43,7 +43,7 @@ export default async function AdminSilosPage() {
                 <td className="px-4 py-3 text-zinc-600">{silo.is_active ? "Sim" : "Não"}</td>
                 <td className="px-4 py-3">
                   <Link
-                    href={`/admin/silos/${silo.id}`}
+                    href={`/admin/silos/${silo.slug}`}
                     className="rounded-md border border-zinc-200 px-3 py-1.5 text-[12px] font-semibold text-zinc-700 hover:bg-zinc-50"
                   >
                     Editar

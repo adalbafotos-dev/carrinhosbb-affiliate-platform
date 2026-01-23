@@ -1,10 +1,12 @@
 import { notFound } from "next/navigation";
+import { requireAdminSession } from "@/lib/admin/auth";
 import { adminGetSiloBySlug } from "@/lib/db";
 import { createBatchWithPosts } from "@/app/admin/silos/actions";
 
 export const revalidate = 0;
 
 export default async function NewBatchPage({ params }: { params: Promise<{ slug: string }> }) {
+  await requireAdminSession();
   const { slug } = await params;
   const silo = await adminGetSiloBySlug(slug);
   if (!silo) return notFound();

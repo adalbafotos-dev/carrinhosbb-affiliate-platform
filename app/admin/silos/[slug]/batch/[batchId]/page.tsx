@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { requireAdminSession } from "@/lib/admin/auth";
 import { adminGetSiloBySlug, adminListBatchPosts } from "@/lib/db";
 
 export const revalidate = 0;
 
 export default async function BatchPage({ params }: { params: Promise<{ slug: string; batchId: string }> }) {
+  await requireAdminSession();
   const { slug, batchId } = await params;
   const silo = await adminGetSiloBySlug(slug);
   if (!silo) return notFound();

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { requireAdminSession } from "@/lib/admin/auth";
 import { adminGetSiloBySlug, adminListPostLinksBySilo, adminListPosts } from "@/lib/db";
 
 export const revalidate = 0;
@@ -13,6 +14,7 @@ type LinkRow = {
 };
 
 export default async function SiloLinksPage({ params }: { params: Promise<{ slug: string }> }) {
+  await requireAdminSession();
   const { slug } = await params;
   const silo = await adminGetSiloBySlug(slug);
   if (!silo) return notFound();
