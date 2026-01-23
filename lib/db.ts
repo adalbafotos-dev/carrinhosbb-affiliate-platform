@@ -10,6 +10,16 @@ async function getAdminSupabaseClient() {
   return getAdminSupabase();
 }
 
+function getMissingColumnFromError(error: any): string | null {
+  if (!error) return null;
+  const message = String(error.message ?? "");
+  const missingMatch = /column\s+[a-zA-Z0-9_\."]*([a-zA-Z0-9_]+)\s+does not exist/i.exec(message);
+  if (missingMatch?.[1]) return missingMatch[1];
+  const cacheMatch = /Could not find the '([a-zA-Z0-9_]+)' column/i.exec(message);
+  if (cacheMatch?.[1]) return cacheMatch[1];
+  return null;
+}
+
 // --- Public (uses anon key, published only) ---
 
 export async function getPublicSilos(): Promise<Silo[]> {
@@ -379,11 +389,15 @@ export async function adminPublishPost(args: { id: string; published: boolean })
 
 export async function adminListSilos(): Promise<Silo[]> {
   const supabase = await getAdminSupabaseClient();
-  const { data, error } = await supabase
-    .from("silos")
-    .select("*")
-    .order("menu_order", { ascending: true })
-    .order("created_at", { ascending: true });
+  const baseQuery = () => supabase.from("silos").select("*").order("created_at", { ascending: true });
+
+  const { data, error } = await baseQuery().order("menu_order", { ascending: true });
+  const missingColumn = getMissingColumnFromError(error);
+  if (missingColumn) {
+    const { data: fallback, error: fallbackError } = await baseQuery();
+    if (fallbackError) throw fallbackError;
+    return (fallback ?? []) as Silo[];
+  }
   if (error) throw error;
   return (data ?? []) as Silo[];
 }
@@ -425,7 +439,42 @@ export async function adminCreateSilo(args: {
 
 export async function adminUpdateSilo(id: string, patch: Partial<Silo>): Promise<Silo> {
   const supabase = await getAdminSupabaseClient();
-  const { data, error } = await supabase.from("silos").update(patch).eq("id", id).select("*").maybeSingle();
+  const tryUpdate = async (body: Record<string, any>) =>
+    supabase.from("silos").update(body).eq("id", id).select("*").maybeSingle();
+
+  let body: Record<string, any> = { ...patch };
+
+  for (let i = 0; i < 5; i++) {
+    const { data, error } = await tryUpdate(body);
+    if (!error) {
+      if (!data) throw new Error("Falha ao atualizar silo");
+      return data as Silo;
+    }
+
+    const missingColumn = getMissingColumnFromError(error);
+    if (missingColumn) {
+      if (missingColumn in body) {
+        // Remove o campo que não existe na tabela atual e tenta novamente
+        // para manter a compatibilidade com bases não migradas.
+        const { [missingColumn]: _, ...rest } = body;
+        body = rest;
+        if (Object.keys(body).length === 0) break;
+        continue;
+      }
+
+      const minimal: Record<string, any> = {};
+      if (typeof patch.name !== "undefined") minimal.name = patch.name;
+      if (typeof patch.slug !== "undefined") minimal.slug = patch.slug;
+      if (typeof patch.description !== "undefined") minimal.description = patch.description;
+      if (Object.keys(minimal).length === 0) throw error;
+      body = minimal;
+      continue;
+    }
+
+    throw error;
+  }
+
+  const { data, error } = await tryUpdate(body);
   if (error) throw error;
   if (!data) throw new Error("Falha ao atualizar silo");
   return data as Silo;
