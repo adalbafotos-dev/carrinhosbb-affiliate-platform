@@ -2,10 +2,12 @@ import Link from "next/link";
 import { adminListSilos } from "@/lib/db";
 import { createSilo } from "@/app/admin/actions";
 import { NewPostForm } from "@/components/admin/NewPostForm";
+import { requireAdminSession } from "@/lib/admin/auth";
 
 export const revalidate = 0;
 
 export default async function NewPostPage() {
+  await requireAdminSession();
   const silos = await adminListSilos();
 
   if (silos.length === 0) {

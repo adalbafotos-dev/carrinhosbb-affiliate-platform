@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   adminCreatePost,
+  adminCreateDraftPost,
   adminCreateSilo,
   adminGetPostById,
   adminPublishPost,
@@ -170,7 +171,7 @@ export async function createPost(formData: FormData) {
   };
 
   const data = CreateSchema.parse(payload);
-  const post = await adminCreatePost({
+  const post = await adminCreateDraftPost({
     silo_id: data.silo_id,
     title: data.title,
     slug: data.slug,

@@ -1,7 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState, useTransition } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { BubbleMenu, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -11,7 +10,6 @@ import TableRow from "@tiptap/extension-table-row";
 import TableHeader from "@tiptap/extension-table-header";
 import TableCell from "@tiptap/extension-table-cell";
 import Placeholder from "@tiptap/extension-placeholder";
-import { ArrowLeft, Laptop, Smartphone } from "lucide-react";
 
 import { EditorImage } from "@/components/editor/extensions/EditorImage";
 import { EntityLink } from "@/components/editor/extensions/EntityLink";
@@ -286,7 +284,6 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
   const [imageAltValue, setImageAltValue] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const [pending, startTransition] = useTransition();
   const heroInputRef = useRef<HTMLInputElement | null>(null);
   const bodyInputRef = useRef<HTMLInputElement | null>(null);
   const uploadDropRef = useRef<((file: File, pos?: number) => void) | null>(null);
@@ -304,7 +301,6 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
   }, [meta.siloId, post.silo, post.silo_id, silos]);
 
   const siloSlug = currentSilo?.slug ?? "silo";
-  const previewHref = `/${siloSlug}/${meta.slug}`;
 
   useEffect(() => {
     metaRef.current = meta;
@@ -320,7 +316,7 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
     if (autoTimer.current) {
       clearTimeout(autoTimer.current);
     }
-    if (pending || saving) return;
+    if (saving) return;
     if (!dirtyRef.current) return;
     autoTimer.current = setTimeout(() => {
       void onSave();
@@ -329,7 +325,7 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
     return () => {
       if (autoTimer.current) clearTimeout(autoTimer.current);
     };
-  }, [docHtml, docJson, meta, onSave, pending, saving]);
+  }, [docHtml, docJson, meta, onSave, saving]);
 
   useEffect(() => {
     if (!metaTitleTouched && meta.metaTitle !== meta.title) {
@@ -466,22 +462,6 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
       editor.off("transaction", syncAlt);
     };
   }, [editor]);
-
-  const lsiTerms = useMemo(() => {
-    const list = Array.from(
-      new Set([...meta.entities, ...meta.supportingKeywords].filter(Boolean))
-    );
-    const text = normalize(docText);
-    return list.map((term) => ({
-      term,
-      used: text.includes(normalize(term)),
-    }));
-  }, [meta.entities, docText]);
-
-  const internalLinks = useMemo(
-    () => links.filter((link) => ["internal", "mention", "about"].includes(link.type)),
-    [links]
-  );
 
   const handleMetaChange = useCallback(
     (patch: MetaPatch) => {
@@ -817,236 +797,172 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
         amazon_products: extractAffiliateProducts(docJson),
       };
 
-      startTransition(async () => {
+      setSaving(true);
+      try {
         await saveEditorPost(payload);
         setLastSavedAt(new Date());
+        dirtyRef.current = false;
         if (nextStatus) updateMeta({ status: nextStatus });
-      });
+      } finally {
+        setSaving(false);
+      }
     },
     [docHtml, docJson, post.id, post.silo_id, siloSlug]
   );
 
   const { setHeader, resetHeader } = useAdminShell();
 
-  const statusLabel = useMemo(() => {
-    const label =
-      meta.status === "published"
-        ? "Publicado"
-        : meta.status === "review"
-          ? "Em revisao"
-          : meta.status === "scheduled"
-            ? "Agendado"
-            : "Rascunho";
-
-    const tone =
-      meta.status === "published"
-        ? "bg-emerald-100 text-emerald-700"
-        : meta.status === "review"
-          ? "bg-amber-100 text-amber-700"
-          : meta.status === "scheduled"
-            ? "bg-blue-100 text-blue-700"
-            : "bg-zinc-100 text-zinc-700";
-
-    return (
-      <div className="flex items-center gap-3">
-        <span className={`rounded-full px-3 py-1 text-[11px] font-semibold ${tone}`}>{label}</span>
-        <span className="text-[11px] text-zinc-500">{formatRelativeTime(lastSavedAt)}</span>
-      </div>
-    );
-  }, [lastSavedAt, meta.status]);
-
-  const headerActions = useMemo(() => {
-    return (
+  useEffect(() => {
+    const rightExtra = (
       <div className="flex items-center gap-2">
-        <div className="flex items-center gap-1 rounded-full border border-zinc-200 bg-zinc-50 p-1">
-          <button
-            type="button"
-            onClick={() => setPreviewMode("desktop")}
-            className={`rounded-full p-1 ${previewMode === "desktop" ? "bg-white text-zinc-900" : "text-zinc-400"}`}
-            title="Desktop"
-          >
-            <Laptop size={16} />
-          </button>
-          <button
-            type="button"
-            onClick={() => setPreviewMode("mobile")}
-            className={`rounded-full p-1 ${previewMode === "mobile" ? "bg-white text-zinc-900" : "text-zinc-400"}`}
-            title="Mobile"
-          >
-            <Smartphone size={16} />
-          </button>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => onSave()}
-          disabled={pending}
-          className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
-        >
-          Salvar
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSave("review")}
-          disabled={pending}
-          className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
-        >
-          Enviar revisao
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setScheduleOpen(true)}
-          disabled={pending}
-          className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
-        >
-          Agendar
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setPublishOpen(true)}
-          disabled={pending}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-xs font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
-        >
-          Publicar
-        </button>
-
-        <Link
-          href={previewHref}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-        >
-          Ver pagina
-        </Link>
-
         <button
           type="button"
           onClick={() => setShowLeft((value) => !value)}
-          className="rounded-md border border-zinc-200 bg-white px-2 py-2 text-[11px] text-zinc-600 hover:bg-zinc-50"
+          className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] text-zinc-600 hover:bg-zinc-50"
         >
-          {showLeft ? "Esconder LSI" : "Mostrar LSI"}
+          {showLeft ? "Ocultar LSI" : "Mostrar LSI"}
         </button>
-
         <button
           type="button"
           onClick={() => setShowRight((value) => !value)}
-          className="rounded-md border border-zinc-200 bg-white px-2 py-2 text-[11px] text-zinc-600 hover:bg-zinc-50"
+          className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] text-zinc-600 hover:bg-zinc-50"
         >
-          {showRight ? "Esconder painel" : "Mostrar painel"}
+          {showRight ? "Ocultar painel" : "Mostrar painel"}
         </button>
+        <span className="text-[11px] text-zinc-500">{formatRelativeTime(lastSavedAt)}</span>
       </div>
     );
-  }, [onSave, pending, previewHref, previewMode, showLeft, showRight]);
 
-  const headerTitle = useMemo(() => {
-    return (
-      <div className="flex items-center gap-3 text-xs">
-        <Link
-          href="/admin"
-          className="inline-flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] font-semibold text-zinc-600 hover:bg-zinc-50"
-        >
-          <ArrowLeft size={12} />
-          Voltar
-        </Link>
-        <span className="text-zinc-400">/</span>
-        <span className="text-zinc-600">{currentSilo?.name ?? "Sem silo"}</span>
-        <span className="text-zinc-400">/</span>
-        <span className="font-semibold text-zinc-900">{meta.title || "Sem titulo"}</span>
-      </div>
-    );
-  }, [currentSilo?.name, meta.title]);
-
-  useEffect(() => {
     setHeader({
-      title: headerTitle,
-      subtitle: "Editor completo",
-      statusLabel: statusLabel,
-      saving: pending,
-      actions: headerActions,
+      custom: (
+        <EditorHeader
+          breadcrumb={[
+            { label: "Admin", href: "/admin" },
+            { label: currentSilo?.name ?? "Sem silo", href: currentSilo ? `/admin/silos/${currentSilo.slug}` : undefined },
+            { label: meta.title || "Sem titulo" },
+          ]}
+          status={meta.status}
+          saving={saving}
+          previewMode={previewMode}
+          onPreviewChange={setPreviewMode}
+          onSave={() => void onSave()}
+          onPublish={() => setPublishOpen(true)}
+          rightExtra={rightExtra}
+        />
+      ),
       layout: "full",
     });
     return () => resetHeader();
-  }, [headerActions, headerTitle, pending, resetHeader, setHeader, statusLabel]);
+  }, [currentSilo, lastSavedAt, meta.status, meta.title, onSave, previewMode, resetHeader, saving, setHeader, setPreviewMode, showLeft, showRight]);
+
+  const openHeroPicker = useCallback(() => heroInputRef.current?.click(), []);
+  const openMediaPicker = useCallback(() => bodyInputRef.current?.click(), []);
+  const openLinkDialog = useCallback(() => setLinkDialogOpen(true), []);
+
+  const contextValue = useMemo(
+    () => ({
+      editor,
+      meta,
+      setMeta: handleMetaChange,
+      outline,
+      links,
+      docText,
+      docHtml,
+      silos,
+      slugStatus,
+      saving,
+      previewMode,
+      setPreviewMode,
+      onHeroUpload: uploadHero,
+      onOpenHeroPicker: openHeroPicker,
+      onOpenMedia: openMediaPicker,
+      onOpenLinkDialog: openLinkDialog,
+      onInsertProduct,
+      onInsertYoutube,
+      onInsertTable,
+      onInsertSection,
+      onInsertFaq,
+      onInsertHowTo,
+      onInsertCtaBest,
+      onInsertCtaValue,
+      onInsertCtaTable,
+      onAlignImage,
+      onSelectLink,
+      onInsertImage,
+      onUpdateImageAlt,
+      onRemoveImage,
+      onJumpToHeading,
+    }),
+    [
+      editor,
+      meta,
+      handleMetaChange,
+      outline,
+      links,
+      docText,
+      docHtml,
+      silos,
+      slugStatus,
+      saving,
+      previewMode,
+      setPreviewMode,
+      uploadHero,
+      openHeroPicker,
+      openMediaPicker,
+      openLinkDialog,
+      onInsertProduct,
+      onInsertYoutube,
+      onInsertTable,
+      onInsertSection,
+      onInsertFaq,
+      onInsertHowTo,
+      onInsertCtaBest,
+      onInsertCtaValue,
+      onInsertCtaTable,
+      onAlignImage,
+      onSelectLink,
+      onInsertImage,
+      onUpdateImageAlt,
+      onRemoveImage,
+      onJumpToHeading,
+    ]
+  );
 
   return (
-    <div className="flex h-full w-full overflow-hidden">
-      {showLeft ? (
-        <ContentIntelligence
-          outline={outline}
-          lsiTerms={lsiTerms}
-          internalLinks={internalLinks}
-          onJumpToHeading={onJumpToHeading}
-        />
-      ) : null}
+    <EditorProvider value={contextValue}>
+      <div className="flex h-full w-full overflow-hidden">
+        {showLeft ? <ContentIntelligence /> : null}
 
-      <div className="flex h-full flex-1 flex-col">
-        <EditorCanvas
-          editor={editor}
-          meta={meta}
-          slugStatus={slugStatus}
-          onMetaChange={handleMetaChange}
-          onHeroUpload={uploadHero}
-          onOpenHeroPicker={() => heroInputRef.current?.click()}
-          onOpenLinkDialog={() => setLinkDialogOpen(true)}
-          onOpenMedia={() => bodyInputRef.current?.click()}
-          onInsertProduct={onInsertProduct}
-          onInsertYoutube={onInsertYoutube}
-          onInsertTable={onInsertTable}
-          onInsertSection={onInsertSection}
-          onInsertFaq={onInsertFaq}
-          onInsertHowTo={onInsertHowTo}
-          onInsertCtaBest={onInsertCtaBest}
-          onInsertCtaValue={onInsertCtaValue}
-          onInsertCtaTable={onInsertCtaTable}
-          onAlignImage={onAlignImage}
-          previewMode={previewMode}
-        />
+        <div className="flex h-full flex-1 flex-col">
+          <EditorCanvas />
 
-        <LinkDialog editor={editor} open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} />
+          <AdvancedLinkDialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} />
 
-        {editor ? (
-          <BubbleMenu
-            editor={editor}
-            shouldShow={() => editor.isActive("image")}
-            tippyOptions={{ duration: 100, placement: "top" }}
-            className="rounded-lg border border-zinc-200 bg-white p-2 shadow-lg"
-          >
-            <div className="flex items-center gap-2 text-xs text-zinc-600">
-              <span>Alt</span>
-              <input
-                value={imageAltValue}
-                onChange={(event) => {
-                  const value = event.target.value;
-                  setImageAltValue(value);
-                  editor.chain().focus().updateAttributes("image", { alt: value }).run();
-                }}
-                className="w-48 rounded-md border border-zinc-200 px-2 py-1 text-xs outline-none"
-                placeholder="Alt text"
-              />
-            </div>
-          </BubbleMenu>
-        ) : null}
-      </div>
+          {editor ? (
+            <BubbleMenu
+              editor={editor}
+              shouldShow={() => editor.isActive("image")}
+              tippyOptions={{ duration: 100, placement: "top" }}
+              className="rounded-lg border border-zinc-200 bg-white p-2 shadow-lg"
+            >
+              <div className="flex items-center gap-2 text-xs text-zinc-600">
+                <span>Alt</span>
+                <input
+                  value={imageAltValue}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setImageAltValue(value);
+                    editor.chain().focus().updateAttributes("image", { alt: value }).run();
+                  }}
+                  className="w-48 rounded-md border border-zinc-200 px-2 py-1 text-xs outline-none"
+                  placeholder="Alt text"
+                />
+              </div>
+            </BubbleMenu>
+          ) : null}
+        </div>
 
-      {showRight ? (
-        <EditorInspector
-          meta={meta}
-          contentText={docText}
-          contentHtml={docHtml}
-          outline={outline}
-          links={links}
-          images={meta.images}
-          silos={silos}
-          onMetaChange={handleMetaChange}
-          onSelectLink={onSelectLink}
-          onInsertImage={onInsertImage}
-          onUpdateImageAlt={onUpdateImageAlt}
-          onRemoveImage={onRemoveImage}
-        />
-      ) : null}
+        {showRight ? <EditorInspector /> : null}
 
       <input
         ref={heroInputRef}
@@ -1134,6 +1050,7 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
         </Modal>
       ) : null}
     </div>
+    </EditorProvider>
   );
 }
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
 import { SiteChrome } from "@/components/site/SiteChrome";
+import { getPublicSilos } from "@/lib/db";
 
 const display = Fraunces({
   subsets: ["latin"],
@@ -16,16 +17,17 @@ const body = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Estética da Verdade — Unhas",
-  description: "Guias, reviews e recomendações sobre unhas e manicure (equipamentos, géis, kits e decoração).",
+  title: "Affiliate Content Platform",
+  description: "CMS neutro para silos, pilares e posts otimizados.",
   metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:3000"),
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const silos = await getPublicSilos();
   return (
     <html lang="pt-BR">
       <body className={`${body.variable} ${display.variable} min-h-screen`}>
-        <SiteChrome>{children}</SiteChrome>
+        <SiteChrome silos={silos}>{children}</SiteChrome>
       </body>
     </html>
   );

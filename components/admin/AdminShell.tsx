@@ -75,6 +75,17 @@ export function AdminShell({ children }: { children: ReactNode }) {
                     header.subtitle
                   )
                 ) : null}
+                <nav className="mt-2 flex items-center gap-2 text-[11px] text-zinc-500">
+                  <a className="rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-100" href="/admin">
+                    Conteudo
+                  </a>
+                  <a className="rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-100" href="/admin/silos">
+                    Silos
+                  </a>
+                  <a className="rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-100" href="/admin/new">
+                    Novo post
+                  </a>
+                </nav>
               </div>
 
               <div className="flex items-center gap-3 text-xs text-zinc-600">

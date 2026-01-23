@@ -3,6 +3,14 @@ export type Silo = {
   name: string;
   slug: string;
   description: string | null;
+  meta_title?: string | null;
+  meta_description?: string | null;
+  hero_image_url?: string | null;
+  hero_image_alt?: string | null;
+  pillar_content_json?: any | null;
+  pillar_content_html?: string | null;
+  menu_order?: number | null;
+  is_active?: boolean | null;
   created_at: string;
 };
 
@@ -29,6 +37,9 @@ export type Post = {
   hero_image_alt?: string | null;
   og_image_url?: string | null;
   images?: any[] | null;
+  intent?: "commercial" | "transactional" | "informational" | null | string;
+  pillar_rank?: number | null;
+  is_featured?: boolean | null;
   author_name?: string | null;
   expert_name?: string | null;
   expert_role?: string | null;

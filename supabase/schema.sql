@@ -10,6 +10,14 @@ create table if not exists public.silos (
   name text not null,
   slug text not null unique,
   description text,
+  meta_title text,
+  meta_description text,
+  hero_image_url text,
+  hero_image_alt text,
+  pillar_content_json jsonb,
+  pillar_content_html text,
+  menu_order int default 0,
+  is_active boolean default true,
   created_at timestamptz default now()
 );
 
@@ -41,6 +49,9 @@ create table if not exists public.posts (
   hero_image_alt text,
   og_image_url text,
   images jsonb default '[]'::jsonb,
+  intent text,
+  pillar_rank int default 0,
+  is_featured boolean default false,
   author_name text,
   expert_name text,
   expert_role text,

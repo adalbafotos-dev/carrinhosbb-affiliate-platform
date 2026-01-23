@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { adminListPosts } from "@/lib/db";
 import { schedulePost, setPublishState } from "@/app/admin/actions";
+import { requireAdminSession } from "@/lib/admin/auth";
 
 export const revalidate = 0;
 
@@ -25,6 +26,7 @@ export default async function AdminPage({
 }: {
   searchParams: Promise<{ status?: string; q?: string }>;
 }) {
+  await requireAdminSession();
   const { status, q } = await searchParams;
   const statusFilter = status && status !== "all" ? status : null;
   const posts = await adminListPosts({ status: statusFilter, query: q ?? null });

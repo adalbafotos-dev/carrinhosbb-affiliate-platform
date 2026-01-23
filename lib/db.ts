@@ -15,7 +15,12 @@ async function getAdminSupabaseClient() {
 export async function getPublicSilos(): Promise<Silo[]> {
   if (!hasPublicEnv()) return [];
   const supabase = getPublicSupabase();
-  const { data, error } = await supabase.from("silos").select("*").order("created_at", { ascending: true });
+  const { data, error } = await supabase
+    .from("silos")
+    .select("*")
+    .eq("is_active", true)
+    .order("menu_order", { ascending: true })
+    .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as Silo[];
 }
@@ -23,7 +28,12 @@ export async function getPublicSilos(): Promise<Silo[]> {
 export async function getPublicSiloBySlug(slug: string): Promise<Silo | null> {
   if (!hasPublicEnv()) return null;
   const supabase = getPublicSupabase();
-  const { data, error } = await supabase.from("silos").select("*").eq("slug", slug).maybeSingle();
+  const { data, error } = await supabase
+    .from("silos")
+    .select("*")
+    .eq("slug", slug)
+    .eq("is_active", true)
+    .maybeSingle();
   if (error) throw error;
   return (data ?? null) as Silo | null;
 }
@@ -39,6 +49,8 @@ export async function getPublicPostsBySilo(siloSlug: string): Promise<Post[]> {
     .select("*")
     .eq("silo_id", silo.id)
     .eq("published", true)
+    .order("is_featured", { ascending: false })
+    .order("pillar_rank", { ascending: true })
     .order("updated_at", { ascending: false });
 
   if (error) throw error;
@@ -244,6 +256,22 @@ export async function adminCreatePost(args: {
   } as PostWithSilo;
 }
 
+export async function adminCreateDraftPost(args: {
+  silo_id: string;
+  title: string;
+  slug: string;
+  target_keyword: string;
+  supporting_keywords?: string[] | null;
+  meta_description?: string | null;
+  entities?: string[] | null;
+}): Promise<PostWithSilo> {
+  return adminCreatePost({
+    ...args,
+    status: "draft",
+    published_at: null,
+  });
+}
+
 export async function adminUpdatePost(args: {
   id: string;
   silo_id?: string | null;
@@ -356,7 +384,11 @@ export async function adminPublishPost(args: { id: string; published: boolean })
 
 export async function adminListSilos(): Promise<Silo[]> {
   const supabase = await getAdminSupabaseClient();
-  const { data, error } = await supabase.from("silos").select("*").order("created_at", { ascending: true });
+  const { data, error } = await supabase
+    .from("silos")
+    .select("*")
+    .order("menu_order", { ascending: true })
+    .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as Silo[];
 }
@@ -364,6 +396,13 @@ export async function adminListSilos(): Promise<Silo[]> {
 export async function adminGetSiloBySlug(slug: string): Promise<Silo | null> {
   const supabase = await getAdminSupabaseClient();
   const { data, error } = await supabase.from("silos").select("*").eq("slug", slug).maybeSingle();
+  if (error) throw error;
+  return (data ?? null) as Silo | null;
+}
+
+export async function adminGetSiloById(id: string): Promise<Silo | null> {
+  const supabase = await getAdminSupabaseClient();
+  const { data, error } = await supabase.from("silos").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
   return (data ?? null) as Silo | null;
 }
@@ -386,6 +425,14 @@ export async function adminCreateSilo(args: {
 
   if (error) throw error;
   if (!data) throw new Error("Falha ao criar o silo.");
+  return data as Silo;
+}
+
+export async function adminUpdateSilo(id: string, patch: Partial<Silo>): Promise<Silo> {
+  const supabase = await getAdminSupabaseClient();
+  const { data, error } = await supabase.from("silos").update(patch).eq("id", id).select("*").maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("Falha ao atualizar silo");
   return data as Silo;
 }
 

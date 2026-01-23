@@ -3,7 +3,13 @@
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin/auth";
-import { adminAddPostToBatch, adminCreatePost, adminCreateSiloBatch, adminGetSiloBySlug } from "@/lib/db";
+import {
+  adminAddPostToBatch,
+  adminCreatePost,
+  adminCreateSiloBatch,
+  adminGetSiloBySlug,
+  adminUpdateSilo,
+} from "@/lib/db";
 
 const CreateBatchSchema = z.object({
   siloSlug: z.string().min(1),
@@ -41,4 +47,38 @@ export async function createBatchWithPosts(formData: FormData) {
   }
 
   redirect(`/admin/silos/${silo.slug}/batch/${batch.id}`);
+}
+
+const UpdateSiloSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(2),
+  slug: z.string().min(2),
+  description: z.string().optional().nullable(),
+  meta_title: z.string().optional().nullable(),
+  meta_description: z.string().optional().nullable(),
+  hero_image_url: z.string().optional().nullable(),
+  hero_image_alt: z.string().optional().nullable(),
+  pillar_content_html: z.string().optional().nullable(),
+  menu_order: z.coerce.number().int().default(0),
+  is_active: z.coerce.boolean(),
+});
+
+export async function updateSiloAction(formData: FormData) {
+  await requireAdminSession();
+  const payload = UpdateSiloSchema.parse({
+    id: formData.get("id"),
+    name: formData.get("name"),
+    slug: formData.get("slug"),
+    description: formData.get("description"),
+    meta_title: formData.get("meta_title"),
+    meta_description: formData.get("meta_description"),
+    hero_image_url: formData.get("hero_image_url"),
+    hero_image_alt: formData.get("hero_image_alt"),
+    pillar_content_html: formData.get("pillar_content_html"),
+    menu_order: formData.get("menu_order"),
+    is_active: formData.get("is_active") === "true" || formData.get("is_active") === "on",
+  });
+
+  await adminUpdateSilo(payload.id, payload);
+  redirect(`/admin/silos/${payload.id}`);
 }

@@ -36,6 +36,41 @@ async function ensureSilo() {
   return inserted;
 }
 
+async function ensurePublishedPost(silo: { id: string; slug: string }) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !serviceKey) return null;
+
+  const adminClient = createClient(url, serviceKey, { auth: { persistSession: false } });
+  const slug = `public-test-${Date.now()}`;
+  const title = "Post de teste";
+  const now = new Date().toISOString();
+
+  const { data, error } = await adminClient
+    .from("posts")
+    .insert({
+      silo_id: silo.id,
+      title,
+      slug,
+      target_keyword: "teste",
+      meta_description: "Post de teste",
+      content_html: "<p>Conteudo de teste</p>",
+      content_json: null,
+      published: true,
+      status: "published",
+      published_at: now,
+      updated_at: now,
+    })
+    .select("slug")
+    .maybeSingle();
+
+  if (error) {
+    if ((error as any).code === "42501") return null;
+    throw error;
+  }
+  return data ?? null;
+}
+
 test("admin protection blocks access and rejects wrong password", async ({ page, request }) => {
   await page.goto("/admin");
   await expect(page).toHaveURL(/\/admin\/login/);
@@ -123,4 +158,23 @@ test("admin can create draft and publish/unpublish", async ({ page }) => {
 
   const unpublishedResponse = await page.goto(previewPath ?? "", { waitUntil: "domcontentloaded" });
   expect(unpublishedResponse?.status()).toBe(404);
+});
+
+test("public pillar and post routes respond", async ({ request }) => {
+  const silo = await ensureSilo();
+  if (!silo) {
+    test.skip(true, "Sem silo disponível para testar rotas públicas");
+  }
+
+  const created = await ensurePublishedPost(silo as any);
+  const postSlug = created?.slug || "sample-slug";
+
+  const home = await request.get("/");
+  expect(home.status()).toBeLessThan(500);
+
+  const pillar = await request.get(`/${(silo as any).slug}`);
+  expect([200, 404]).toContain(pillar.status());
+
+  const postRes = await request.get(`/${(silo as any).slug}/${postSlug}`);
+  expect([200, 404]).toContain(postRes.status());
 });

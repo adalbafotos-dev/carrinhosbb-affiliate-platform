@@ -255,6 +255,14 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
         <nav className="text-[11px] text-[color:var(--muted-2)]">
           <a href="/">Home</a> / <a href={`/${silo}`}>{post.silo?.name ?? silo}</a> / {post.title}
         </nav>
+        <div className="mt-3">
+          <a
+            href={`/${silo}`}
+            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-1 text-xs font-semibold text-[color:var(--ink)] hover:bg-[color:var(--brand-primary)]/10"
+          >
+            ← Voltar para {post.silo?.name ?? silo}
+          </a>
+        </div>
         <p className="text-xs text-[color:var(--muted-2)]">{post.silo?.name ?? "Artigo"}</p>
         <h1 className="mt-2 text-3xl font-semibold leading-tight md:text-4xl">{post.title}</h1>
         <p className="mt-4 text-sm text-[color:var(--muted)]">
