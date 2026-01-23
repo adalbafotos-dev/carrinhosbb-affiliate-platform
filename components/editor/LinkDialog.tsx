@@ -2,12 +2,21 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
-import { Check, ExternalLink, Link as LinkIcon, X } from "lucide-react";
+import { Check, ExternalLink, Link as LinkIcon, Search, X } from "lucide-react";
 
 type Props = {
   editor: Editor | null;
   open: boolean;
   onClose: () => void;
+};
+
+type LinkType = "internal" | "external" | "affiliate" | "about" | "mention";
+
+type InternalResult = {
+  id: string;
+  title: string;
+  slug: string;
+  siloSlug: string;
 };
 
 function parseRel(rel?: string) {
@@ -18,10 +27,17 @@ function parseRel(rel?: string) {
 export function LinkDialog({ editor, open, onClose }: Props) {
   const [url, setUrl] = useState("");
   const [text, setText] = useState("");
+  const [linkType, setLinkType] = useState<LinkType>("external");
   const [openInNewTab, setOpenInNewTab] = useState(true);
   const [nofollow, setNofollow] = useState(false);
   const [sponsored, setSponsored] = useState(false);
-  const [isAbout, setIsAbout] = useState(false);
+  const [aboutEntity, setAboutEntity] = useState(false);
+  const [mentionEntity, setMentionEntity] = useState(false);
+  const [postId, setPostId] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [results, setResults] = useState<InternalResult[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const selectedText = useMemo(() => {
     if (!editor) return "";
@@ -35,12 +51,27 @@ export function LinkDialog({ editor, open, onClose }: Props) {
     const attrs = editor.getAttributes("link") as any;
     const rel = parseRel(attrs.rel);
     const href = attrs.href ?? "";
+    const type = (attrs["data-link-type"] as LinkType | undefined) ?? "";
+
     setUrl(href);
+    setText(selectedText);
     setOpenInNewTab(attrs.target === "_blank" || /^https?:\/\//i.test(href));
     setNofollow(rel.has("nofollow"));
     setSponsored(rel.has("sponsored"));
-    setIsAbout(attrs["data-entity-type"] === "about");
-    setText(selectedText);
+    const entity = attrs["data-entity"] ?? attrs["data-entity-type"];
+    setAboutEntity(rel.has("about") || entity === "about");
+    setMentionEntity(entity === "mention");
+    setPostId(attrs["data-post-id"] ?? null);
+
+    if (type) {
+      setLinkType(type);
+    } else if (rel.has("sponsored")) {
+      setLinkType("affiliate");
+    } else if (href.startsWith("/")) {
+      setLinkType("internal");
+    } else {
+      setLinkType("external");
+    }
   }, [editor, open, selectedText]);
 
   useEffect(() => {
@@ -52,8 +83,60 @@ export function LinkDialog({ editor, open, onClose }: Props) {
     return () => window.removeEventListener("keydown", handler);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) return;
+    const term = search.trim();
+    if (term.length < 2) {
+      setResults([]);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    fetch(`/api/admin/mentions?q=${encodeURIComponent(term)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled) setResults((data.items ?? []) as InternalResult[]);
+      })
+      .catch(() => {
+        if (!cancelled) setResults([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSearching(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, search]);
+
+  function handleTypeChange(next: LinkType) {
+    setLinkType(next);
+    if (next === "affiliate") {
+      setSponsored(true);
+      setNofollow(true);
+      setOpenInNewTab(true);
+    }
+    if (next === "external") {
+      setOpenInNewTab(true);
+    }
+    if (next === "internal") {
+      setOpenInNewTab(false);
+    }
+    if (next === "about") {
+      setUrl("/sobre");
+      setAboutEntity(true);
+      setMentionEntity(false);
+    }
+    if (next === "mention") {
+      setMentionEntity(true);
+      setAboutEntity(false);
+      setOpenInNewTab(false);
+    }
+  }
+
   function apply() {
     if (!editor) return;
+
     const href = url.trim();
     if (!href) {
       editor.chain().focus().unsetLink().run();
@@ -63,42 +146,38 @@ export function LinkDialog({ editor, open, onClose }: Props) {
 
     const relTokens = new Set<string>();
     if (nofollow) relTokens.add("nofollow");
-    if (sponsored) relTokens.add("sponsored");
+    if (sponsored || linkType === "affiliate") relTokens.add("sponsored");
+    if (aboutEntity || linkType === "about") relTokens.add("about");
     if (openInNewTab) {
       relTokens.add("noopener");
       relTokens.add("noreferrer");
     }
+
     const rel = Array.from(relTokens).join(" ") || null;
 
     const { from, to } = editor.state.selection;
     const hasSelection = from !== to;
     const displayText = text.trim() || selectedText || href;
 
+    const attrs = {
+      href,
+      target: openInNewTab ? "_blank" : null,
+      rel,
+      "data-link-type": linkType,
+      "data-post-id": linkType === "mention" ? postId : null,
+      "data-entity-type": aboutEntity ? "about" : mentionEntity ? "mention" : null,
+      "data-entity": aboutEntity ? "about" : mentionEntity ? "mention" : null,
+    };
+
     if (!hasSelection) {
-      editor
-        .chain()
-        .focus()
-        .insertContent(displayText)
-        .extendMarkRange("link")
-        .setLink({
-          href,
-          target: openInNewTab ? "_blank" : null,
-          rel,
-          "data-entity-type": isAbout ? "about" : null,
-        })
-        .run();
+      editor.chain().focus().insertContent(displayText).extendMarkRange("link").setLink(attrs).run();
     } else {
       editor
         .chain()
         .focus()
         .insertContentAt({ from, to }, displayText)
         .setTextSelection({ from, to: from + displayText.length })
-        .setLink({
-          href,
-          target: openInNewTab ? "_blank" : null,
-          rel,
-          "data-entity-type": isAbout ? "about" : null,
-        })
+        .setLink(attrs)
         .run();
     }
 
@@ -109,7 +188,7 @@ export function LinkDialog({ editor, open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-lg overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl">
+      <div className="w-full max-w-xl overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-zinc-800">
             <LinkIcon size={16} />
@@ -122,11 +201,26 @@ export function LinkDialog({ editor, open, onClose }: Props) {
 
         <div className="space-y-4 px-5 py-4">
           <div>
+            <label className="text-xs font-semibold uppercase text-zinc-500">Tipo do link</label>
+            <select
+              value={linkType}
+              onChange={(event) => handleTypeChange(event.target.value as LinkType)}
+              className="mt-2 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none"
+            >
+              <option value="internal">Interno</option>
+              <option value="external">Externo</option>
+              <option value="affiliate">Afiliado</option>
+              <option value="about">About</option>
+              <option value="mention">Mention</option>
+            </select>
+          </div>
+
+          <div>
             <label className="text-xs font-semibold uppercase text-zinc-500">URL</label>
             <input
               value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              className="mt-2 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
+              onChange={(event) => setUrl(event.target.value)}
+              className="mt-2 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none"
               placeholder="https://..."
               autoFocus
             />
@@ -136,9 +230,9 @@ export function LinkDialog({ editor, open, onClose }: Props) {
             <label className="text-xs font-semibold uppercase text-zinc-500">Texto do link</label>
             <input
               value={text}
-              onChange={(e) => setText(e.target.value)}
-              className="mt-2 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400"
-              placeholder={selectedText || "Texto visível"}
+              onChange={(event) => setText(event.target.value)}
+              className="mt-2 w-full rounded-md border border-zinc-200 px-3 py-2 text-sm outline-none"
+              placeholder={selectedText || "Texto visivel"}
             />
           </div>
 
@@ -154,17 +248,61 @@ export function LinkDialog({ editor, open, onClose }: Props) {
               <Toggle label="Nofollow (SEO)" checked={nofollow} onChange={setNofollow} />
               <Toggle
                 label="Sponsored (Afiliado)"
-                checked={sponsored}
+                checked={sponsored || linkType === "affiliate"}
                 onChange={setSponsored}
                 tone="accent"
+                disabled={linkType === "affiliate"}
               />
               <Toggle
-                label="Is Entity (About)"
-                checked={isAbout}
-                onChange={setIsAbout}
+                label="About (Entidade)"
+                checked={aboutEntity}
+                onChange={setAboutEntity}
                 tone="purple"
               />
+              <Toggle
+                label="Mention (Entidade)"
+                checked={mentionEntity}
+                onChange={setMentionEntity}
+                tone="blue"
+              />
             </div>
+          </div>
+
+          <div className="rounded-md border border-zinc-200 bg-white p-3">
+            <p className="text-[11px] font-semibold uppercase text-zinc-500">Buscar posts internos</p>
+            <div className="mt-2 flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-2 py-2">
+              <Search size={14} className="text-zinc-400" />
+              <input
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Buscar por titulo"
+                className="w-full bg-transparent text-xs outline-none"
+              />
+            </div>
+            {searching ? (
+              <p className="mt-2 text-xs text-zinc-400">Buscando...</p>
+            ) : results.length === 0 ? (
+              <p className="mt-2 text-xs text-zinc-400">Nenhum resultado.</p>
+            ) : (
+              <div className="mt-2 space-y-2">
+                {results.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      setUrl(`/${item.siloSlug}/${item.slug}`);
+                      setText(item.title);
+                      setPostId(item.id);
+                      setLinkType("internal");
+                    }}
+                    className="w-full rounded-md border border-zinc-200 px-3 py-2 text-left text-xs text-zinc-600 hover:bg-zinc-50"
+                  >
+                    <p className="font-medium text-zinc-700">{item.title}</p>
+                    <p className="text-[10px] text-zinc-400">/{item.siloSlug}/{item.slug}</p>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -196,12 +334,14 @@ function Toggle({
   onChange,
   icon,
   tone,
+  disabled,
 }: {
   label: string;
   checked: boolean;
   onChange: (value: boolean) => void;
   icon?: ReactNode;
-  tone?: "accent" | "purple";
+  tone?: "accent" | "purple" | "blue";
+  disabled?: boolean;
 }) {
   const toneClass =
     tone === "accent"
@@ -212,12 +352,16 @@ function Toggle({
         ? checked
           ? "text-purple-600"
           : "text-purple-500"
-        : checked
-          ? "text-zinc-800"
-          : "text-zinc-600";
+        : tone === "blue"
+          ? checked
+            ? "text-blue-600"
+            : "text-blue-500"
+          : checked
+            ? "text-zinc-800"
+            : "text-zinc-600";
 
   return (
-    <label className="group flex items-center justify-between text-sm">
+    <label className={`group flex items-center justify-between text-sm ${disabled ? "opacity-60" : ""}`}>
       <span className={`flex items-center gap-2 ${toneClass} group-hover:text-zinc-800`}>
         {icon}
         {label}
@@ -226,10 +370,11 @@ function Toggle({
         type="button"
         role="switch"
         aria-checked={checked}
-        onClick={() => onChange(!checked)}
+        onClick={() => (disabled ? null : onChange(!checked))}
         className={`relative h-5 w-10 rounded-full transition ${
           checked ? "bg-zinc-900" : "bg-zinc-300"
         }`}
+        disabled={disabled}
       >
         <span
           className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition ${

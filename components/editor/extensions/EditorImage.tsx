@@ -24,6 +24,16 @@ export const EditorImage = Image.extend({
         renderHTML: (attributes) =>
           attributes["data-align"] ? { "data-align": attributes["data-align"] } : {},
       },
+      width: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("width"),
+        renderHTML: (attributes) => (attributes.width ? { width: attributes.width } : {}),
+      },
+      height: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("height"),
+        renderHTML: (attributes) => (attributes.height ? { height: attributes.height } : {}),
+      },
     };
   },
 });

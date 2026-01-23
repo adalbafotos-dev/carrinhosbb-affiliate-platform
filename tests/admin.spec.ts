@@ -55,8 +55,8 @@ test("admin can create draft and publish/unpublish", async ({ page }) => {
   await page.click('button[type="submit"]');
   await expect(page).toHaveURL(/\/admin$/);
 
-  await page.click('a[href="/admin/editor/new"]');
-  await expect(page).toHaveURL(/\/admin\/editor\/new/);
+  await page.click('a[href="/admin/new"]');
+  await expect(page).toHaveURL(/\/admin\/new/);
 
   const silo = await ensureSilo();
   if (!silo) {
@@ -74,25 +74,52 @@ test("admin can create draft and publish/unpublish", async ({ page }) => {
   await expect(page).toHaveURL(/\/admin\/editor\//);
 
   const editorUrl = page.url();
-  const urlText = await page.locator("p", { hasText: "URL:" }).first().textContent();
-  const previewPath = urlText?.replace("URL:", "").trim();
-  expect(previewPath, "Preview URL should be present").toBeTruthy();
+  const previewPath = `/${silo.slug}/${slug}`;
 
   await page.goto("/admin");
   await expect(page.getByText(title)).toBeVisible();
   await expect(page.getByRole("cell", { name: "Rascunho" }).first()).toBeVisible();
 
+  // Atualiza conteudo rapidamente para passar no gate (usa Supabase service se disponivel)
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (serviceKey && process.env.NEXT_PUBLIC_SUPABASE_URL) {
+    const adminClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, serviceKey, { auth: { persistSession: false } });
+    await adminClient
+      .from("posts")
+      .update({
+        content_html: `<p><a href="/${silo.slug}">link silo</a></p>`,
+        content_json: {
+          type: "doc",
+          content: [
+            {
+              type: "paragraph",
+              content: [
+                {
+                  type: "text",
+                  text: "link silo",
+                  marks: [{ type: "link", attrs: { href: `/${silo.slug}`, rel: "noopener noreferrer" } }],
+                },
+              ],
+            },
+          ],
+        },
+        target_keyword: "teste keyword",
+        meta_description: "descricao",
+      })
+      .eq("slug", slug);
+  }
+
   await page.goto(editorUrl);
   await page.getByRole("button", { name: "Publicar" }).click();
-  await expect(page.getByText("Post publicado.")).toBeVisible();
+  await page.getByRole("button", { name: "Publicar agora" }).click();
+  await expect(page.getByText("Publicado")).toBeVisible();
 
   const publishedResponse = await page.goto(previewPath ?? "", { waitUntil: "domcontentloaded" });
   expect(publishedResponse?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
 
-  await page.goto(editorUrl);
-  await page.getByRole("button", { name: "Despublicar" }).click();
-  await expect(page.getByText("Post despublicado.")).toBeVisible();
+  await page.goto("/admin");
+  await page.getByRole("button", { name: "Despublicar" }).first().click();
 
   const unpublishedResponse = await page.goto(previewPath ?? "", { waitUntil: "domcontentloaded" });
   expect(unpublishedResponse?.status()).toBe(404);

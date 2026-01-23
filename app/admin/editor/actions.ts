@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { adminGetPostById, adminPublishPost, adminUpdatePost } from "@/lib/db";
+import { adminFindTargetKeywordConflict, adminGetPostById, adminGetPostLinks, adminPublishPost, adminReplacePostLinks, adminUpdatePost } from "@/lib/db";
 import { requireAdminSession } from "@/lib/admin/auth";
 
 const SaveSchema = z.object({
@@ -10,13 +10,32 @@ const SaveSchema = z.object({
   silo_id: z.string().uuid().nullable().optional(),
   title: z.string().min(3).max(180),
   seo_title: z.string().max(180).optional(),
+  meta_title: z.string().max(180).optional(),
   slug: z.string().min(3).max(180),
   target_keyword: z.string().min(2).max(180),
   supporting_keywords: z.array(z.string()).optional(),
   meta_description: z.string().max(200).optional(),
+  canonical_path: z.string().max(220).optional(),
+  entities: z.array(z.string()).optional(),
+  schema_type: z.enum(["article", "review", "faq", "howto"]).optional(),
+  faq_json: z.any().optional(),
+  howto_json: z.any().optional(),
+  hero_image_url: z.string().optional(),
+  hero_image_alt: z.string().optional(),
+  og_image_url: z.string().optional(),
+  images: z.any().optional(),
   cover_image: z.string().optional(),
   author_name: z.string().max(120).optional(),
+  expert_name: z.string().max(120).optional(),
+  expert_role: z.string().max(120).optional(),
+  expert_bio: z.string().max(500).optional(),
+  expert_credentials: z.string().max(240).optional(),
+  reviewed_by: z.string().max(120).optional(),
+  reviewed_at: z.string().optional(),
+  sources: z.any().optional(),
+  disclaimer: z.string().max(500).optional(),
   scheduled_at: z.string().optional(),
+  status: z.enum(["draft", "review", "scheduled", "published"]).optional(),
   content_json: z.any(),
   content_html: z.string(),
   amazon_products: z.any().optional(),
@@ -45,6 +64,11 @@ export async function saveEditorPost(payload: unknown) {
   await requireAdminSession();
   const data = SaveSchema.parse(payload);
 
+  const post = await adminGetPostById(data.id);
+  if (!post) {
+    throw new Error("Post nao encontrado");
+  }
+
   const coverImage =
     typeof data.cover_image === "string" ? (data.cover_image.trim() ? data.cover_image.trim() : null) : undefined;
   const metaDescription =
@@ -53,6 +77,8 @@ export async function saveEditorPost(payload: unknown) {
         ? data.meta_description.trim()
         : null
       : undefined;
+  const metaTitle =
+    typeof data.meta_title === "string" ? (data.meta_title.trim() ? data.meta_title.trim() : null) : undefined;
   const authorName =
     typeof data.author_name === "string" ? (data.author_name.trim() ? data.author_name.trim() : null) : undefined;
   const scheduledAt =
@@ -61,23 +87,70 @@ export async function saveEditorPost(payload: unknown) {
         ? new Date(data.scheduled_at).toISOString()
         : null
       : undefined;
+  const reviewedAt =
+    typeof data.reviewed_at === "string"
+      ? data.reviewed_at.trim()
+        ? new Date(data.reviewed_at).toISOString()
+        : null
+      : undefined;
 
   await adminUpdatePost({
     id: data.id,
     silo_id: data.silo_id ?? undefined,
     title: data.title,
     seo_title: data.seo_title?.trim() || null,
+    meta_title: metaTitle,
     slug: data.slug,
     target_keyword: data.target_keyword,
     supporting_keywords: data.supporting_keywords ?? [],
     meta_description: metaDescription,
+    canonical_path: data.canonical_path?.trim() || null,
+    entities: data.entities ?? [],
+    schema_type: data.schema_type ?? undefined,
+    faq_json: data.faq_json ?? null,
+    howto_json: data.howto_json ?? null,
+    hero_image_url: data.hero_image_url?.trim() || null,
+    hero_image_alt: data.hero_image_alt?.trim() || null,
+    og_image_url: data.og_image_url?.trim() || null,
+    images: data.images ?? [],
     cover_image: coverImage,
     author_name: authorName,
+    expert_name: data.expert_name?.trim() || null,
+    expert_role: data.expert_role?.trim() || null,
+    expert_bio: data.expert_bio?.trim() || null,
+    expert_credentials: data.expert_credentials?.trim() || null,
+    reviewed_by: data.reviewed_by?.trim() || null,
+    reviewed_at: reviewedAt,
+    sources: data.sources ?? [],
+    disclaimer: data.disclaimer?.trim() || null,
     scheduled_at: scheduledAt,
+    status: data.status ?? undefined,
     content_json: data.content_json,
     content_html: data.content_html,
     amazon_products: data.amazon_products ?? null,
   });
+
+  const links = extractLinksFromJson(data.content_json, {
+    siloSlug: post?.silo?.slug ?? null,
+  });
+  await adminReplacePostLinks(
+    data.id,
+    links.map((link) => ({
+      target_post_id: link.target_post_id,
+      target_url: link.target_url,
+      anchor_text: link.anchor_text,
+      link_type: link.link_type,
+      rel_flags: link.rel_flags,
+      is_blank: link.is_blank,
+    }))
+  );
+
+  if ((data.status ?? undefined) === "published") {
+    const validation = await validatePostForPublish(data.id, { links, html: data.content_html ?? "", title: data.title, target_keyword: data.target_keyword, meta_description: metaDescription ?? "" });
+    if (validation.errors.length) {
+      throw new Error(validation.errors.join(" | "));
+    }
+  }
 
   await revalidatePostPaths(data.id);
   return { ok: true as const };
@@ -87,7 +160,168 @@ export async function setEditorPublishState(payload: unknown) {
   await requireAdminSession();
   const data = PublishSchema.parse(payload);
 
+  if (data.published) {
+    const validation = await validatePostForPublish(data.id);
+    if (validation.errors.length) {
+      throw new Error(validation.errors.join(" | "));
+    }
+  }
+
   await adminPublishPost({ id: data.id, published: data.published });
   await revalidatePostPaths(data.id);
   return { ok: true as const };
+}
+
+type ExtractedLink = {
+  target_post_id: string | null;
+  target_url: string | null;
+  anchor_text: string;
+  link_type: "internal" | "external" | "affiliate" | "about" | "mention";
+  rel_flags: string[];
+  is_blank: boolean;
+};
+
+function walkNode(node: any, activeMarks: any[], links: ExtractedLink[], ctx: { siloSlug: string | null }) {
+  if (!node) return;
+
+  // mention node
+  if (node.type === "mention") {
+    const href = node.attrs?.href ?? "";
+    const anchor = node.attrs?.label ?? "";
+    links.push({
+      target_post_id: node.attrs?.id ?? null,
+      target_url: href || null,
+      anchor_text: anchor,
+      link_type: "mention",
+      rel_flags: [],
+      is_blank: false,
+    });
+    return;
+  }
+
+  const marks = Array.isArray(node.marks) ? node.marks : activeMarks;
+  if (node.type === "text") {
+    const linkMark = marks?.find((m: any) => m.type === "link");
+    if (linkMark) {
+      const attrs = linkMark.attrs ?? {};
+      const href = attrs.href ?? "";
+      const rel = String(attrs.rel ?? "");
+      const relFlags = rel
+        .split(/\s+/)
+        .map((r) => r.trim())
+        .filter(Boolean);
+      const isAffiliate = relFlags.includes("sponsored");
+      const linkType: ExtractedLink["link_type"] =
+        attrs["data-link-type"] ??
+        (attrs["data-entity-type"] === "about" ? "about" : isAffiliate ? "affiliate" : href.startsWith("/") ? "internal" : "external");
+      const targetPostId = attrs["data-post-id"] ?? null;
+      links.push({
+        target_post_id: targetPostId || null,
+        target_url: href || null,
+        anchor_text: node.text ?? "",
+        link_type: linkType,
+        rel_flags: relFlags,
+        is_blank: attrs.target === "_blank",
+      });
+    }
+  }
+
+  if (Array.isArray(node.content)) {
+    node.content.forEach((child: any) => walkNode(child, marks ?? [], links, ctx));
+  }
+}
+
+function extractLinksFromJson(json: any, ctx: { siloSlug: string | null }): ExtractedLink[] {
+  if (!json) return [];
+  const links: ExtractedLink[] = [];
+  walkNode(json, [], links, ctx);
+  return links;
+}
+
+function wordCountFromHtml(html: string) {
+  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  if (!text) return 0;
+  return text.split(/\s+/).length;
+}
+
+function anchorWordCount(links: ExtractedLink[]) {
+  return links.reduce((acc, link) => {
+    const words = (link.anchor_text || "").trim().split(/\s+/).filter(Boolean).length;
+    return acc + words;
+  }, 0);
+}
+
+export async function validatePostForPublish(
+  postId: string,
+  opts?: { links?: ExtractedLink[]; html?: string; title?: string; target_keyword?: string; meta_description?: string }
+) {
+  const post = await adminGetPostById(postId);
+  if (!post) {
+    return { errors: ["Post nao encontrado"], warnings: [] };
+  }
+
+  const links = opts?.links ?? extractLinksFromJson(post.content_json, { siloSlug: post.silo?.slug ?? null });
+  const html = opts?.html ?? post.content_html ?? "";
+  const totalWords = wordCountFromHtml(html);
+  const anchorWords = anchorWordCount(links);
+  const density = totalWords ? (anchorWords / totalWords) * 100 : 0;
+
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (!post.title || !post.slug || !(opts?.target_keyword ?? post.target_keyword)) {
+    errors.push("Campos obrigatorios ausentes (titulo, slug ou target keyword)");
+  }
+  if (!post.meta_description && !(opts?.meta_description)) {
+    warnings.push("Meta description ausente");
+  }
+
+  const siloSlug = post.silo?.slug ?? null;
+  if (siloSlug) {
+    const hasLinkToSilo = links.some((l) => typeof l.target_url === "string" && l.target_url.startsWith(`/${siloSlug}`));
+    if (!hasLinkToSilo) {
+      errors.push("Necessario pelo menos um link interno para a pagina do silo");
+    }
+  }
+
+  const badAffiliate = links.filter((l) => {
+    const flags = l.rel_flags ?? [];
+    const isAffiliate = l.link_type === "affiliate" || flags.includes("sponsored");
+    return isAffiliate && !flags.includes("sponsored");
+  });
+  if (badAffiliate.length) {
+    errors.push("Links de afiliado precisam de rel=sponsored");
+  }
+
+  if (density > 4) {
+    errors.push("Densidade de ancora acima de 4%");
+  } else if (density > 3) {
+    warnings.push("Densidade de ancora acima de 3%");
+  }
+
+  const targetKw = opts?.target_keyword ?? post.target_keyword;
+  if (post.silo_id && targetKw) {
+    const conflict = await adminFindTargetKeywordConflict({
+      silo_id: post.silo_id,
+      target_keyword: targetKw,
+      exclude_id: post.id,
+    });
+    if (conflict) {
+      warnings.push("Possivel canibalizacao: target keyword duplicada no silo");
+    }
+  }
+
+  const storedLinks = await adminGetPostLinks(postId);
+  const duplicateAnchors = new Map<string, number>();
+  storedLinks.forEach((l) => {
+    const anchor = (l.anchor_text ?? "").trim().toLowerCase();
+    if (!anchor) return;
+    duplicateAnchors.set(anchor, (duplicateAnchors.get(anchor) ?? 0) + 1);
+  });
+  const repeated = Array.from(duplicateAnchors.entries()).filter(([, count]) => count > 2);
+  if (repeated.length) {
+    warnings.push("Ancoras repetidas mais de 2x no mesmo post");
+  }
+
+  return { errors, warnings };
 }

@@ -1,10 +1,18 @@
 import Link from "next/link";
 import { adminListPosts } from "@/lib/db";
-import { setPublishState } from "@/app/admin/actions";
+import { schedulePost, setPublishState } from "@/app/admin/actions";
 
 export const revalidate = 0;
 
-function formatDate(value: string) {
+const statusLabels: Record<string, string> = {
+  draft: "Rascunho",
+  review: "Revisao",
+  scheduled: "Agendado",
+  published: "Publicado",
+};
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
   try {
     return new Date(value).toLocaleString("pt-BR");
   } catch {
@@ -12,8 +20,14 @@ function formatDate(value: string) {
   }
 }
 
-export default async function AdminPage() {
-  const posts = await adminListPosts();
+export default async function AdminPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string; q?: string }>;
+}) {
+  const { status, q } = await searchParams;
+  const statusFilter = status && status !== "all" ? status : null;
+  const posts = await adminListPosts({ status: statusFilter, query: q ?? null });
 
   return (
     <div className="space-y-6">
@@ -22,17 +36,51 @@ export default async function AdminPage() {
           <p className="text-xs text-[color:var(--muted-2)]">Admin</p>
           <h1 className="mt-2 text-3xl font-semibold">Conteudo</h1>
           <p className="mt-3 max-w-2xl text-sm text-[color:var(--muted)]">
-            Crie, edite e publique posts sem abrir escrita para anon.
+            Gerencie o fluxo editorial com filtros, busca e publicacao rapida.
           </p>
         </div>
 
         <Link
           className="inline-flex rounded-xl border border-[color:var(--border)] bg-[color:var(--brand-primary)] px-4 py-2 text-xs font-semibold hover:bg-[color:var(--brand-primary)]"
-          href="/admin/editor/new"
+          href="/admin/new"
         >
           Novo post
         </Link>
       </header>
+
+      <form method="get" className="flex flex-wrap items-end gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--paper)] px-4 py-3">
+        <div className="flex flex-col gap-1">
+          <label className="text-[10px] font-semibold uppercase text-[color:var(--muted-2)]">Status</label>
+          <select
+            name="status"
+            defaultValue={status ?? "all"}
+            className="rounded-lg border border-[color:var(--border)] bg-[color:var(--paper)] px-3 py-2 text-xs outline-none"
+          >
+            <option value="all">Todos</option>
+            <option value="draft">Rascunho</option>
+            <option value="review">Revisao</option>
+            <option value="scheduled">Agendado</option>
+            <option value="published">Publicado</option>
+          </select>
+        </div>
+
+        <div className="flex flex-1 flex-col gap-1">
+          <label className="text-[10px] font-semibold uppercase text-[color:var(--muted-2)]">Busca</label>
+          <input
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Buscar por titulo ou slug"
+            className="w-full rounded-lg border border-[color:var(--border)] bg-[color:var(--paper)] px-3 py-2 text-xs outline-none"
+          />
+        </div>
+
+        <button
+          type="submit"
+          className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-4 py-2 text-xs font-semibold hover:bg-[color:var(--brand-primary)]"
+        >
+          Filtrar
+        </button>
+      </form>
 
       <div className="overflow-hidden rounded-3xl border border-[color:var(--border)]">
         <table className="w-full text-left text-sm">
@@ -42,45 +90,82 @@ export default async function AdminPage() {
               <th className="px-4 py-3">Titulo</th>
               <th className="px-4 py-3">Silo</th>
               <th className="px-4 py-3">Atualizado</th>
+              <th className="px-4 py-3">Agendado</th>
               <th className="px-4 py-3">Acoes</th>
             </tr>
           </thead>
           <tbody>
             {posts.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-[color:var(--muted)]" colSpan={5}>
-                  Nenhum post encontrado. Crie um rascunho para iniciar.
+                <td className="px-4 py-6 text-[color:var(--muted)]" colSpan={6}>
+                  Nenhum post encontrado. Ajuste os filtros ou crie um novo.
                 </td>
               </tr>
             ) : (
-              posts.map((p) => (
-                <tr key={p.id} className="border-t border-[color:var(--border)]">
-                  <td className="px-4 py-4 text-[color:var(--muted)]">{p.published ? "Publicado" : "Rascunho"}</td>
-                  <td className="px-4 py-4 font-medium">{p.title}</td>
-                  <td className="px-4 py-4 text-[color:var(--muted)]">{p.silo?.name ?? "-"}</td>
-                  <td className="px-4 py-4 text-[color:var(--muted)]">{formatDate(p.updated_at)}</td>
-                  <td className="px-4 py-4">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Link
-                        className="inline-flex rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-2 text-xs hover:bg-[color:var(--brand-primary)]"
-                        href={`/admin/editor/${p.id}`}
-                      >
-                        Editar
-                      </Link>
-                      <form action={setPublishState}>
-                        <input type="hidden" name="id" value={p.id} />
-                        <input type="hidden" name="published" value={p.published ? "false" : "true"} />
-                        <button
-                          type="submit"
+              posts.map((p) => {
+                const statusValue = p.status ?? (p.published ? "published" : "draft");
+                const statusLabel = statusLabels[statusValue] ?? "Rascunho";
+                const siloSlug = p.silo?.slug ?? "";
+                const publicHref = siloSlug ? `/${siloSlug}/${p.slug}` : `/${p.slug}`;
+
+                return (
+                  <tr key={p.id} className="border-t border-[color:var(--border)] align-top">
+                    <td className="px-4 py-4 text-[color:var(--muted)]">{statusLabel}</td>
+                    <td className="px-4 py-4 font-medium">{p.title}</td>
+                    <td className="px-4 py-4 text-[color:var(--muted)]">{p.silo?.name ?? "-"}</td>
+                    <td className="px-4 py-4 text-[color:var(--muted)]">{formatDate(p.updated_at)}</td>
+                    <td className="px-4 py-4 text-[color:var(--muted)]">{formatDate(p.scheduled_at)}</td>
+                    <td className="px-4 py-4">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
                           className="inline-flex rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-2 text-xs hover:bg-[color:var(--brand-primary)]"
+                          href={`/admin/editor/${p.id}`}
                         >
-                          {p.published ? "Despublicar" : "Publicar"}
-                        </button>
-                      </form>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                          Editar
+                        </Link>
+                        <Link
+                          className="inline-flex rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-2 text-xs hover:bg-[color:var(--brand-primary)]"
+                          href={publicHref}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          Ver pagina
+                        </Link>
+                        <form action={setPublishState}>
+                          <input type="hidden" name="id" value={p.id} />
+                          <input type="hidden" name="published" value={p.published ? "false" : "true"} />
+                          <button
+                            type="submit"
+                            className="inline-flex rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-2 text-xs hover:bg-[color:var(--brand-primary)]"
+                          >
+                            {p.published ? "Despublicar" : "Publicar"}
+                          </button>
+                        </form>
+                        <details className="group">
+                          <summary className="cursor-pointer list-none rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-2 text-xs hover:bg-[color:var(--brand-primary)]">
+                            Agendar
+                          </summary>
+                          <form action={schedulePost} className="mt-2 flex items-center gap-2 text-xs">
+                            <input type="hidden" name="id" value={p.id} />
+                            <input
+                              type="datetime-local"
+                              name="scheduled_at"
+                              className="rounded-lg border border-[color:var(--border)] bg-[color:var(--paper)] px-2 py-1 text-xs outline-none"
+                              defaultValue={p.scheduled_at ? p.scheduled_at.slice(0, 16) : ""}
+                            />
+                            <button
+                              type="submit"
+                              className="rounded-lg border border-[color:var(--border)] bg-[color:var(--paper)] px-2 py-1 text-xs hover:bg-[color:var(--brand-primary)]"
+                            >
+                              Salvar
+                            </button>
+                          </form>
+                        </details>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

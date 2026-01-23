@@ -4,6 +4,26 @@ export const EntityLink = Link.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
+      "data-link-type": {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-link-type"),
+        renderHTML: (attributes) => {
+          if (!attributes["data-link-type"]) {
+            return {};
+          }
+          return { "data-link-type": attributes["data-link-type"] };
+        },
+      },
+      "data-post-id": {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-post-id"),
+        renderHTML: (attributes) => {
+          if (!attributes["data-post-id"]) {
+            return {};
+          }
+          return { "data-post-id": attributes["data-post-id"] };
+        },
+      },
       "data-entity-type": {
         default: null,
         parseHTML: (element) => element.getAttribute("data-entity-type"),
@@ -12,6 +32,16 @@ export const EntityLink = Link.extend({
             return {};
           }
           return { "data-entity-type": attributes["data-entity-type"] };
+        },
+      },
+      "data-entity": {
+        default: null,
+        parseHTML: (element) => element.getAttribute("data-entity"),
+        renderHTML: (attributes) => {
+          if (!attributes["data-entity"]) {
+            return {};
+          }
+          return { "data-entity": attributes["data-entity"] };
         },
       },
     };

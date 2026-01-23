@@ -19,6 +19,12 @@ const SaveSchema = z.object({
   target_keyword: z.string().min(2).max(180),
   supporting_keywords: z.array(z.string()).optional(),
   meta_description: z.string().max(200).optional(),
+  meta_title: z.string().max(180).optional(),
+  canonical_path: z.string().max(220).optional(),
+  entities: z.array(z.string()).optional(),
+  schema_type: z.enum(["article", "review", "faq", "howto"]).optional(),
+  status: z.enum(["draft", "review", "scheduled", "published"]).optional(),
+  scheduled_at: z.string().optional(),
   content_json: z.any(),
   content_html: z.string(),
   amazon_products: z.any().optional(),
@@ -29,6 +35,11 @@ const PublishSchema = z.object({
   published: z.boolean(),
 });
 
+const ScheduleSchema = z.object({
+  id: z.string().uuid(),
+  scheduled_at: z.string().optional(),
+});
+
 const CreateSchema = z.object({
   silo_id: z.string().uuid(),
   title: z.string().min(3).max(180),
@@ -36,6 +47,7 @@ const CreateSchema = z.object({
   target_keyword: z.string().min(2).max(180),
   supporting_keywords: z.array(z.string()).optional(),
   meta_description: z.string().max(200).optional(),
+  entities: z.array(z.string()).optional(),
 });
 
 const CreateSiloSchema = z.object({
@@ -69,6 +81,12 @@ export async function saveDraft(payload: unknown) {
     target_keyword: data.target_keyword,
     supporting_keywords: data.supporting_keywords ?? [],
     meta_description: data.meta_description ?? null,
+    meta_title: data.meta_title ?? null,
+    canonical_path: data.canonical_path ?? null,
+    entities: data.entities ?? [],
+    schema_type: data.schema_type ?? undefined,
+    status: data.status ?? undefined,
+    scheduled_at: data.scheduled_at ? new Date(data.scheduled_at).toISOString() : undefined,
     content_json: data.content_json,
     content_html: data.content_html,
     amazon_products: data.amazon_products ?? null,
@@ -106,10 +124,37 @@ export async function setPublishState(payload: unknown | FormData) {
   return { ok: true as const };
 }
 
+export async function schedulePost(formData: FormData) {
+  await requireAdminSession();
+
+  const payload = {
+    id: String(formData.get("id") ?? ""),
+    scheduled_at: String(formData.get("scheduled_at") ?? ""),
+  };
+
+  const data = ScheduleSchema.parse(payload);
+  const scheduledAt = data.scheduled_at.trim()
+    ? new Date(data.scheduled_at).toISOString()
+    : null;
+
+  await adminUpdatePost({
+    id: data.id,
+    status: scheduledAt ? "scheduled" : "draft",
+    scheduled_at: scheduledAt,
+  });
+
+  await revalidatePostPaths(data.id);
+  return { ok: true as const };
+}
+
 export async function createPost(formData: FormData) {
   await requireAdminSession();
 
   const supporting = String(formData.get("supporting_keywords") ?? "")
+    .split(/\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const entities = String(formData.get("entities") ?? "")
     .split(/\n+/)
     .map((s) => s.trim())
     .filter(Boolean);
@@ -121,6 +166,7 @@ export async function createPost(formData: FormData) {
     target_keyword: String(formData.get("target_keyword") ?? ""),
     supporting_keywords: supporting,
     meta_description: String(formData.get("meta_description") ?? "").trim() || undefined,
+    entities,
   };
 
   const data = CreateSchema.parse(payload);
@@ -131,6 +177,7 @@ export async function createPost(formData: FormData) {
     target_keyword: data.target_keyword,
     supporting_keywords: data.supporting_keywords ?? [],
     meta_description: data.meta_description ?? null,
+    entities: data.entities ?? [],
   });
 
   redirect(`/admin/editor/${post.id}`);

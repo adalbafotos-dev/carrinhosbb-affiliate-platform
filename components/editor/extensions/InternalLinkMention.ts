@@ -162,12 +162,16 @@ export const InternalLinkMention = Mention.extend({
   renderHTML({ node, HTMLAttributes }) {
     const href = (node.attrs as any).href || "#";
     const label = (node.attrs as any).label || "";
+    const postId = (node.attrs as any).id || null;
 
     return [
       "a",
       {
         ...HTMLAttributes,
         href,
+        "data-link-type": "mention",
+        "data-post-id": postId,
+        "data-entity": "mention",
         class: "internal-link underline underline-offset-4 decoration-[color:var(--brand-primary)] text-[color:var(--brand-hot)]",
       },
       label,

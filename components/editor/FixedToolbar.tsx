@@ -7,40 +7,56 @@ import {
   AlignLeft,
   AlignRight,
   Bold,
-  Highlighter,
+  Code,
+  Heading2,
+  Heading3,
+  Heading4,
   Image as ImageIcon,
   Italic,
   Link as LinkIcon,
-  MessageSquare,
+  List,
+  ListChecks,
+  ListOrdered,
+  MessageCircleQuestion,
+  Quote,
   Redo2,
   ShoppingCart,
   Strikethrough,
   Table as TableIcon,
   Undo2,
+  Underline,
   Youtube,
 } from "lucide-react";
-
-const HIGHLIGHT_COLOR = "#FDE68A";
 
 type Props = {
   editor: Editor | null;
   onOpenLink: () => void;
-  onAddImage: () => void;
-  onAddProduct: () => void;
-  onAddYoutube: () => void;
-  onAddTable: () => void;
-  onAddCallout: () => void;
-  onAlignImage: (align: "left" | "center" | "right") => void;
+  onOpenMedia: () => void;
+  onInsertProduct: () => void;
+  onInsertYoutube: () => void;
+  onInsertTable: () => void;
+  onInsertSection: () => void;
+  onInsertFaq: () => void;
+  onInsertHowTo: () => void;
+  onInsertCtaBest: () => void;
+  onInsertCtaValue: () => void;
+  onInsertCtaTable: () => void;
+  onAlignImage?: (align: "left" | "center" | "right") => void;
 };
 
 export function FixedToolbar({
   editor,
   onOpenLink,
-  onAddImage,
-  onAddProduct,
-  onAddYoutube,
-  onAddTable,
-  onAddCallout,
+  onOpenMedia,
+  onInsertProduct,
+  onInsertYoutube,
+  onInsertTable,
+  onInsertSection,
+  onInsertFaq,
+  onInsertHowTo,
+  onInsertCtaBest,
+  onInsertCtaValue,
+  onInsertCtaTable,
   onAlignImage,
 }: Props) {
   if (!editor) return null;
@@ -49,7 +65,9 @@ export function FixedToolbar({
     ? "h2"
     : editor.isActive("heading", { level: 3 })
       ? "h3"
-      : "paragraph";
+      : editor.isActive("heading", { level: 4 })
+        ? "h4"
+        : "paragraph";
 
   const selection = editor.state.selection as any;
   const isImageSelected = Boolean(selection?.node?.type?.name === "image");
@@ -58,18 +76,38 @@ export function FixedToolbar({
   return (
     <div className="sticky top-0 z-20 border-b border-zinc-200 bg-white/90 px-3 py-2 backdrop-blur">
       <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-700">
-        <div className="flex items-center gap-1 rounded-md border border-zinc-200 bg-white px-2 py-1">
-          <span className="text-[10px] font-semibold text-zinc-400">Texto</span>
+        <div className="flex items-center gap-2">
+          <ToolbarButton
+            label="Desfazer"
+            disabled={!editor.can().undo()}
+            onClick={() => editor.chain().focus().undo().run()}
+          >
+            <Undo2 size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label="Refazer"
+            disabled={!editor.can().redo()}
+            onClick={() => editor.chain().focus().redo().run()}
+          >
+            <Redo2 size={16} />
+          </ToolbarButton>
+        </div>
+
+        <Separator />
+
+        <div className="flex items-center gap-2">
           <select
             value={headingValue}
-            onChange={(e) => {
-              const value = e.target.value;
+            onChange={(event) => {
+              const value = event.target.value;
               if (value === "paragraph") {
                 editor.chain().focus().setParagraph().run();
               } else if (value === "h2") {
                 editor.chain().focus().setHeading({ level: 2 }).run();
-              } else {
+              } else if (value === "h3") {
                 editor.chain().focus().setHeading({ level: 3 }).run();
+              } else {
+                editor.chain().focus().setHeading({ level: 4 }).run();
               }
             }}
             className="rounded border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 outline-none"
@@ -77,27 +115,11 @@ export function FixedToolbar({
             <option value="paragraph">Paragrafo</option>
             <option value="h2">H2</option>
             <option value="h3">H3</option>
+            <option value="h4">H4</option>
           </select>
         </div>
 
-        <Divider />
-
-        <ToolbarButton
-          label="Desfazer"
-          disabled={!editor.can().undo()}
-          onClick={() => editor.chain().focus().undo().run()}
-        >
-          <Undo2 size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label="Refazer"
-          disabled={!editor.can().redo()}
-          onClick={() => editor.chain().focus().redo().run()}
-        >
-          <Redo2 size={16} />
-        </ToolbarButton>
-
-        <Divider />
+        <Separator />
 
         <ToolbarButton
           label="Negrito"
@@ -114,6 +136,13 @@ export function FixedToolbar({
           <Italic size={16} />
         </ToolbarButton>
         <ToolbarButton
+          label="Sublinhado"
+          active={editor.isActive("underline")}
+          onClick={() => editor.chain().focus().toggleUnderline().run()}
+        >
+          <Underline size={16} />
+        </ToolbarButton>
+        <ToolbarButton
           label="Riscado"
           active={editor.isActive("strike")}
           onClick={() => editor.chain().focus().toggleStrike().run()}
@@ -121,69 +150,111 @@ export function FixedToolbar({
           <Strikethrough size={16} />
         </ToolbarButton>
         <ToolbarButton
-          label="Highlight"
-          active={editor.isActive("highlight", { color: HIGHLIGHT_COLOR })}
-          onClick={() =>
-            editor.chain().focus().toggleHighlight({ color: HIGHLIGHT_COLOR }).run()
-          }
+          label="Codigo"
+          active={editor.isActive("code")}
+          onClick={() => editor.chain().focus().toggleCode().run()}
         >
-          <Highlighter size={16} />
-        </ToolbarButton>
-
-        <Divider />
-
-        <ToolbarButton
-          label="Alinhar esquerda"
-          active={imageAlign === "left"}
-          disabled={!isImageSelected}
-          onClick={() => onAlignImage("left")}
-        >
-          <AlignLeft size={16} />
+          <Code size={16} />
         </ToolbarButton>
         <ToolbarButton
-          label="Centralizar imagem"
-          active={imageAlign === "center"}
-          disabled={!isImageSelected}
-          onClick={() => onAlignImage("center")}
+          label="Citar"
+          active={editor.isActive("blockquote")}
+          onClick={() => editor.chain().focus().toggleBlockquote().run()}
         >
-          <AlignCenter size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label="Alinhar direita"
-          active={imageAlign === "right"}
-          disabled={!isImageSelected}
-          onClick={() => onAlignImage("right")}
-        >
-          <AlignRight size={16} />
+          <Quote size={16} />
         </ToolbarButton>
 
-        <Divider />
+        <Separator />
+
+        <ToolbarButton
+          label="Lista"
+          active={editor.isActive("bulletList")}
+          onClick={() => editor.chain().focus().toggleBulletList().run()}
+        >
+          <List size={16} />
+        </ToolbarButton>
+        <ToolbarButton
+          label="Lista ordenada"
+          active={editor.isActive("orderedList")}
+          onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        >
+          <ListOrdered size={16} />
+        </ToolbarButton>
+
+        <Separator />
 
         <ToolbarButton label="Link" onClick={onOpenLink}>
           <LinkIcon size={16} />
         </ToolbarButton>
-        <ToolbarButton label="Imagem" onClick={onAddImage}>
+        <ToolbarButton label="Imagem" onClick={onOpenMedia}>
           <ImageIcon size={16} />
         </ToolbarButton>
-        <ToolbarButton label="Produto" onClick={onAddProduct}>
-          <ShoppingCart size={16} />
-        </ToolbarButton>
-        <ToolbarButton label="Youtube" onClick={onAddYoutube}>
+        <ToolbarButton label="YouTube" onClick={onInsertYoutube}>
           <Youtube size={16} />
         </ToolbarButton>
-        <ToolbarButton label="Tabela" onClick={onAddTable}>
+        <ToolbarButton label="Produto" onClick={onInsertProduct}>
+          <ShoppingCart size={16} />
+        </ToolbarButton>
+        <ToolbarButton label="Tabela" onClick={onInsertTable}>
           <TableIcon size={16} />
         </ToolbarButton>
-        <ToolbarButton label="Callout" onClick={onAddCallout}>
-          <MessageSquare size={16} />
+
+        <Separator />
+
+        <ToolbarButton label="Secao" onClick={onInsertSection}>
+          <Heading2 size={16} />
         </ToolbarButton>
+        <ToolbarButton label="FAQ" onClick={onInsertFaq}>
+          <MessageCircleQuestion size={16} />
+        </ToolbarButton>
+        <ToolbarButton label="HowTo" onClick={onInsertHowTo}>
+          <ListChecks size={16} />
+        </ToolbarButton>
+
+        <Separator />
+
+        <ToolbarButton label="CTA Melhor escolha" onClick={onInsertCtaBest}>
+          <Heading3 size={16} />
+        </ToolbarButton>
+        <ToolbarButton label="CTA Custo-beneficio" onClick={onInsertCtaValue}>
+          <Heading4 size={16} />
+        </ToolbarButton>
+        <ToolbarButton label="CTA Tabela comparativa" onClick={onInsertCtaTable}>
+          <TableIcon size={16} />
+        </ToolbarButton>
+
+        {onAlignImage ? (
+          <>
+            <Separator />
+            <ToolbarButton
+              label="Alinhar esquerda"
+              active={imageAlign === "left"}
+              disabled={!isImageSelected}
+              onClick={() => onAlignImage("left")}
+            >
+              <AlignLeft size={16} />
+            </ToolbarButton>
+            <ToolbarButton
+              label="Centralizar imagem"
+              active={imageAlign === "center"}
+              disabled={!isImageSelected}
+              onClick={() => onAlignImage("center")}
+            >
+              <AlignCenter size={16} />
+            </ToolbarButton>
+            <ToolbarButton
+              label="Alinhar direita"
+              active={imageAlign === "right"}
+              disabled={!isImageSelected}
+              onClick={() => onAlignImage("right")}
+            >
+              <AlignRight size={16} />
+            </ToolbarButton>
+          </>
+        ) : null}
       </div>
     </div>
   );
-}
-
-function Divider() {
-  return <span className="hidden h-6 w-px bg-zinc-200 md:inline-flex" />;
 }
 
 function ToolbarButton({
@@ -214,4 +285,8 @@ function ToolbarButton({
       {children}
     </button>
   );
+}
+
+function Separator() {
+  return <span className="hidden h-5 w-px bg-zinc-200 md:inline-flex" />;
 }

@@ -5,6 +5,7 @@ import { Bold, ExternalLink, Info, Italic, Link2, Strikethrough, Tag, Trash2, Un
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 type EntityType = "about" | "mention" | null;
+type LinkType = "internal" | "external" | "affiliate" | "about" | "mention";
 
 function parseRel(rel?: string) {
   const parts = (rel ?? "").split(/\s+/).map((s) => s.trim()).filter(Boolean);
@@ -29,6 +30,7 @@ export function LinkBubbleMenu({
   const [nofollow, setNofollow] = useState(false);
   const [sponsored, setSponsored] = useState(false);
   const [entityType, setEntityType] = useState<EntityType>(null);
+  const [linkType, setLinkType] = useState<LinkType>("external");
 
   const syncFromEditor = useCallback(() => {
     const attrs = editor.getAttributes("link") as any;
@@ -38,11 +40,26 @@ export function LinkBubbleMenu({
     setNofollow(relSet.has("nofollow"));
     setSponsored(relSet.has("sponsored"));
 
-    const entity = attrs["data-entity-type"];
+    const entity = attrs["data-entity"] ?? attrs["data-entity-type"];
     if (entity === "about" || entity === "mention") {
       setEntityType(entity);
     } else {
       setEntityType(null);
+    }
+
+    const explicitType = attrs["data-link-type"] as LinkType | undefined;
+    if (explicitType) {
+      setLinkType(explicitType);
+    } else if (entity === "about") {
+      setLinkType("about");
+    } else if (entity === "mention") {
+      setLinkType("mention");
+    } else if (relSet.has("sponsored")) {
+      setLinkType("affiliate");
+    } else if ((attrs.href ?? "").startsWith("/")) {
+      setLinkType("internal");
+    } else {
+      setLinkType("external");
     }
   }, [editor]);
 
@@ -67,11 +84,26 @@ export function LinkBubbleMenu({
   }, [forceOpen, onClose]);
 
   const apply = useCallback(
-    (next: Partial<{ href: string; targetBlank: boolean; nofollow: boolean; sponsored: boolean; entity: EntityType }> = {}) => {
+    (
+      next: Partial<{
+        href: string;
+        targetBlank: boolean;
+        nofollow: boolean;
+        sponsored: boolean;
+        entity: EntityType;
+        linkType: LinkType;
+      }> = {}
+    ) => {
       const current = editor.getAttributes("link") as any;
       const tokens = parseRel(current.rel);
 
-      const nextHref = (typeof next.href === "string" ? next.href : href || current.href || "").trim();
+      const nextLinkType = typeof next.linkType === "string" ? next.linkType : linkType;
+      let nextHref = (typeof next.href === "string" ? next.href : href || current.href || "").trim();
+
+      if (nextLinkType === "about") {
+        nextHref = "/sobre";
+      }
+
       if (!nextHref) {
         if (editor.isActive("link")) {
           editor.chain().focus().extendMarkRange("link").unsetLink().run();
@@ -79,10 +111,33 @@ export function LinkBubbleMenu({
         return;
       }
 
-      const nextTarget = typeof next.targetBlank === "boolean" ? next.targetBlank : targetBlank;
-      const nextNofollow = typeof next.nofollow === "boolean" ? next.nofollow : nofollow;
-      const nextSponsored = typeof next.sponsored === "boolean" ? next.sponsored : sponsored;
-      const nextEntity = typeof next.entity !== "undefined" ? next.entity : entityType;
+      const forceAffiliate = nextLinkType === "affiliate";
+      const nextTarget =
+        typeof next.targetBlank === "boolean"
+          ? next.targetBlank
+          : forceAffiliate
+            ? true
+            : targetBlank;
+      const nextNofollow =
+        typeof next.nofollow === "boolean"
+          ? next.nofollow
+          : forceAffiliate
+            ? true
+            : nofollow;
+      const nextSponsored =
+        typeof next.sponsored === "boolean"
+          ? next.sponsored
+          : forceAffiliate
+            ? true
+            : sponsored;
+      const nextEntity =
+        typeof next.entity !== "undefined"
+          ? next.entity
+          : nextLinkType === "about"
+            ? "about"
+            : nextLinkType === "mention"
+              ? "mention"
+              : entityType;
 
       nextNofollow ? tokens.add("nofollow") : tokens.delete("nofollow");
       nextSponsored ? tokens.add("sponsored") : tokens.delete("sponsored");
@@ -95,17 +150,6 @@ export function LinkBubbleMenu({
         tokens.delete("noreferrer");
       }
 
-      if (nextEntity === "about") {
-        tokens.add("about");
-        tokens.delete("mentions");
-      } else if (nextEntity === "mention") {
-        tokens.add("mentions");
-        tokens.delete("about");
-      } else {
-        tokens.delete("about");
-        tokens.delete("mentions");
-      }
-
       const rel = buildRel(tokens) || null;
 
       editor
@@ -116,11 +160,13 @@ export function LinkBubbleMenu({
           href: nextHref,
           target: nextTarget ? "_blank" : null,
           rel,
+          "data-link-type": nextLinkType,
           "data-entity-type": nextEntity,
+          "data-entity": nextEntity,
         })
         .run();
     },
-    [editor, entityType, href, nofollow, sponsored, targetBlank]
+    [editor, entityType, href, linkType, nofollow, sponsored, targetBlank]
   );
 
   const showMenu = forceOpen || (!editor.isDestroyed && (editor.isActive("link") || !editor.state.selection.empty));
@@ -206,60 +252,98 @@ export function LinkBubbleMenu({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <Toggle
-            label="Nova aba"
-            active={targetBlank}
-            icon={<ExternalLink size={14} />}
-            onClick={() => {
-              const next = !targetBlank;
-              setTargetBlank(next);
-              apply({ targetBlank: next });
-            }}
-          />
+        <div className="space-y-2">
+          <div>
+            <label className="mb-1 block text-[10px] font-semibold uppercase text-zinc-400">Tipo</label>
+            <select
+              value={linkType}
+              onChange={(event) => {
+                const next = event.target.value as LinkType;
+                setLinkType(next);
+                if (next === "affiliate") {
+                  setSponsored(true);
+                  setNofollow(true);
+                  setTargetBlank(true);
+                }
+                if (next === "internal") {
+                  setTargetBlank(false);
+                }
+                if (next === "about") {
+                  setEntityType("about");
+                  setHref("/sobre");
+                }
+                if (next === "mention") {
+                  setEntityType("mention");
+                }
+                apply({ linkType: next });
+              }}
+              className="w-full rounded-lg border border-zinc-200 bg-white px-2 py-1 text-[11px] text-zinc-700"
+            >
+              <option value="internal">Interno</option>
+              <option value="external">Externo</option>
+              <option value="affiliate">Afiliado</option>
+              <option value="about">About</option>
+              <option value="mention">Mention</option>
+            </select>
+          </div>
 
-          <Toggle
-            label="Nofollow"
-            active={nofollow}
-            onClick={() => {
-              const next = !nofollow;
-              setNofollow(next);
-              apply({ nofollow: next });
-            }}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <Toggle
+              label="Nova aba"
+              active={targetBlank}
+              icon={<ExternalLink size={14} />}
+              onClick={() => {
+                const next = !targetBlank;
+                setTargetBlank(next);
+                apply({ targetBlank: next });
+              }}
+            />
 
-          <Toggle
-            label="Sponsored"
-            active={sponsored}
-            tone="accent"
-            onClick={() => {
-              const next = !sponsored;
-              setSponsored(next);
-              apply({ sponsored: next });
-            }}
-          />
+            <Toggle
+              label="Nofollow"
+              active={nofollow}
+              onClick={() => {
+                const next = !nofollow;
+                setNofollow(next);
+                apply({ nofollow: next });
+              }}
+            />
 
-          <Toggle
-            label="Sobre"
-            active={entityType === "about"}
-            icon={<Info size={14} />}
-            onClick={() => {
-              const next = entityType === "about" ? null : "about";
-              setEntityType(next);
-              apply({ entity: next });
-            }}
-          />
+            <Toggle
+              label="Sponsored"
+              active={sponsored}
+              tone="accent"
+              onClick={() => {
+                const next = !sponsored;
+                setSponsored(next);
+                apply({ sponsored: next });
+              }}
+            />
 
-          <Toggle
-            label="Mentions"
-            active={entityType === "mention"}
-            icon={<Tag size={14} />}
-            onClick={() => {
-              const next = entityType === "mention" ? null : "mention";
-              setEntityType(next);
-              apply({ entity: next });
-            }}
-          />
+            <Toggle
+              label="Sobre"
+              active={entityType === "about"}
+              icon={<Info size={14} />}
+              onClick={() => {
+                const next = entityType === "about" ? null : "about";
+                setEntityType(next);
+                setLinkType(next ? "about" : linkType);
+                apply({ entity: next });
+              }}
+            />
+
+            <Toggle
+              label="Mentions"
+              active={entityType === "mention"}
+              icon={<Tag size={14} />}
+              onClick={() => {
+                const next = entityType === "mention" ? null : "mention";
+                setEntityType(next);
+                setLinkType(next ? "mention" : linkType);
+                apply({ entity: next });
+              }}
+            />
+          </div>
         </div>
       </div>
     </BubbleMenu>

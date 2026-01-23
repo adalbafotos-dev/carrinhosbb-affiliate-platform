@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
-import { SiteHeader } from "@/components/site/SiteHeader";
-import { SiteFooter } from "@/components/site/SiteFooter";
+import { SiteChrome } from "@/components/site/SiteChrome";
 
 const display = Fraunces({
   subsets: ["latin"],
@@ -26,9 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <body className={`${body.variable} ${display.variable} min-h-screen`}>
-        <SiteHeader />
-        <main className="mx-auto w-full max-w-6xl px-4 py-10">{children}</main>
-        <SiteFooter />
+        <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
   );
