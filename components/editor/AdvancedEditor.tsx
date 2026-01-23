@@ -1,14 +1,14 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { BubbleMenu, useEditor, type Editor } from "@tiptap/react";
+import { useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
-import Table from "@tiptap/extension-table";
-import TableRow from "@tiptap/extension-table-row";
-import TableHeader from "@tiptap/extension-table-header";
-import TableCell from "@tiptap/extension-table-cell";
+import { Table } from "@tiptap/extension-table";
+import { TableRow } from "@tiptap/extension-table-row";
+import { TableHeader } from "@tiptap/extension-table-header";
+import { TableCell } from "@tiptap/extension-table-cell";
 import Placeholder from "@tiptap/extension-placeholder";
 
 import { EditorImage } from "@/components/editor/extensions/EditorImage";
@@ -311,21 +311,6 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
       setScheduleDraft(meta.scheduledAt);
     }
   }, [meta.scheduledAt, scheduleOpen]);
-
-  useEffect(() => {
-    if (autoTimer.current) {
-      clearTimeout(autoTimer.current);
-    }
-    if (saving) return;
-    if (!dirtyRef.current) return;
-    autoTimer.current = setTimeout(() => {
-      void onSave();
-      dirtyRef.current = false;
-    }, 12000);
-    return () => {
-      if (autoTimer.current) clearTimeout(autoTimer.current);
-    };
-  }, [docHtml, docJson, meta, onSave, saving]);
 
   useEffect(() => {
     if (!metaTitleTouched && meta.metaTitle !== meta.title) {
@@ -810,6 +795,21 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
     [docHtml, docJson, post.id, post.silo_id, siloSlug]
   );
 
+  useEffect(() => {
+    if (autoTimer.current) {
+      clearTimeout(autoTimer.current);
+    }
+    if (saving) return;
+    if (!dirtyRef.current) return;
+    autoTimer.current = setTimeout(() => {
+      void onSave();
+      dirtyRef.current = false;
+    }, 12000);
+    return () => {
+      if (autoTimer.current) clearTimeout(autoTimer.current);
+    };
+  }, [docHtml, docJson, meta, onSave, saving]);
+
   const { setHeader, resetHeader } = useAdminShell();
 
   useEffect(() => {
@@ -938,28 +938,6 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
 
           <AdvancedLinkDialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} />
 
-          {editor ? (
-            <BubbleMenu
-              editor={editor}
-              shouldShow={() => editor.isActive("image")}
-              tippyOptions={{ duration: 100, placement: "top" }}
-              className="rounded-lg border border-zinc-200 bg-white p-2 shadow-lg"
-            >
-              <div className="flex items-center gap-2 text-xs text-zinc-600">
-                <span>Alt</span>
-                <input
-                  value={imageAltValue}
-                  onChange={(event) => {
-                    const value = event.target.value;
-                    setImageAltValue(value);
-                    editor.chain().focus().updateAttributes("image", { alt: value }).run();
-                  }}
-                  className="w-48 rounded-md border border-zinc-200 px-2 py-1 text-xs outline-none"
-                  placeholder="Alt text"
-                />
-              </div>
-            </BubbleMenu>
-          ) : null}
         </div>
 
         {showRight ? <EditorInspector /> : null}

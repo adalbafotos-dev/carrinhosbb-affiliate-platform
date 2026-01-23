@@ -122,7 +122,7 @@ export async function setPublishState(payload: unknown | FormData) {
   await adminPublishPost({ id: data.id, published: data.published });
   await revalidatePostPaths(data.id);
 
-  return { ok: true as const };
+  return;
 }
 
 export async function schedulePost(formData: FormData) {
@@ -134,9 +134,8 @@ export async function schedulePost(formData: FormData) {
   };
 
   const data = ScheduleSchema.parse(payload);
-  const scheduledAt = data.scheduled_at.trim()
-    ? new Date(data.scheduled_at).toISOString()
-    : null;
+  const scheduledRaw = data.scheduled_at ? data.scheduled_at.trim() : "";
+  const scheduledAt = scheduledRaw ? new Date(scheduledRaw).toISOString() : null;
 
   await adminUpdatePost({
     id: data.id,
@@ -145,7 +144,7 @@ export async function schedulePost(formData: FormData) {
   });
 
   await revalidatePostPaths(data.id);
-  return { ok: true as const };
+  return;
 }
 
 export async function createPost(formData: FormData) {

@@ -18,8 +18,6 @@ export async function getPublicSilos(): Promise<Silo[]> {
   const { data, error } = await supabase
     .from("silos")
     .select("*")
-    .eq("is_active", true)
-    .order("menu_order", { ascending: true })
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []) as Silo[];
@@ -32,7 +30,6 @@ export async function getPublicSiloBySlug(slug: string): Promise<Silo | null> {
     .from("silos")
     .select("*")
     .eq("slug", slug)
-    .eq("is_active", true)
     .maybeSingle();
   if (error) throw error;
   return (data ?? null) as Silo | null;
@@ -49,8 +46,6 @@ export async function getPublicPostsBySilo(siloSlug: string): Promise<Post[]> {
     .select("*")
     .eq("silo_id", silo.id)
     .eq("published", true)
-    .order("is_featured", { ascending: false })
-    .order("pillar_rank", { ascending: true })
     .order("updated_at", { ascending: false });
 
   if (error) throw error;

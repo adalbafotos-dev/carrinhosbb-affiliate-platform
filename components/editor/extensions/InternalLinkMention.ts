@@ -77,6 +77,7 @@ function renderList() {
 
   function update(props: any) {
     if (!dom || !ul) return;
+    const list = ul;
 
     const rect = props.clientRect?.();
     if (rect) {
@@ -84,14 +85,14 @@ function renderList() {
       dom.style.top = rect.bottom + 8 + "px";
     }
 
-    ul.innerHTML = "";
+    list.innerHTML = "";
 
     const items: Item[] = props.items ?? [];
     if (!items.length) {
       const empty = document.createElement("div");
       empty.className = "px-3 py-2 text-xs text-[color:var(--muted-2)]";
       empty.textContent = "Nenhum artigo encontrado";
-      ul.appendChild(empty);
+      list.appendChild(empty);
       return;
     }
 
@@ -115,7 +116,7 @@ function renderList() {
       row.appendChild(title);
       row.appendChild(meta);
       row.onclick = () => props.command(item);
-      ul.appendChild(row);
+      list.appendChild(row);
     });
   }
 }
