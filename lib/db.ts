@@ -12,12 +12,69 @@ async function getAdminSupabaseClient() {
 
 function getMissingColumnFromError(error: any): string | null {
   if (!error) return null;
-  const message = String(error.message ?? "");
-  const missingMatch = /column\s+[a-zA-Z0-9_\."]*([a-zA-Z0-9_]+)\s+does not exist/i.exec(message);
-  if (missingMatch?.[1]) return missingMatch[1];
-  const cacheMatch = /Could not find the '([a-zA-Z0-9_]+)' column/i.exec(message);
-  if (cacheMatch?.[1]) return cacheMatch[1];
+  const message = [error.message, error.details, error.hint].filter(Boolean).join(" ");
+
+  const patterns = [
+    /column\s+(?:["]?[a-zA-Z0-9_]+["]?\.)*["]?([a-zA-Z0-9_]+)["]?\s+does not exist/i,
+    /Could not find the '([a-zA-Z0-9_]+)' column/i,
+    /missing column:\s*["']?([a-zA-Z0-9_]+)["']?/i,
+  ];
+
+  for (const regex of patterns) {
+    const match = regex.exec(message);
+    if (match?.[1]) return match[1];
+  }
+
   return null;
+}
+
+const REQUIRED_POST_COLUMNS = [
+  "meta_title",
+  "meta_description",
+  "seo_title",
+  "schema_type",
+  "canonical_path",
+  "entities",
+  "supporting_keywords",
+  "hero_image_url",
+  "hero_image_alt",
+  "og_image_url",
+  "images",
+  "author_name",
+  "expert_name",
+  "expert_role",
+  "expert_bio",
+  "expert_credentials",
+  "reviewed_by",
+  "reviewed_at",
+  "sources",
+  "disclaimer",
+  "faq_json",
+  "howto_json",
+  "status",
+  "published",
+  "published_at",
+  "scheduled_at",
+  "amazon_products",
+];
+
+export async function detectMissingPostColumns(): Promise<string[]> {
+  const supabase = await getAdminSupabaseClient();
+  const missing = new Set<string>();
+
+  for (const col of REQUIRED_POST_COLUMNS) {
+    const { error } = await supabase.from("posts").select(col).limit(0);
+    if (!error) continue;
+    const miss = getMissingColumnFromError(error);
+    if (miss) {
+      missing.add(miss);
+    } else {
+      // fallback: assume the requested column is missing if error is ambiguous
+      missing.add(col);
+    }
+  }
+
+  return Array.from(missing);
 }
 
 // --- Public (uses anon key, published only) ---
@@ -176,7 +233,7 @@ export async function adminGetPostById(id: string): Promise<PostWithSilo | null>
 }
 
 export async function adminCreatePost(args: {
-  silo_id: string;
+  silo_id: string | null;
   title: string;
   seo_title?: string | null;
   meta_title?: string | null;
@@ -212,48 +269,68 @@ export async function adminCreatePost(args: {
   const status = args.status ?? "draft";
   const published = status === "published";
 
-  const { data, error } = await supabase
-    .from("posts")
-    .insert({
-      silo_id: args.silo_id,
-      title: args.title,
-      seo_title: args.seo_title ?? null,
-      meta_title: args.meta_title ?? args.seo_title ?? args.title,
-      slug: args.slug,
-      target_keyword: args.target_keyword,
-      supporting_keywords: args.supporting_keywords ?? [],
-      meta_description: args.meta_description ?? null,
-      canonical_path: args.canonical_path ?? null,
-      entities: args.entities ?? [],
-      schema_type: args.schema_type ?? "article",
-      hero_image_url: args.hero_image_url ?? null,
-      hero_image_alt: args.hero_image_alt ?? null,
-      og_image_url: args.og_image_url ?? null,
-      images: args.images ?? [],
-      cover_image: args.cover_image ?? null,
-      author_name: args.author_name ?? null,
-      expert_name: args.expert_name ?? null,
-      expert_role: args.expert_role ?? null,
-      expert_bio: args.expert_bio ?? null,
-      expert_credentials: args.expert_credentials ?? null,
-      reviewed_by: args.reviewed_by ?? null,
-      reviewed_at: args.reviewed_at ?? null,
-      sources: args.sources ?? [],
-      disclaimer: args.disclaimer ?? null,
-      scheduled_at: args.scheduled_at ?? null,
-      published,
-      published_at: published ? args.published_at ?? now : null,
-      status,
-      faq_json: args.faq_json ?? null,
-      howto_json: args.howto_json ?? null,
-      updated_at: now,
-    })
-    .select("*, silos: silo_id (slug, name)")
-    .maybeSingle();
+  let body: Record<string, any> = {
+    silo_id: args.silo_id ?? null,
+    title: args.title,
+    seo_title: args.seo_title ?? null,
+    meta_title: args.meta_title ?? args.seo_title ?? args.title,
+    slug: args.slug,
+    target_keyword: args.target_keyword,
+    supporting_keywords: args.supporting_keywords ?? [],
+    meta_description: args.meta_description ?? null,
+    canonical_path: args.canonical_path ?? null,
+    entities: args.entities ?? [],
+    schema_type: args.schema_type ?? "article",
+    hero_image_url: args.hero_image_url ?? null,
+    hero_image_alt: args.hero_image_alt ?? null,
+    og_image_url: args.og_image_url ?? null,
+    images: args.images ?? [],
+    cover_image: args.cover_image ?? null,
+    author_name: args.author_name ?? null,
+    expert_name: args.expert_name ?? null,
+    expert_role: args.expert_role ?? null,
+    expert_bio: args.expert_bio ?? null,
+    expert_credentials: args.expert_credentials ?? null,
+    reviewed_by: args.reviewed_by ?? null,
+    reviewed_at: args.reviewed_at ?? null,
+    sources: args.sources ?? [],
+    disclaimer: args.disclaimer ?? null,
+    scheduled_at: args.scheduled_at ?? null,
+    published,
+    published_at: published ? args.published_at ?? now : null,
+    status,
+    faq_json: args.faq_json ?? null,
+    howto_json: args.howto_json ?? null,
+    updated_at: now,
+  };
 
+  const tryInsert = async (payload: Record<string, any>) =>
+    supabase.from("posts").insert(payload).select("*, silos: silo_id (slug, name)").maybeSingle();
+
+  for (let i = 0; i < 5; i++) {
+    const { data, error } = await tryInsert(body);
+    if (!error) {
+      if (!data) throw new Error("Falha ao criar o post.");
+      const row: any = data;
+      return {
+        ...(row as Post),
+        silo: row.silos ? { slug: row.silos.slug, name: row.silos.name } : null,
+      } as PostWithSilo;
+    }
+
+    const missingColumn = getMissingColumnFromError(error);
+    if (missingColumn && missingColumn in body) {
+      throw new Error(
+        `Coluna ausente em posts (${missingColumn}). Rode a migration supabase/migrations/20260122_01_add_post_editor_fields.sql e NOTIFY pgrst, 'reload schema';`
+      );
+    }
+
+    throw error;
+  }
+
+  const { data, error } = await tryInsert(body);
   if (error) throw error;
   if (!data) throw new Error("Falha ao criar o post.");
-
   const row: any = data;
   return {
     ...(row as Post),
@@ -367,7 +444,16 @@ export async function adminUpdatePost(args: {
     .update(update)
     .eq("id", args.id);
 
-  if (error) throw error;
+  if (error) {
+    const missingColumn = getMissingColumnFromError(error);
+    if (missingColumn && missingColumn in update) {
+      const { [missingColumn]: _, ...rest } = update;
+      const { error: retryError } = await supabase.from("posts").update(rest).eq("id", args.id);
+      if (retryError) throw retryError;
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function adminPublishPost(args: { id: string; published: boolean }): Promise<void> {
@@ -454,8 +540,7 @@ export async function adminUpdateSilo(id: string, patch: Partial<Silo>): Promise
     const missingColumn = getMissingColumnFromError(error);
     if (missingColumn) {
       if (missingColumn in body) {
-        // Remove o campo que não existe na tabela atual e tenta novamente
-        // para manter a compatibilidade com bases não migradas.
+        // Remove o campo ausente para manter compatibilidade com bases nao migradas.
         const { [missingColumn]: _, ...rest } = body;
         body = rest;
         if (Object.keys(body).length === 0) break;

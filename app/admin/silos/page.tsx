@@ -16,7 +16,7 @@ export default async function AdminSilosPage() {
           <p className="text-sm text-zinc-500">Gerencie os hubs que alimentam os posts.</p>
         </div>
         <Link
-          href="/admin/new"
+          href="/admin/editor/new"
           className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
         >
           Novo post

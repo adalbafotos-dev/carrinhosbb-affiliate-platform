@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useEditor, type Editor } from "@tiptap/react";
@@ -20,12 +20,10 @@ import { EditorCanvas } from "@/components/editor/EditorCanvas";
 import { ContentIntelligence } from "@/components/editor/ContentIntelligence";
 import { EditorInspector } from "@/components/editor/EditorInspector";
 import { AdvancedLinkDialog } from "@/components/editor/AdvancedLinkDialog";
-import { useAdminShell } from "@/components/admin/AdminShell";
 import { saveEditorPost } from "@/app/admin/editor/actions";
 import type { EditorMeta, ImageAsset, LinkItem, OutlineItem } from "@/components/editor/types";
 import type { PostWithSilo, Silo } from "@/lib/types";
 import { EditorProvider } from "@/components/editor/EditorContext";
-import { EditorHeader } from "@/components/editor/EditorHeader";
 
 type Props = {
   post: PostWithSilo;
@@ -59,23 +57,6 @@ function toIsoString(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date.toISOString();
-}
-
-function formatRelativeTime(value?: Date | null) {
-  if (!value) return "Sem salvamento recente";
-  const diff = Date.now() - value.getTime();
-  const minutes = Math.floor(diff / 60000);
-  if (minutes <= 0) return "Salvo agora";
-  if (minutes === 1) return "Salvo ha 1 min";
-  return `Salvo ha ${minutes} min`;
-}
-
-function normalize(value: string) {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
 }
 
 function extractAffiliateProducts(json: any) {
@@ -233,56 +214,72 @@ function updateImageBySrc(editor: Editor | null, src: string, attrs: Record<stri
   });
 }
 
+function defaultDoc(meta: EditorMeta) {
+  return {
+    type: "doc",
+    content: [
+      {
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: meta.targetKeyword ? `Comece falando sobre ${meta.targetKeyword}.` : "Comece a escrever seu review.",
+          },
+        ],
+      },
+    ],
+  };
+}
+
 export function AdvancedEditor({ post, silos = [] }: Props) {
-  const [meta, updateMeta] = useReducer((state: EditorMeta, patch: MetaPatch) => ({ ...state, ...patch }), {
-    title: post.title ?? "",
-    metaTitle: post.meta_title ?? post.seo_title ?? post.title ?? "",
-    slug: post.slug ?? "",
-    targetKeyword: post.target_keyword ?? "",
-    metaDescription: post.meta_description ?? "",
-    supportingKeywords: post.supporting_keywords ?? [],
-    entities: post.entities ?? [],
-    schemaType: post.schema_type ?? "article",
-    status: post.status ?? (post.published ? "published" : "draft"),
-    scheduledAt: toLocalInput(post.scheduled_at),
-    canonicalPath: post.canonical_path ?? "",
-    heroImageUrl: post.hero_image_url ?? "",
-    heroImageAlt: post.hero_image_alt ?? "",
-    ogImageUrl: post.og_image_url ?? "",
-    images: Array.isArray(post.images) ? (post.images as ImageAsset[]) : [],
-    authorName: post.author_name ?? "",
-    expertName: post.expert_name ?? "",
-    expertRole: post.expert_role ?? "",
-    expertBio: post.expert_bio ?? "",
-    expertCredentials: post.expert_credentials ?? "",
-    reviewedBy: post.reviewed_by ?? "",
-    reviewedAt: toLocalInput(post.reviewed_at),
-    sources: Array.isArray(post.sources) ? post.sources : [],
-    disclaimer: post.disclaimer ?? "",
-    faq: Array.isArray(post.faq_json) ? post.faq_json : [],
-    howto: Array.isArray(post.howto_json) ? post.howto_json : [],
-    siloId: post.silo_id ?? "",
-  });
+  const metaFromJson = (post.content_json as any)?.meta ?? {};
+  const [meta, updateMeta] = useReducer(
+    (state: EditorMeta, patch: MetaPatch) => ({ ...state, ...patch }),
+    {
+      title: post.title ?? "",
+      metaTitle: post.meta_title ?? post.seo_title ?? post.title ?? "",
+      slug: post.slug ?? "",
+      targetKeyword: post.target_keyword ?? "",
+      metaDescription: post.meta_description ?? "",
+      supportingKeywords: Array.isArray(post.supporting_keywords) ? post.supporting_keywords : [],
+      entities: Array.isArray(post.entities) ? post.entities : [],
+      schemaType: (post.schema_type as EditorMeta["schemaType"]) ?? "article",
+      status: (post.status as EditorMeta["status"]) ?? (post.published ? "published" : "draft"),
+      scheduledAt: toLocalInput(post.scheduled_at),
+      canonicalPath: post.canonical_path ?? "",
+      heroImageUrl: post.hero_image_url ?? "",
+      heroImageAlt: post.hero_image_alt ?? "",
+      ogImageUrl: post.og_image_url ?? "",
+      images: Array.isArray(post.images) ? (post.images as ImageAsset[]) : [],
+      authorName: post.author_name ?? "",
+      expertName: post.expert_name ?? "",
+      expertRole: post.expert_role ?? "",
+      expertBio: post.expert_bio ?? "",
+      expertCredentials: post.expert_credentials ?? "",
+      reviewedBy: post.reviewed_by ?? "",
+      reviewedAt: toLocalInput(post.reviewed_at),
+      authorLinks: Array.isArray(metaFromJson.authorLinks) ? metaFromJson.authorLinks : [],
+      sources: Array.isArray(post.sources) ? post.sources : [],
+      disclaimer: post.disclaimer ?? "",
+      faq: Array.isArray(post.faq_json) ? post.faq_json : [],
+      howto: Array.isArray(post.howto_json) ? post.howto_json : [],
+      siloId: post.silo_id ?? "",
+    }
+  );
 
   const metaRef = useRef(meta);
   const [slugTouched, setSlugTouched] = useState(false);
   const [metaTitleTouched, setMetaTitleTouched] = useState(false);
   const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "ok" | "taken">("idle");
-  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
-  const [showLeft, setShowLeft] = useState(true);
-  const [showRight, setShowRight] = useState(true);
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-  const [publishOpen, setPublishOpen] = useState(false);
-  const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [scheduleDraft, setScheduleDraft] = useState(meta.scheduledAt);
-  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [docJson, setDocJson] = useState<any>(post.content_json ?? null);
   const [docHtml, setDocHtml] = useState<string>(post.content_html ?? "");
   const [docText, setDocText] = useState<string>("");
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
-  const [imageAltValue, setImageAltValue] = useState("");
   const [saving, setSaving] = useState(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
 
   const heroInputRef = useRef<HTMLInputElement | null>(null);
   const bodyInputRef = useRef<HTMLInputElement | null>(null);
@@ -305,12 +302,6 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
   useEffect(() => {
     metaRef.current = meta;
   }, [meta]);
-
-  useEffect(() => {
-    if (!scheduleOpen) {
-      setScheduleDraft(meta.scheduledAt);
-    }
-  }, [meta.scheduledAt, scheduleOpen]);
 
   useEffect(() => {
     if (!metaTitleTouched && meta.metaTitle !== meta.title) {
@@ -379,26 +370,10 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
         placeholder: "Escreva aqui. Use a barra fixa para inserir blocos.",
       }),
     ],
-    content:
-      post.content_json ?? {
-        type: "doc",
-        content: [
-          {
-            type: "paragraph",
-            content: [
-              {
-                type: "text",
-                text: meta.targetKeyword
-                  ? `Comece falando sobre ${meta.targetKeyword}.`
-                  : "Comece a escrever seu review.",
-              },
-            ],
-          },
-        ],
-      },
+    content: post.content_json ?? defaultDoc(meta),
     editorProps: {
       attributes: {
-        class: "editor-content min-h-[520px] outline-none prose max-w-none",
+        class: "editor-content min-h-[520px] outline-none prose prose-invert max-w-none",
       },
       handleDrop: (view, event) => {
         const hasFiles = event.dataTransfer?.files && event.dataTransfer.files.length > 0;
@@ -431,21 +406,6 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
     setDocHtml(editor.getHTML());
     setDocText(editor.getText());
     dirtyRef.current = true;
-  }, [editor]);
-
-  useEffect(() => {
-    if (!editor) return;
-    const syncAlt = () => {
-      const attrs = editor.getAttributes("image") as any;
-      setImageAltValue(attrs?.alt ?? "");
-    };
-    syncAlt();
-    editor.on("selectionUpdate", syncAlt);
-    editor.on("transaction", syncAlt);
-    return () => {
-      editor.off("selectionUpdate", syncAlt);
-      editor.off("transaction", syncAlt);
-    };
   }, [editor]);
 
   const handleMetaChange = useCallback(
@@ -595,9 +555,7 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
 
   const onUpdateImageAlt = useCallback(
     (url: string, alt: string) => {
-      const nextImages = metaRef.current.images.map((image) =>
-        image.url === url ? { ...image, alt } : image
-      );
+      const nextImages = metaRef.current.images.map((image) => (image.url === url ? { ...image, alt } : image));
       updateMeta({ images: nextImages });
       updateImageBySrc(editor, url, { alt });
     },
@@ -649,78 +607,14 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
     editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   }, [editor]);
 
-  const onInsertSection = useCallback(() => {
+  const onInsertCallout = useCallback(() => {
     if (!editor) return;
     editor
       .chain()
       .focus()
-      .insertContent([
-        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Nova secao" }] },
-        { type: "paragraph", content: [{ type: "text", text: "Escreva o conteudo aqui." }] },
-      ])
+      .toggleBlockquote()
       .run();
   }, [editor]);
-
-  const onInsertFaq = useCallback(() => {
-    if (!editor) return;
-    editor
-      .chain()
-      .focus()
-      .insertContent([
-        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "FAQ" }] },
-        { type: "paragraph", content: [{ type: "text", text: "Pergunta 1:" }] },
-        { type: "paragraph", content: [{ type: "text", text: "Resposta 1..." }] },
-      ])
-      .run();
-  }, [editor]);
-
-  const onInsertHowTo = useCallback(() => {
-    if (!editor) return;
-    editor
-      .chain()
-      .focus()
-      .insertContent([
-        { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Passo a passo" }] },
-        { type: "orderedList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "Passo 1" }] }] }] },
-      ])
-      .run();
-  }, [editor]);
-
-  const onInsertCtaBest = useCallback(() => {
-    if (!editor) return;
-    editor
-      .chain()
-      .focus()
-      .insertContent([
-        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Melhor escolha" }] },
-      ])
-      .run();
-    onInsertProduct();
-  }, [editor, onInsertProduct]);
-
-  const onInsertCtaValue = useCallback(() => {
-    if (!editor) return;
-    editor
-      .chain()
-      .focus()
-      .insertContent([
-        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Melhor custo-beneficio" }] },
-      ])
-      .run();
-    onInsertProduct();
-  }, [editor, onInsertProduct]);
-
-  const onInsertCtaTable = useCallback(() => {
-    if (!editor) return;
-    editor
-      .chain()
-      .focus()
-      .insertContent([
-        { type: "heading", attrs: { level: 3 }, content: [{ type: "text", text: "Tabela comparativa" }] },
-      ])
-      .run();
-    onInsertTable();
-  }, [editor, onInsertTable]);
 
   const onSelectLink = useCallback(
     (link: LinkItem) => {
@@ -746,6 +640,11 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
       const canonicalPath =
         metaRef.current.canonicalPath ||
         (siloSlug && metaRef.current.slug ? `/${siloSlug}/${metaRef.current.slug}` : null);
+
+      const enrichedJson =
+        docJson && typeof docJson === "object"
+          ? { ...docJson, meta: { ...(docJson.meta ?? {}), authorLinks: metaRef.current.authorLinks } }
+          : { type: "doc", content: [], meta: { authorLinks: metaRef.current.authorLinks } };
 
       const payload = {
         id: post.id,
@@ -777,9 +676,9 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
         disclaimer: metaRef.current.disclaimer || null,
         scheduled_at: toIsoString(metaRef.current.scheduledAt) ?? null,
         status: statusToSave,
-        content_json: docJson,
+        content_json: enrichedJson,
         content_html: docHtml,
-        amazon_products: extractAffiliateProducts(docJson),
+        amazon_products: extractAffiliateProducts(enrichedJson),
       };
 
       setSaving(true);
@@ -810,51 +709,6 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
     };
   }, [docHtml, docJson, meta, onSave, saving]);
 
-  const { setHeader, resetHeader } = useAdminShell();
-
-  useEffect(() => {
-    const rightExtra = (
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setShowLeft((value) => !value)}
-          className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] text-zinc-600 hover:bg-zinc-50"
-        >
-          {showLeft ? "Ocultar LSI" : "Mostrar LSI"}
-        </button>
-        <button
-          type="button"
-          onClick={() => setShowRight((value) => !value)}
-          className="rounded-md border border-zinc-200 bg-white px-2 py-1 text-[11px] text-zinc-600 hover:bg-zinc-50"
-        >
-          {showRight ? "Ocultar painel" : "Mostrar painel"}
-        </button>
-        <span className="text-[11px] text-zinc-500">{formatRelativeTime(lastSavedAt)}</span>
-      </div>
-    );
-
-    setHeader({
-      custom: (
-        <EditorHeader
-          breadcrumb={[
-            { label: "Admin", href: "/admin" },
-            { label: currentSilo?.name ?? "Sem silo", href: currentSilo ? `/admin/silos/${currentSilo.slug}` : undefined },
-            { label: meta.title || "Sem titulo" },
-          ]}
-          status={meta.status}
-          saving={saving}
-          previewMode={previewMode}
-          onPreviewChange={setPreviewMode}
-          onSave={() => void onSave()}
-          onPublish={() => setPublishOpen(true)}
-          rightExtra={rightExtra}
-        />
-      ),
-      layout: "full",
-    });
-    return () => resetHeader();
-  }, [currentSilo, lastSavedAt, meta.status, meta.title, onSave, previewMode, resetHeader, saving, setHeader, setPreviewMode, showLeft, showRight]);
-
   const openHeroPicker = useCallback(() => heroInputRef.current?.click(), []);
   const openMediaPicker = useCallback(() => bodyInputRef.current?.click(), []);
   const openLinkDialog = useCallback(() => setLinkDialogOpen(true), []);
@@ -873,6 +727,8 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
       saving,
       previewMode,
       setPreviewMode,
+      lastSavedAt,
+      onSave,
       onHeroUpload: uploadHero,
       onOpenHeroPicker: openHeroPicker,
       onOpenMedia: openMediaPicker,
@@ -880,12 +736,13 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
       onInsertProduct,
       onInsertYoutube,
       onInsertTable,
-      onInsertSection,
-      onInsertFaq,
-      onInsertHowTo,
-      onInsertCtaBest,
-      onInsertCtaValue,
-      onInsertCtaTable,
+      onInsertSection: () => undefined,
+      onInsertCallout,
+      onInsertFaq: () => undefined,
+      onInsertHowTo: () => undefined,
+      onInsertCtaBest: () => undefined,
+      onInsertCtaValue: () => undefined,
+      onInsertCtaTable: () => undefined,
       onAlignImage,
       onSelectLink,
       onInsertImage,
@@ -906,6 +763,8 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
       saving,
       previewMode,
       setPreviewMode,
+      lastSavedAt,
+      onSave,
       uploadHero,
       openHeroPicker,
       openMediaPicker,
@@ -913,12 +772,7 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
       onInsertProduct,
       onInsertYoutube,
       onInsertTable,
-      onInsertSection,
-      onInsertFaq,
-      onInsertHowTo,
-      onInsertCtaBest,
-      onInsertCtaValue,
-      onInsertCtaTable,
+      onInsertCallout,
       onAlignImage,
       onSelectLink,
       onInsertImage,
@@ -930,140 +784,40 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
 
   return (
     <EditorProvider value={contextValue}>
-      <div className="flex h-full w-full overflow-hidden">
-        {showLeft ? <ContentIntelligence /> : null}
+      <div className="flex h-screen w-screen overflow-hidden bg-zinc-950 text-white">
+        <ContentIntelligence />
 
         <div className="flex h-full flex-1 flex-col">
           <EditorCanvas />
-
           <AdvancedLinkDialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} />
-
         </div>
 
-        {showRight ? <EditorInspector /> : null}
+        <EditorInspector />
 
-      <input
-        ref={heroInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          void uploadHero(file);
-        }}
-      />
+        <input
+          ref={heroInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            void uploadHero(file);
+          }}
+        />
 
-      <input
-        ref={bodyInputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (!file) return;
-          void uploadAndInsertImage(file);
-        }}
-      />
-
-      {publishOpen ? (
-        <Modal title="Confirmar publicacao" onClose={() => setPublishOpen(false)}>
-          <p className="text-xs text-zinc-600">O post sera publicado e estara visivel no site.</p>
-          <div className="mt-4 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setPublishOpen(false)}
-              className="rounded-md border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-600"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                await onSave("published");
-                setPublishOpen(false);
-              }}
-              className="rounded-md bg-zinc-900 px-3 py-2 text-xs font-semibold text-white"
-            >
-              Publicar agora
-            </button>
-          </div>
-        </Modal>
-      ) : null}
-
-      {scheduleOpen ? (
-        <Modal title="Agendar publicacao" onClose={() => setScheduleOpen(false)}>
-          <p className="text-xs text-zinc-600">Defina a data e hora para publicar.</p>
-          <input
-            type="datetime-local"
-            value={scheduleDraft}
-            onChange={(event) => setScheduleDraft(event.target.value)}
-            className="mt-3 w-full rounded-md border border-zinc-200 px-3 py-2 text-xs outline-none"
-          />
-          <div className="mt-4 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={() => setScheduleOpen(false)}
-              className="rounded-md border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-600"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                metaRef.current = {
-                  ...metaRef.current,
-                  scheduledAt: scheduleDraft,
-                  status: "scheduled",
-                };
-                updateMeta({ scheduledAt: scheduleDraft, status: "scheduled" });
-                await onSave("scheduled");
-                setScheduleOpen(false);
-              }}
-              className="rounded-md bg-zinc-900 px-3 py-2 text-xs font-semibold text-white"
-            >
-              Agendar
-            </button>
-          </div>
-        </Modal>
-      ) : null}
-    </div>
-    </EditorProvider>
-  );
-}
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [onClose]);
-
-  return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-5 shadow-2xl">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-zinc-900">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-zinc-200 px-2 py-1 text-[11px] text-zinc-600"
-          >
-            Fechar
-          </button>
-        </div>
-        <div className="mt-3">{children}</div>
+        <input
+          ref={bodyInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            void uploadAndInsertImage(file);
+          }}
+        />
       </div>
-    </div>
+    </EditorProvider>
   );
 }

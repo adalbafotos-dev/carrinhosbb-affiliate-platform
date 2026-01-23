@@ -18,6 +18,8 @@ export type EditorContextValue = {
   saving: boolean;
   previewMode: "desktop" | "mobile";
   setPreviewMode: (mode: "desktop" | "mobile") => void;
+  lastSavedAt: Date | null;
+  onSave: (status?: EditorMeta["status"]) => Promise<void>;
   onHeroUpload: (file: File) => void;
   onOpenHeroPicker: () => void;
   onOpenMedia: () => void;
@@ -26,6 +28,7 @@ export type EditorContextValue = {
   onInsertYoutube: () => void;
   onInsertTable: () => void;
   onInsertSection: () => void;
+  onInsertCallout: () => void;
   onInsertFaq: () => void;
   onInsertHowTo: () => void;
   onInsertCtaBest: () => void;

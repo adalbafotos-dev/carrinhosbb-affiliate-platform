@@ -44,7 +44,7 @@ export default async function AdminPage({
 
         <Link
           className="inline-flex rounded-xl border border-[color:var(--border)] bg-[color:var(--brand-primary)] px-4 py-2 text-xs font-semibold hover:bg-[color:var(--brand-primary)]"
-          href="/admin/new"
+          href="/admin/editor/new"
         >
           Novo post
         </Link>

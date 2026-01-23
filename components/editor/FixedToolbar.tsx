@@ -7,7 +7,6 @@ import {
   AlignLeft,
   AlignRight,
   Bold,
-  Code,
   Heading2,
   Heading3,
   Heading4,
@@ -15,9 +14,7 @@ import {
   Italic,
   Link as LinkIcon,
   List,
-  ListChecks,
   ListOrdered,
-  MessageCircleQuestion,
   Quote,
   Redo2,
   ShoppingCart,
@@ -35,12 +32,7 @@ type Props = {
   onInsertProduct: () => void;
   onInsertYoutube: () => void;
   onInsertTable: () => void;
-  onInsertSection: () => void;
-  onInsertFaq: () => void;
-  onInsertHowTo: () => void;
-  onInsertCtaBest: () => void;
-  onInsertCtaValue: () => void;
-  onInsertCtaTable: () => void;
+  onInsertCallout: () => void;
   onAlignImage?: (align: "left" | "center" | "right") => void;
 };
 
@@ -51,12 +43,7 @@ export function FixedToolbar({
   onInsertProduct,
   onInsertYoutube,
   onInsertTable,
-  onInsertSection,
-  onInsertFaq,
-  onInsertHowTo,
-  onInsertCtaBest,
-  onInsertCtaValue,
-  onInsertCtaTable,
+  onInsertCallout,
   onAlignImage,
 }: Props) {
   if (!editor) return null;
@@ -74,8 +61,8 @@ export function FixedToolbar({
   const imageAlign = isImageSelected ? selection.node.attrs["data-align"] ?? "left" : null;
 
   return (
-    <div className="sticky top-0 z-20 border-b border-zinc-200 bg-white/90 px-3 py-2 backdrop-blur">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-700">
+    <div className="sticky top-0 z-20 border-b border-zinc-800 bg-zinc-900/80 px-3 py-2 backdrop-blur">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-100">
         <div className="flex items-center gap-2">
           <ToolbarButton
             label="Desfazer"
@@ -110,9 +97,9 @@ export function FixedToolbar({
                 editor.chain().focus().setHeading({ level: 4 }).run();
               }
             }}
-            className="rounded border border-zinc-200 bg-white px-2 py-1 text-[11px] font-medium text-zinc-700 outline-none"
+            className="rounded border border-zinc-800 bg-zinc-950 px-2 py-1 text-[11px] font-medium text-zinc-100 outline-none"
           >
-            <option value="paragraph">Paragrafo</option>
+            <option value="paragraph">Parágrafo</option>
             <option value="h2">H2</option>
             <option value="h3">H3</option>
             <option value="h4">H4</option>
@@ -129,7 +116,7 @@ export function FixedToolbar({
           <Bold size={16} />
         </ToolbarButton>
         <ToolbarButton
-          label="Italico"
+          label="Itálico"
           active={editor.isActive("italic")}
           onClick={() => editor.chain().focus().toggleItalic().run()}
         >
@@ -149,17 +136,13 @@ export function FixedToolbar({
         >
           <Strikethrough size={16} />
         </ToolbarButton>
+
+        <Separator />
+
         <ToolbarButton
-          label="Codigo"
-          active={editor.isActive("code")}
-          onClick={() => editor.chain().focus().toggleCode().run()}
-        >
-          <Code size={16} />
-        </ToolbarButton>
-        <ToolbarButton
-          label="Citar"
+          label="Quote / Callout"
           active={editor.isActive("blockquote")}
-          onClick={() => editor.chain().focus().toggleBlockquote().run()}
+          onClick={onInsertCallout}
         >
           <Quote size={16} />
         </ToolbarButton>
@@ -192,35 +175,11 @@ export function FixedToolbar({
         <ToolbarButton label="YouTube" onClick={onInsertYoutube}>
           <Youtube size={16} />
         </ToolbarButton>
-        <ToolbarButton label="Produto" onClick={onInsertProduct}>
-          <ShoppingCart size={16} />
-        </ToolbarButton>
         <ToolbarButton label="Tabela" onClick={onInsertTable}>
           <TableIcon size={16} />
         </ToolbarButton>
-
-        <Separator />
-
-        <ToolbarButton label="Secao" onClick={onInsertSection}>
-          <Heading2 size={16} />
-        </ToolbarButton>
-        <ToolbarButton label="FAQ" onClick={onInsertFaq}>
-          <MessageCircleQuestion size={16} />
-        </ToolbarButton>
-        <ToolbarButton label="HowTo" onClick={onInsertHowTo}>
-          <ListChecks size={16} />
-        </ToolbarButton>
-
-        <Separator />
-
-        <ToolbarButton label="CTA Melhor escolha" onClick={onInsertCtaBest}>
-          <Heading3 size={16} />
-        </ToolbarButton>
-        <ToolbarButton label="CTA Custo-beneficio" onClick={onInsertCtaValue}>
-          <Heading4 size={16} />
-        </ToolbarButton>
-        <ToolbarButton label="CTA Tabela comparativa" onClick={onInsertCtaTable}>
-          <TableIcon size={16} />
+        <ToolbarButton label="Produto" onClick={onInsertProduct}>
+          <ShoppingCart size={16} />
         </ToolbarButton>
 
         {onAlignImage ? (
@@ -278,8 +237,8 @@ function ToolbarButton({
       disabled={disabled}
       className={`rounded-md border px-2 py-1 text-xs transition ${
         active
-          ? "border-zinc-300 bg-zinc-100 text-zinc-900"
-          : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50"
+          ? "border-emerald-500 bg-emerald-900/60 text-emerald-100"
+          : "border-zinc-800 bg-zinc-950 text-zinc-200 hover:bg-zinc-800"
       } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       {children}
@@ -288,5 +247,5 @@ function ToolbarButton({
 }
 
 function Separator() {
-  return <span className="hidden h-5 w-px bg-zinc-200 md:inline-flex" />;
+  return <span className="hidden h-5 w-px bg-zinc-800 md:inline-flex" />;
 }

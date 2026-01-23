@@ -82,7 +82,7 @@ export function AdminShell({ children }: { children: ReactNode }) {
                   <a className="rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-100" href="/admin/silos">
                     Silos
                   </a>
-                  <a className="rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-100" href="/admin/new">
+                  <a className="rounded-md border border-zinc-200 px-2 py-1 hover:bg-zinc-100" href="/admin/editor/new">
                     Novo post
                   </a>
                 </nav>

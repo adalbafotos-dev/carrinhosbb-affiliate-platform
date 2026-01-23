@@ -199,5 +199,5 @@ export async function createSilo(formData: FormData) {
     description: data.description ?? null,
   });
 
-  redirect("/admin/new");
+  redirect("/admin/editor/new");
 }

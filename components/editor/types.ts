@@ -47,6 +47,7 @@ export type EditorMeta = {
   expertCredentials: string;
   reviewedBy: string;
   reviewedAt: string;
+  authorLinks: string[];
   sources: SourceItem[];
   disclaimer: string;
   faq: FaqItem[];
