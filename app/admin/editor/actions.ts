@@ -9,32 +9,32 @@ const SaveSchema = z.object({
   id: z.string().uuid(),
   silo_id: z.string().uuid().nullable().optional(),
   title: z.string().min(3).max(180),
-  seo_title: z.string().max(180).optional(),
-  meta_title: z.string().max(180).optional(),
+  seo_title: z.string().max(180).nullable().optional(),
+  meta_title: z.string().max(180).nullable().optional(),
   slug: z.string().min(3).max(180),
   target_keyword: z.string().min(2).max(180),
   supporting_keywords: z.array(z.string()).optional(),
-  meta_description: z.string().max(200).optional(),
-  canonical_path: z.string().max(220).optional(),
+  meta_description: z.string().max(800).nullable().optional(),
+  canonical_path: z.string().max(220).nullable().optional(),
   entities: z.array(z.string()).optional(),
   schema_type: z.enum(["article", "review", "faq", "howto"]).optional(),
   faq_json: z.any().optional(),
   howto_json: z.any().optional(),
-  hero_image_url: z.string().optional(),
-  hero_image_alt: z.string().optional(),
-  og_image_url: z.string().optional(),
+  hero_image_url: z.string().nullable().optional(),
+  hero_image_alt: z.string().nullable().optional(),
+  og_image_url: z.string().nullable().optional(),
   images: z.any().optional(),
-  cover_image: z.string().optional(),
-  author_name: z.string().max(120).optional(),
-  expert_name: z.string().max(120).optional(),
-  expert_role: z.string().max(120).optional(),
-  expert_bio: z.string().max(500).optional(),
-  expert_credentials: z.string().max(240).optional(),
-  reviewed_by: z.string().max(120).optional(),
-  reviewed_at: z.string().optional(),
+  cover_image: z.string().nullable().optional(),
+  author_name: z.string().max(120).nullable().optional(),
+  expert_name: z.string().max(120).nullable().optional(),
+  expert_role: z.string().max(120).nullable().optional(),
+  expert_bio: z.string().max(500).nullable().optional(),
+  expert_credentials: z.string().max(240).nullable().optional(),
+  reviewed_by: z.string().max(120).nullable().optional(),
+  reviewed_at: z.string().nullable().optional(),
   sources: z.any().optional(),
-  disclaimer: z.string().max(500).optional(),
-  scheduled_at: z.string().optional(),
+  disclaimer: z.string().max(500).nullable().optional(),
+  scheduled_at: z.string().nullable().optional(),
   status: z.enum(["draft", "review", "scheduled", "published"]).optional(),
   content_json: z.any(),
   content_html: z.string(),
@@ -130,20 +130,34 @@ export async function saveEditorPost(payload: unknown) {
     amazon_products: data.amazon_products ?? null,
   });
 
-  const links = extractLinksFromJson(data.content_json, {
-    siloSlug: post?.silo?.slug ?? null,
-  });
-  await adminReplacePostLinks(
-    data.id,
-    links.map((link) => ({
-      target_post_id: link.target_post_id,
-      target_url: link.target_url,
-      anchor_text: link.anchor_text,
-      link_type: link.link_type,
-      rel_flags: link.rel_flags,
-      is_blank: link.is_blank,
-    }))
-  );
+  let links: ExtractedLink[] = [];
+  try {
+    links = extractLinksFromJson(data.content_json, {
+      siloSlug: post?.silo?.slug ?? null,
+    });
+  } catch (error) {
+    console.error("Falha ao extrair links do JSON, continuando sem links", error);
+    links = [];
+  }
+  try {
+    if (links.length) {
+      await adminReplacePostLinks(
+        data.id,
+        links.map((link) => ({
+          target_post_id: link.target_post_id,
+          target_url: link.target_url,
+          anchor_text: link.anchor_text,
+          link_type: link.link_type,
+          rel_flags: link.rel_flags,
+          is_blank: link.is_blank,
+        }))
+      );
+    } else {
+      await adminReplacePostLinks(data.id, []);
+    }
+  } catch (error) {
+    console.error("Nao foi possivel sincronizar post_links, seguindo com o save do post", error);
+  }
 
   if ((data.status ?? undefined) === "published") {
     const validation = await validatePostForPublish(data.id, { links, html: data.content_html ?? "", title: data.title, target_keyword: data.target_keyword, meta_description: metaDescription ?? "" });
@@ -186,16 +200,21 @@ function walkNode(node: any, activeMarks: any[], links: ExtractedLink[], ctx: { 
 
   // mention node
   if (node.type === "mention") {
-    const href = node.attrs?.href ?? "";
-    const anchor = node.attrs?.label ?? "";
-    links.push({
-      target_post_id: node.attrs?.id ?? null,
-      target_url: href || null,
-      anchor_text: anchor,
-      link_type: "mention",
-      rel_flags: [],
-      is_blank: false,
-    });
+    try {
+      const rawHref = node.attrs?.href;
+      if (typeof rawHref !== "string") return;
+      const anchor = node.attrs?.label ?? "";
+      links.push({
+        target_post_id: node.attrs?.id ?? null,
+        target_url: rawHref || null,
+        anchor_text: anchor,
+        link_type: "mention",
+        rel_flags: [],
+        is_blank: false,
+      });
+    } catch {
+      return;
+    }
     return;
   }
 
@@ -203,26 +222,33 @@ function walkNode(node: any, activeMarks: any[], links: ExtractedLink[], ctx: { 
   if (node.type === "text") {
     const linkMark = marks?.find((m: any) => m.type === "link");
     if (linkMark) {
-      const attrs = linkMark.attrs ?? {};
-      const href = attrs.href ?? "";
-      const rel = String(attrs.rel ?? "");
-      const relFlags = rel
-        .split(/\s+/)
-        .map((r) => r.trim())
-        .filter(Boolean);
-      const isAffiliate = relFlags.includes("sponsored");
-      const linkType: ExtractedLink["link_type"] =
-        attrs["data-link-type"] ??
-        (attrs["data-entity-type"] === "about" ? "about" : isAffiliate ? "affiliate" : href.startsWith("/") ? "internal" : "external");
-      const targetPostId = attrs["data-post-id"] ?? null;
-      links.push({
-        target_post_id: targetPostId || null,
-        target_url: href || null,
-        anchor_text: node.text ?? "",
-        link_type: linkType,
-        rel_flags: relFlags,
-        is_blank: attrs.target === "_blank",
-      });
+      try {
+        const attrs = linkMark.attrs ?? {};
+        const rawHref = attrs.href;
+        if (typeof rawHref !== "string") return;
+        const href = rawHref;
+        if (!href) return;
+        const rel = String(attrs.rel ?? "");
+        const relFlags = rel
+          .split(/\s+/)
+          .map((r) => r.trim())
+          .filter(Boolean);
+        const isAffiliate = relFlags.includes("sponsored");
+        const linkType: ExtractedLink["link_type"] =
+          attrs["data-link-type"] ??
+          (attrs["data-entity-type"] === "about" ? "about" : isAffiliate ? "affiliate" : href.startsWith("/") ? "internal" : "external");
+        const targetPostId = attrs["data-post-id"] ?? null;
+        links.push({
+          target_post_id: targetPostId || null,
+          target_url: href || null,
+          anchor_text: node.text ?? "",
+          link_type: linkType,
+          rel_flags: relFlags,
+          is_blank: attrs.target === "_blank",
+        });
+      } catch {
+        return;
+      }
     }
   }
 

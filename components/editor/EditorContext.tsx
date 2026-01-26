@@ -14,6 +14,8 @@ export type EditorContextValue = {
   docText: string;
   docHtml: string;
   silos: Silo[];
+  refreshSilos: () => Promise<void>;
+  createSilo: (name: string) => Promise<Silo | null>;
   slugStatus: "idle" | "checking" | "ok" | "taken";
   saving: boolean;
   previewMode: "desktop" | "mobile";

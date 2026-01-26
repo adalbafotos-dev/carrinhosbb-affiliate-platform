@@ -3,14 +3,14 @@ import type { ReactNode } from "react";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="h-screen w-screen overflow-hidden bg-zinc-950 text-white">
-      <header className="flex h-12 items-center justify-between border-b border-zinc-800 bg-zinc-900 px-4">
+    <div className="h-screen w-screen overflow-hidden bg-[color:var(--bg)] text-[color:var(--text)]">
+      <header className="flex h-12 items-center justify-between border-b border-[color:var(--border)] bg-[color:var(--surface)] px-4">
         <div className="text-sm font-semibold tracking-tight">Cockpit CMS</div>
-        <nav className="flex items-center gap-2 text-[11px] font-semibold uppercase text-zinc-200">
-          <Link className="rounded-md bg-zinc-800 px-3 py-1.5 hover:bg-zinc-700" href="/admin">
+        <nav className="flex items-center gap-2 text-[11px] font-semibold uppercase text-[color:var(--muted)]">
+          <Link className="rounded-md bg-[color:var(--surface-muted)] px-3 py-1.5 hover:bg-[color:var(--accent-soft)]" href="/admin">
             Conteúdo
           </Link>
-          <Link className="rounded-md bg-zinc-800 px-3 py-1.5 hover:bg-zinc-700" href="/admin/silos">
+          <Link className="rounded-md bg-[color:var(--surface-muted)] px-3 py-1.5 hover:bg-[color:var(--accent-soft)]" href="/admin/silos">
             Silos
           </Link>
           <Link className="rounded-md bg-emerald-600 px-3 py-1.5 text-white hover:bg-emerald-500" href="/admin/editor/new">

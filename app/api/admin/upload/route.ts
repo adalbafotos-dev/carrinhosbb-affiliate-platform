@@ -70,12 +70,29 @@ export async function POST(req: Request) {
   const path = `${siloSlug}/${postSlug}/${fileName}`;
 
   const supabase = getAdminSupabase();
-  const { error } = await supabase.storage.from("media").upload(path, blob, {
+  let { error } = await supabase.storage.from("media").upload(path, blob, {
     contentType,
     upsert: false,
   });
 
+  // Auto-create bucket if missing
+  if (error && error.message && error.message.includes("Bucket not found")) {
+    console.log("Bucket 'media' not found. Attempting to create...");
+    const { error: createError } = await supabase.storage.createBucket("media", { public: true });
+    if (!createError) {
+      // Retry upload
+      const retry = await supabase.storage.from("media").upload(path, blob, {
+        contentType,
+        upsert: false,
+      });
+      error = retry.error;
+    } else {
+      console.error("Failed to create bucket:", createError);
+    }
+  }
+
   if (error) {
+    console.error("Upload error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

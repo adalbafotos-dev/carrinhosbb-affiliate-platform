@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { adminListPosts } from "@/lib/db";
-import { schedulePost, setPublishState } from "@/app/admin/actions";
+import { bulkDeletePosts, schedulePost, setPublishState } from "@/app/admin/actions";
 import { requireAdminSession } from "@/lib/admin/auth";
 
 export const revalidate = 0;
@@ -85,10 +85,21 @@ export default async function AdminPage({
       </form>
 
       <div className="overflow-hidden rounded-3xl border border-[color:var(--border)]">
+        <form id="deleteForm" action={bulkDeletePosts} className="flex items-center justify-between bg-[color:var(--paper)] px-4 py-3 text-xs text-[color:var(--muted-2)]">
+          <span>Selecione posts para apagar (rascunhos ou outros)</span>
+          <button
+            type="submit"
+            className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-1.5 text-[11px] font-semibold text-[color:var(--text)] hover:bg-[color:var(--brand-primary)]"
+          >
+            Apagar selecionados
+          </button>
+        </form>
         <table className="w-full text-left text-sm">
           <thead className="bg-[color:var(--paper)] text-xs text-[color:var(--muted-2)]">
             <tr>
+              <th className="px-4 py-3">Sel</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Capa</th>
               <th className="px-4 py-3">Titulo</th>
               <th className="px-4 py-3">Silo</th>
               <th className="px-4 py-3">Atualizado</th>
@@ -111,8 +122,22 @@ export default async function AdminPage({
                 const publicHref = siloSlug ? `/${siloSlug}/${p.slug}` : `/${p.slug}`;
 
                 return (
-                  <tr key={p.id} className="border-t border-[color:var(--border)] align-top">
+              <tr key={p.id} className="border-t border-[color:var(--border)] align-top">
+                    <td className="px-4 py-4">
+                      <input type="checkbox" name="ids" value={p.id} form="deleteForm" className="h-4 w-4" aria-label={`Selecionar ${p.title}`} />
+                    </td>
                     <td className="px-4 py-4 text-[color:var(--muted)]">{statusLabel}</td>
+                    <td className="px-4 py-4">
+                      {p.hero_image_url ? (
+                        <img
+                          src={p.hero_image_url}
+                          alt={p.hero_image_alt || "Capa"}
+                          className="h-14 w-20 rounded-md border border-[color:var(--border)] object-cover"
+                        />
+                      ) : (
+                        <span className="text-[11px] text-[color:var(--muted-2)]">Sem capa</span>
+                      )}
+                    </td>
                     <td className="px-4 py-4 font-medium">{p.title}</td>
                     <td className="px-4 py-4 text-[color:var(--muted)]">{p.silo?.name ?? "-"}</td>
                     <td className="px-4 py-4 text-[color:var(--muted)]">{formatDate(p.updated_at)}</td>

@@ -1,11 +1,13 @@
 ﻿import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getPublicPostBySlug, listAllPostParams } from "@/lib/db";
+import { getPublicPostBySlug, listAllPostParams, adminGetPostBySlug } from "@/lib/db";
 import { JsonLd } from "@/components/seo/JsonLd";
 import type { PostWithSilo } from "@/lib/types";
+import { isAdminSession } from "@/lib/admin/auth";
 
-export const revalidate = 3600;
+export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 export async function generateStaticParams() {
   const params = await listAllPostParams();
@@ -14,7 +16,10 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ silo: string; slug: string }> }): Promise<Metadata> {
   const { silo, slug } = await params;
-  const post = await getPublicPostBySlug(silo, slug);
+  let post = await getPublicPostBySlug(silo, slug);
+  if (!post && (await isAdminSession())) {
+    post = await adminGetPostBySlug(silo, slug);
+  }
   if (!post) return { title: "Artigo" };
 
   const metaTitle = post.meta_title ?? post.seo_title ?? post.title;
@@ -87,19 +92,19 @@ function buildProductJsonLd(products: any[] = []) {
       description: Array.isArray(p.features) ? p.features.join(" - ") : undefined,
       aggregateRating: p.rating
         ? {
-            "@type": "AggregateRating",
-            ratingValue: p.rating,
-            reviewCount: p.reviewCount ?? 1,
-          }
+          "@type": "AggregateRating",
+          ratingValue: p.rating,
+          reviewCount: p.reviewCount ?? 1,
+        }
         : undefined,
       offers: p.url
         ? {
-            "@type": "Offer",
-            url: p.url,
-            priceCurrency: p.currency ?? "BRL",
-            price: p.price ?? undefined,
-            availability: p.availability ?? undefined,
-          }
+          "@type": "Offer",
+          url: p.url,
+          priceCurrency: p.currency ?? "BRL",
+          price: p.price ?? undefined,
+          availability: p.availability ?? undefined,
+        }
         : undefined,
     }));
 }
@@ -117,19 +122,19 @@ function buildReviewJsonLd(post: PostWithSilo, canonical: string) {
     description: Array.isArray(primary.features) ? primary.features.join(" - ") : post.meta_description ?? undefined,
     aggregateRating: primary.rating
       ? {
-          "@type": "AggregateRating",
-          ratingValue: primary.rating,
-          reviewCount: primary.reviewCount ?? 1,
-        }
+        "@type": "AggregateRating",
+        ratingValue: primary.rating,
+        reviewCount: primary.reviewCount ?? 1,
+      }
       : undefined,
     offers: primary.url
       ? {
-          "@type": "Offer",
-          url: primary.url,
-          priceCurrency: primary.currency ?? "BRL",
-          price: primary.price ?? undefined,
-          availability: primary.availability ?? undefined,
-        }
+        "@type": "Offer",
+        url: primary.url,
+        priceCurrency: primary.currency ?? "BRL",
+        price: primary.price ?? undefined,
+        availability: primary.availability ?? undefined,
+      }
       : undefined,
   };
 
@@ -223,7 +228,10 @@ function buildBreadcrumbJsonLd(post: PostWithSilo, siteUrl: string, silo: string
 
 export default async function PostPage({ params }: { params: Promise<{ silo: string; slug: string }> }) {
   const { silo, slug } = await params;
-  const post = await getPublicPostBySlug(silo, slug);
+  let post = await getPublicPostBySlug(silo, slug);
+  if (!post && (await isAdminSession())) {
+    post = await adminGetPostBySlug(silo, slug);
+  }
 
   if (!post) return notFound();
 
@@ -251,50 +259,47 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
 
   return (
     <article className="space-y-8 page-in">
-      <header className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--paper)] p-8">
+      <header className="space-y-3">
         <nav className="text-[11px] text-[color:var(--muted-2)]">
           <a href="/">Home</a> / <a href={`/${silo}`}>{post.silo?.name ?? silo}</a> / {post.title}
         </nav>
-        <div className="mt-3">
+        <div>
           <a
             href={`/${silo}`}
             className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-1 text-xs font-semibold text-[color:var(--ink)] hover:bg-[color:var(--brand-primary)]/10"
           >
-            ← Voltar para {post.silo?.name ?? silo}
+            ← {post.silo?.name ?? silo}
           </a>
         </div>
-        <p className="text-xs text-[color:var(--muted-2)]">{post.silo?.name ?? "Artigo"}</p>
-        <h1 className="mt-2 text-3xl font-semibold leading-tight md:text-4xl">{post.title}</h1>
-        <p className="mt-4 text-sm text-[color:var(--muted)]">
+        <h1 className="text-3xl font-semibold leading-tight md:text-4xl">{post.title}</h1>
+        <p className="text-sm text-[color:var(--muted)]">
           Palavra-chave alvo: <span className="font-medium text-[color:var(--brand-accent)]">{post.target_keyword}</span>
         </p>
       </header>
 
       {post.hero_image_url ? (
-        <div className="overflow-hidden rounded-3xl border border-[color:var(--border)] bg-[color:var(--paper)]">
-          <Image
+        <div className="overflow-hidden rounded-xl">
+          <img
             src={post.hero_image_url}
             alt={post.hero_image_alt || post.title}
-            width={1200}
-            height={675}
-            sizes="(max-width: 1024px) 100vw, 900px"
             className="h-auto w-full object-cover"
+            loading="lazy"
           />
         </div>
       ) : null}
 
       {post.disclaimer ? (
-        <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4 text-xs text-[color:var(--muted)]">
+        <div className="text-xs text-[color:var(--muted)] italic">
           {post.disclaimer}
         </div>
       ) : null}
 
-      <div className="content rounded-3xl border border-[color:var(--border)] bg-[color:var(--paper)] p-8">
+      <div className="content">
         {post.content_html ? (
           <div dangerouslySetInnerHTML={{ __html: post.content_html }} />
         ) : (
           <p className="text-sm text-[color:var(--muted)]">
-            Este artigo ainda nao tem conteudo. Abra no <a href={`/admin/editor/${post.id}`}>editor</a>.
+            Este artigo ainda nao tem conteudo. Abra no <a href={`/admin/editor/${post.id}`} className="underline">editor</a>.
           </p>
         )}
       </div>

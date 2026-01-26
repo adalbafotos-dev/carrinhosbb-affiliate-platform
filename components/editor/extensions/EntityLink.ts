@@ -44,6 +44,36 @@ export const EntityLink = Link.extend({
           return { "data-entity": attributes["data-entity"] };
         },
       },
+      target: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("target"),
+        renderHTML: (attributes) => {
+          if (!attributes.target) {
+            return {};
+          }
+          return { target: attributes.target };
+        },
+      },
+      rel: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("rel"),
+        renderHTML: (attributes) => {
+          if (!attributes.rel) {
+            return {};
+          }
+          return { rel: attributes.rel };
+        },
+      },
+      class: {
+        default: null,
+        parseHTML: (element) => element.getAttribute("class"),
+        renderHTML: (attributes) => {
+          if (!attributes.class) {
+            return {};
+          }
+          return { class: attributes.class };
+        },
+      },
     };
   },
 });

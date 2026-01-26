@@ -1,0 +1,238 @@
+import { useEffect, useState, useMemo } from "react";
+import { Editor } from "@tiptap/react";
+import { LinkItem, EditorMeta } from "@/components/editor/types";
+
+export type GuardianIssue = {
+  id: string;
+  level: "critical" | "warn" | "ok";
+  message: string;
+  hint?: string;
+};
+
+export type GuardianMetrics = {
+  wordCount: number;
+  keywordCount: number;
+  keywordDensity: number;
+  firstParaHasKeyword: boolean;
+  firstH2HasKeyword: boolean;
+  internalLinksCount: number;
+  internalLinksEarlyCount: number;
+  externalLinksCount: number;
+  amazonLinksWithoutSponsored: number;
+  imagesCount: number;
+  imagesWithoutAltCount: number;
+  entitiesDetected: string[];
+  score: number;
+};
+
+function normalize(text: string) {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function countOccurrences(text: string, term: string) {
+  if (!term) return 0;
+  const normalizedText = normalize(text);
+  const normalizedTerm = normalize(term);
+  if (!normalizedTerm) return 0;
+  return normalizedText.split(normalizedTerm).length - 1;
+}
+
+export function useContentGuardian(
+  editor: Editor | null,
+  meta: EditorMeta,
+  links: LinkItem[]
+) {
+  const [issues, setIssues] = useState<GuardianIssue[]>([]);
+  const [metrics, setMetrics] = useState<GuardianMetrics>({
+    wordCount: 0,
+    keywordCount: 0,
+    keywordDensity: 0,
+    firstParaHasKeyword: false,
+    firstH2HasKeyword: false,
+    internalLinksCount: 0,
+    internalLinksEarlyCount: 0,
+    externalLinksCount: 0,
+    amazonLinksWithoutSponsored: 0,
+    imagesCount: 0,
+    imagesWithoutAltCount: 0,
+    entitiesDetected: [],
+    score: 100,
+  });
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const handler = setTimeout(() => {
+      runAudit();
+    }, 500);
+
+    function runAudit() {
+      if (!editor) return;
+
+      const doc = editor.state.doc;
+      const text = editor.getText(); // Plain text
+      const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
+      const targetKeyword = normalize(meta.targetKeyword);
+
+      // 1. Keyword Usage
+      const keywordCount = countOccurrences(text, meta.targetKeyword);
+      const density = wordCount > 0 && targetKeyword ? (keywordCount / wordCount) * 100 : 0;
+
+      // 2. First Paragraph Check
+      let firstParaHasKeyword = false;
+      let charsChecked = 0;
+      doc.descendants((node) => {
+        if (charsChecked > 500) return false; // Stop after ~500 chars (approx first para)
+        if (node.isText) {
+          const nodeText = normalize(node.text || "");
+          if (targetKeyword && nodeText.includes(targetKeyword)) {
+            firstParaHasKeyword = true;
+            return false;
+          }
+          charsChecked += node.nodeSize;
+        }
+        return true;
+      });
+
+      // 3. First H2 Check
+      let firstH2HasKeyword = false;
+      let finishedH2Check = false;
+      doc.descendants((node) => {
+        if (finishedH2Check) return false;
+        if (node.type.name === "heading" && node.attrs.level === 2) {
+          const h2Text = normalize(node.textContent);
+          if (targetKeyword && h2Text.includes(targetKeyword)) {
+            firstH2HasKeyword = true;
+          }
+          finishedH2Check = true; // Only check the FIRST h2
+          return false;
+        }
+        return true;
+      });
+
+      // 4. Links Analysis
+      const internalLinks = links.filter((l) => ["internal", "mention", "about"].includes(l.type));
+      const externalLinks = links.filter((l) => l.type === "external" || l.type === "affiliate");
+      
+      // Internal links in first 20%
+      const first20PercentLimit = text.length * 0.2;
+      const internalLinksEarlyCount = links.filter(
+        (l) => ["internal", "mention", "about"].includes(l.type) && l.from < first20PercentLimit
+      ).length;
+
+      // Amazon links without sponsored
+      let amazonLinksWithoutSponsored = 0;
+      externalLinks.forEach((l) => {
+        if (l.href.includes("amazon") || l.href.includes("amzn")) {
+            const rel = (l.rel || "").toLowerCase();
+            if (!rel.includes("sponsored")) {
+                amazonLinksWithoutSponsored++;
+            }
+        }
+      });
+
+      // 5. Images Analysis
+      let imagesCount = 0;
+      let imagesWithoutAltCount = 0;
+      doc.descendants((node) => {
+        if (node.type.name === "image") {
+            imagesCount++;
+            if (!node.attrs.alt) {
+                imagesWithoutAltCount++;
+            }
+        }
+        return true;
+      });
+      
+      // Issues Generation
+      const newIssues: GuardianIssue[] = [];
+      let scoreDeduction = 0;
+
+      // Rule: Title Length
+      if (meta.title.length < 60) {
+        newIssues.push({ id: "title-short", level: "warn", message: "Título muito curto (<60 chars)." });
+        scoreDeduction += 5;
+      } else if (meta.title.length > 80) {
+        newIssues.push({ id: "title-long", level: "warn", message: "Título muito longo (>80 chars)." });
+        scoreDeduction += 5;
+      }
+      if (targetKeyword && !normalize(meta.title).includes(targetKeyword)) {
+        newIssues.push({ id: "title-kw", level: "critical", message: "Título não contém a palavra-chave." });
+        scoreDeduction += 15;
+      }
+
+      // Rule: Meta Description
+      if (meta.metaDescription.length > 156) {
+        newIssues.push({ id: "desc-long", level: "warn", message: "Meta description muito longa (>156)." });
+        scoreDeduction += 5;
+      }
+      if (targetKeyword && !normalize(meta.metaDescription).includes(targetKeyword)) {
+        newIssues.push({ id: "desc-kw", level: "critical", message: "Meta description sem palavra-chave." });
+         scoreDeduction += 10;
+      }
+
+      // Rule: Keyword First Para
+      if (!firstParaHasKeyword && targetKeyword) {
+        newIssues.push({ id: "kw-first-para", level: "critical", message: "Palavra-chave não encontrada no início." });
+        scoreDeduction += 10;
+      }
+
+      // Rule: Keyword First H2
+      if (!firstH2HasKeyword && targetKeyword) {
+         newIssues.push({ id: "kw-first-h2", level: "warn", message: "Palavra-chave não encontrada no primeiro H2." });
+         scoreDeduction += 5;
+      }
+
+      // Rule: Density
+      if (density > 2.5) {
+        newIssues.push({ id: "kw-stuffing", level: "critical", message: `Densidade de palavra-chave muito alta (${density.toFixed(1)}%).` });
+        scoreDeduction += 10;
+      }
+
+      // Rule: Internal Links Early
+      if (internalLinksEarlyCount === 0 && wordCount > 100) {
+        newIssues.push({ id: "links-early", level: "warn", message: "Adicione link interno no início do texto." });
+        scoreDeduction += 5;
+      }
+
+      // Rule: Amazon Sponsored
+      if (amazonLinksWithoutSponsored > 0) {
+        newIssues.push({ id: "amazon-sponsored", level: "critical", message: "Links da Amazon sem rel='sponsored'." });
+        scoreDeduction += 10;
+      }
+
+      // Rule: Image Alt
+      if (imagesWithoutAltCount > 0) {
+        newIssues.push({ id: "img-alt", level: "warn", message: `${imagesWithoutAltCount} imagens sem texto alternativo.` });
+        scoreDeduction += 5;
+      }
+
+      const finalScore = Math.max(0, 100 - scoreDeduction);
+
+      setIssues(newIssues);
+      setMetrics({
+        wordCount,
+        keywordCount,
+        keywordDensity: density,
+        firstParaHasKeyword,
+        firstH2HasKeyword,
+        internalLinksCount: internalLinks.length,
+        internalLinksEarlyCount,
+        externalLinksCount: externalLinks.length,
+        amazonLinksWithoutSponsored,
+        imagesCount,
+        imagesWithoutAltCount,
+        entitiesDetected: [], // To be implemented or passed if needed
+        score: finalScore,
+      });
+    }
+
+    return () => clearTimeout(handler);
+  }, [editor, meta, links]);
+
+  return { issues, metrics };
+}

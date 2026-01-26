@@ -8,6 +8,7 @@ import {
   adminCreateDraftPost,
   adminCreateSilo,
   adminGetPostById,
+  adminDeletePosts,
   adminPublishPost,
   adminUpdatePost,
 } from "@/lib/db";
@@ -55,6 +56,10 @@ const CreateSiloSchema = z.object({
   name: z.string().min(2).max(120),
   slug: z.string().min(2).max(120),
   description: z.string().max(240).optional(),
+});
+
+const DeleteSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1),
 });
 
 async function revalidatePostPaths(id: string) {
@@ -200,4 +205,19 @@ export async function createSilo(formData: FormData) {
   });
 
   redirect("/admin/editor/new");
+}
+
+export async function bulkDeletePosts(formData: FormData) {
+  await requireAdminSession();
+  const rawIds = formData.getAll("ids").map((value) => String(value)).filter(Boolean);
+  const data = DeleteSchema.safeParse({ ids: rawIds });
+  if (!data.success) {
+    return { ok: false, error: "Selecione pelo menos 1 post valido" };
+  }
+
+  await adminDeletePosts(data.data.ids);
+  revalidatePath("/admin");
+  revalidatePath("/");
+  revalidatePath("/sitemap.xml");
+  return { ok: true as const };
 }

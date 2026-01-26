@@ -43,6 +43,66 @@ function slugify(value: string) {
     .replace(/-+/g, "-");
 }
 
+function hasBoldStyle(style: string) {
+  const match = /font-weight\s*:\s*([^;]+)/i.exec(style);
+  if (!match) return false;
+  const value = match[1].trim().toLowerCase();
+  if (value === "bold" || value === "bolder") return true;
+  const weight = Number.parseInt(value, 10);
+  return Number.isFinite(weight) && weight >= 600;
+}
+
+function hasItalicStyle(style: string) {
+  return /font-style\s*:\s*italic/i.test(style);
+}
+
+function hasUnderlineStyle(style: string) {
+  return /text-decoration\s*:\s*[^;]*underline/i.test(style) || /text-decoration-line\s*:\s*underline/i.test(style);
+}
+
+function transformGoogleDocsPaste(html: string) {
+  if (!html || typeof window === "undefined") return html;
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, "text/html");
+    const spans = Array.from(doc.querySelectorAll("span"));
+
+    spans.forEach((span) => {
+      const style = (span.getAttribute("style") ?? "").toLowerCase();
+      const isBold = hasBoldStyle(style);
+      const isItalic = hasItalicStyle(style);
+      const isUnderline = hasUnderlineStyle(style);
+      if (!isBold && !isItalic && !isUnderline) return;
+
+      const tags: Array<"strong" | "em" | "u"> = [];
+      if (isBold) tags.push("strong");
+      if (isItalic) tags.push("em");
+      if (isUnderline) tags.push("u");
+
+      let wrapper: HTMLElement | null = null;
+      let current: HTMLElement | null = null;
+      tags.forEach((tag) => {
+        const el = doc.createElement(tag);
+        if (!wrapper) wrapper = el;
+        if (current) current.appendChild(el);
+        current = el;
+      });
+
+      if (!wrapper || !current) return;
+
+      while (span.firstChild) {
+        current.appendChild(span.firstChild);
+      }
+
+      span.replaceWith(wrapper);
+    });
+
+    return doc.body.innerHTML;
+  } catch {
+    return html;
+  }
+}
+
 function toLocalInput(value?: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -231,7 +291,7 @@ function defaultDoc(meta: EditorMeta) {
   };
 }
 
-export function AdvancedEditor({ post, silos = [] }: Props) {
+export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
   const metaFromJson = (post.content_json as any)?.meta ?? {};
   const [meta, updateMeta] = useReducer(
     (state: EditorMeta, patch: MetaPatch) => ({ ...state, ...patch }),
@@ -268,6 +328,7 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
   );
 
   const metaRef = useRef(meta);
+  const [silos, setSilos] = useState<Silo[]>(initialSilos);
   const [slugTouched, setSlugTouched] = useState(false);
   const [metaTitleTouched, setMetaTitleTouched] = useState(false);
   const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "ok" | "taken">("idle");
@@ -286,6 +347,7 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
   const uploadDropRef = useRef<((file: File, pos?: number) => void) | null>(null);
   const autoTimer = useRef<NodeJS.Timeout | null>(null);
   const dirtyRef = useRef(false);
+  const silosRefreshRef = useRef(false);
 
   const currentSilo = useMemo(() => {
     if (meta.siloId && silos.length) {
@@ -350,6 +412,47 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
     };
   }, [meta.slug, meta.siloId, post.id]);
 
+  const refreshSilos = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/silos");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data?.items)) {
+        setSilos(data.items);
+      }
+    } catch {
+      return;
+    }
+  }, []);
+
+  const createSilo = useCallback(async (name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return null;
+    try {
+      const res = await fetch("/api/admin/silos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const item = data?.item as Silo | undefined;
+      if (item) {
+        setSilos((prev) => (prev.some((silo) => silo.id === item.id) ? prev : [...prev, item]));
+      }
+      return item ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (silos.length > 0) return;
+    if (silosRefreshRef.current) return;
+    silosRefreshRef.current = true;
+    void refreshSilos();
+  }, [refreshSilos, silos.length]);
+
   const editor = useEditor({
     immediatelyRender: false,
     extensions: [
@@ -374,8 +477,9 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
     content: post.content_json ?? defaultDoc(meta),
     editorProps: {
       attributes: {
-        class: "editor-content min-h-[520px] outline-none prose prose-invert max-w-none",
+        class: "editor-content min-h-[520px] outline-none prose max-w-none",
       },
+      transformPastedHTML: (html) => transformGoogleDocsPaste(html),
       handleDrop: (view, event) => {
         const hasFiles = event.dataTransfer?.files && event.dataTransfer.files.length > 0;
         if (!hasFiles) return false;
@@ -688,6 +792,11 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
         setLastSavedAt(new Date());
         dirtyRef.current = false;
         if (nextStatus) updateMeta({ status: nextStatus });
+      } catch (error: any) {
+        console.error("Falha ao salvar post", error);
+        const message = typeof error?.message === "string" ? error.message : "Nao foi possivel salvar o rascunho.";
+        alert(message);
+        throw error;
       } finally {
         setSaving(false);
       }
@@ -724,6 +833,8 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
       docText,
       docHtml,
       silos,
+      refreshSilos,
+      createSilo,
       slugStatus,
       saving,
       previewMode,
@@ -760,6 +871,8 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
       docText,
       docHtml,
       silos,
+      refreshSilos,
+      createSilo,
       slugStatus,
       saving,
       previewMode,
@@ -785,7 +898,7 @@ export function AdvancedEditor({ post, silos = [] }: Props) {
 
   return (
     <EditorProvider value={contextValue}>
-      <div className="flex h-screen w-screen overflow-hidden bg-zinc-950 text-white">
+      <div className="flex h-screen w-screen overflow-hidden bg-[color:var(--bg)] text-[color:var(--text)]">
         <ContentIntelligence />
 
         <div className="flex h-full flex-1 flex-col">

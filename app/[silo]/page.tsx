@@ -1,4 +1,3 @@
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { getPublicPostsBySilo, getPublicSiloBySlug, listAllSiloSlugs } from "@/lib/db";
@@ -71,14 +70,11 @@ export default async function PillarPage({ params }: { params: Promise<{ silo: s
       <header className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--paper)] p-6 md:p-8">
         {pillar.hero_image_url ? (
           <div className="relative mb-5 overflow-hidden rounded-xl border border-[color:var(--border-muted)]">
-            <Image
+            <img
               src={pillar.hero_image_url}
               alt={pillar.hero_image_alt || pillar.name}
-              width={1400}
-              height={560}
               className="h-60 w-full object-cover md:h-72"
-              sizes="100vw"
-              priority
+              loading="lazy"
             />
           </div>
         ) : null}

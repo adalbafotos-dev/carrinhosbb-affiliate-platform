@@ -1,22 +1,38 @@
-"use client";
+﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, type DragEvent } from "react";
 import { CalendarClock, CheckCircle2, Globe2, Info, ShieldCheck, UserRound } from "lucide-react";
 import { useEditorContext } from "@/components/editor/EditorContext";
 
-type Tab = "seo" | "eeat" | "publish";
+type Tab = "post" | "seo" | "eeat" | "publish";
 
 const AUTHORS = ["Equipe", "Ana Ferreira", "Lucas Prado", "Marina Ramos"];
 
 function counterTone(count: number, min: number, max: number) {
-  if (count === 0) return "text-zinc-500";
+  if (count === 0) return "text-[color:var(--muted-2)]";
   if (count < min || count > max) return "text-amber-400";
-  return "text-emerald-400";
+  return "text-emerald-600";
 }
 
 export function EditorInspector() {
-  const { meta, setMeta, slugStatus, silos, lastSavedAt, saving, onSave } = useEditorContext();
-  const [tab, setTab] = useState<Tab>("seo");
+  const {
+    meta,
+    setMeta,
+    slugStatus,
+    silos,
+    lastSavedAt,
+    saving,
+    onSave,
+    createSilo,
+    refreshSilos,
+    onHeroUpload,
+    onOpenHeroPicker,
+    onOpenMedia,
+    onInsertImage,
+    onUpdateImageAlt,
+  } = useEditorContext();
+  const [tab, setTab] = useState<Tab>("post");
+  const [brokenImages, setBrokenImages] = useState<Record<string, boolean>>({});
 
   const seoTitleCount = meta.metaTitle.length;
   const seoDescCount = meta.metaDescription.length;
@@ -26,31 +42,187 @@ export function EditorInspector() {
     const diff = Date.now() - lastSavedAt.getTime();
     const minutes = Math.floor(diff / 60000);
     if (minutes <= 0) return "Salvo agora";
-    if (minutes === 1) return "Salvo há 1 min";
-    return `Salvo há ${minutes} min`;
+    if (minutes === 1) return "Salvo hÃ¡ 1 min";
+    return `Salvo hÃ¡ ${minutes} min`;
   }, [lastSavedAt]);
 
+  const handleCreateSilo = async () => {
+    const name = window.prompt("Nome do silo");
+    if (!name) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const created = await createSilo(trimmed);
+    if (!created) return;
+    await refreshSilos();
+    setMeta({ siloId: created.id });
+  };
+
+  const handleHeroDrop = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return;
+    onHeroUpload(file);
+  };
+
+  const handleLibraryAltChange = (url: string, alt: string) => {
+    onUpdateImageAlt(url, alt);
+    if (meta.heroImageUrl === url) {
+      setMeta({ heroImageAlt: alt });
+    }
+  };
+
+  const images = meta.images ?? [];
+  const fallbackHero =
+    meta.heroImageUrl && !images.some((image) => image.url === meta.heroImageUrl)
+      ? [{ url: meta.heroImageUrl, alt: meta.heroImageAlt }]
+      : [];
+  const displayImages = [...images, ...fallbackHero];
+
   return (
-    <aside className="flex h-full w-[380px] flex-col border-l border-zinc-900 bg-zinc-900">
-      <div className="flex border-b border-zinc-900 text-[11px] font-semibold uppercase text-zinc-400">
+    <aside className="flex h-full w-[380px] flex-col border-l border-[color:var(--border)] bg-[color:var(--surface)]">
+      <div className="flex border-b border-[color:var(--border)] text-[11px] font-semibold uppercase text-[color:var(--muted)]">
+        <TabButton label="Post" active={tab === "post"} onClick={() => setTab("post")} />
         <TabButton label="SEO / KGR" active={tab === "seo"} onClick={() => setTab("seo")} />
         <TabButton label="E-E-A-T" active={tab === "eeat"} onClick={() => setTab("eeat")} />
         <TabButton label="Publicar" active={tab === "publish"} onClick={() => setTab("publish")} />
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto p-4 text-xs text-zinc-100">
+      <div className="flex-1 space-y-4 overflow-y-auto p-4 text-xs text-[color:var(--text)]">
+        {tab === "post" ? (
+          <div className="space-y-4">
+            <Field label="Título do post (H1)">
+              <input
+                value={meta.title}
+                onChange={(event) => setMeta({ title: event.target.value })}
+                placeholder="Novo post"
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
+              />
+            </Field>
+
+            <Field label="Imagem de capa">
+              <div
+                className="overflow-hidden rounded-md border border-dashed border-[color:var(--border)] bg-[color:var(--surface-muted)]"
+                onDrop={handleHeroDrop}
+                onDragOver={(event) => event.preventDefault()}
+                onClick={onOpenHeroPicker}
+              >
+                {meta.heroImageUrl && !brokenImages[meta.heroImageUrl] ? (
+                  <img
+                    src={meta.heroImageUrl}
+                    alt={meta.heroImageAlt || "Capa"}
+                    className="h-36 w-full object-cover"
+                    onError={() =>
+                      setBrokenImages((prev) => ({ ...prev, [meta.heroImageUrl]: true }))
+                    }
+                  />
+                ) : (
+                  <div className="flex h-32 items-center justify-center px-3 text-center text-xs text-[color:var(--muted-2)]">
+                    Arraste ou clique para enviar a imagem de capa
+                  </div>
+                )}
+              </div>
+              <p className="mt-2 text-[10px] text-[color:var(--muted)]">
+                {meta.heroImageUrl ? "Clique na imagem para trocar." : "Use 1200x628 px para redes sociais."}
+              </p>
+            </Field>
+
+            <Field label="Alt text da imagem de capa (obrigatório)">
+              <input
+                value={meta.heroImageAlt}
+                onChange={(event) => setMeta({ heroImageAlt: event.target.value })}
+                placeholder="Alt text da imagem de capa (obrigatório)"
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
+              />
+            </Field>
+
+            <Field label="Lead / Introdução">
+              <textarea
+                rows={3}
+                value={meta.metaDescription}
+                onChange={(event) => setMeta({ metaDescription: event.target.value })}
+                className="w-full resize-none rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
+                placeholder="Resumo inicial do artigo"
+              />
+            </Field>
+
+            <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-3">
+              <div className="flex items-center justify-between text-[11px] font-semibold uppercase text-[color:var(--muted)]">
+                <span>Mídia do post</span>
+                <button
+                  type="button"
+                  onClick={onOpenMedia}
+                  className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-[10px] text-[color:var(--text)] hover:border-emerald-400 hover:text-emerald-700"
+                >
+                  Inserir imagem no corpo
+                </button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {displayImages.length === 0 ? (
+                  <p className="text-xs text-[color:var(--muted-2)]">Nenhuma imagem enviada.</p>
+                ) : (
+                  displayImages.map((image) => {
+                    const isHero = meta.heroImageUrl === image.url;
+                    return (
+                      <div
+                        key={image.url}
+                        className="flex items-start gap-3 rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] p-2"
+                      >
+                        <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-md border border-[color:var(--border)] bg-[color:var(--surface-muted)]">
+                          {image.url && !brokenImages[image.url] ? (
+                            <img
+                              src={image.url}
+                              alt={image.alt || "Imagem"}
+                              className="h-full w-full object-cover"
+                              onError={() => setBrokenImages((prev) => ({ ...prev, [image.url]: true }))}
+                            />
+                          ) : (
+                            <span className="px-1 text-[9px] text-[color:var(--muted-2)]">Sem preview</span>
+                          )}
+                        </div>
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <input
+                              value={image.alt}
+                              onChange={(event) => handleLibraryAltChange(image.url, event.target.value)}
+                              placeholder="Alt text"
+                              className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-[11px] outline-none"
+                            />
+                            {isHero ? (
+                              <span className="rounded-full bg-amber-100 px-2 py-1 text-[9px] font-semibold text-amber-700">
+                                Capa
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => onInsertImage(image)}
+                              className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-2 py-1 text-[10px] text-[color:var(--text)] hover:border-emerald-400 hover:text-emerald-700"
+                            >
+                              Inserir no texto
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        ) : null}
         {tab === "seo" ? (
           <div className="space-y-4">
             <Field
               label="Slug"
               helper={
-                slugStatus === "checking" ? "Checando..." : slugStatus === "taken" ? "Em uso" : slugStatus === "ok" ? "Disponível" : ""
+                slugStatus === "checking" ? "Checando..." : slugStatus === "taken" ? "Em uso" : slugStatus === "ok" ? "DisponÃ­vel" : ""
               }
             >
               <input
                 value={meta.slug}
                 onChange={(event) => setMeta({ slug: event.target.value })}
-                className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               />
             </Field>
 
@@ -58,7 +230,7 @@ export function EditorInspector() {
               <input
                 value={meta.targetKeyword}
                 onChange={(event) => setMeta({ targetKeyword: event.target.value })}
-                className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               />
             </Field>
 
@@ -66,7 +238,7 @@ export function EditorInspector() {
               <input
                 value={meta.metaTitle}
                 onChange={(event) => setMeta({ metaTitle: event.target.value })}
-                className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               />
             </Field>
 
@@ -78,7 +250,7 @@ export function EditorInspector() {
                 rows={3}
                 value={meta.metaDescription}
                 onChange={(event) => setMeta({ metaDescription: event.target.value })}
-                className="w-full resize-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full resize-none rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               />
             </Field>
 
@@ -89,7 +261,7 @@ export function EditorInspector() {
                 onChange={(event) =>
                   setMeta({ supportingKeywords: event.target.value.split(/\n+/).map((s) => s.trim()).filter(Boolean) })
                 }
-                className="w-full resize-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full resize-none rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               />
             </Field>
 
@@ -98,17 +270,17 @@ export function EditorInspector() {
                 rows={3}
                 value={meta.entities.join("\n")}
                 onChange={(event) => setMeta({ entities: event.target.value.split(/\n+/).map((s) => s.trim()).filter(Boolean) })}
-                className="w-full resize-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full resize-none rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               />
             </Field>
 
-            <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-[11px] text-zinc-400">
-              <p className="flex items-center gap-2 font-semibold uppercase text-zinc-300">
+            <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] text-[color:var(--muted)]">
+              <p className="flex items-center gap-2 font-semibold uppercase text-[color:var(--muted)]">
                 <Globe2 size={12} /> Preview
               </p>
-              <p className="mt-2 text-[11px] text-emerald-300">/{meta.slug || "slug"}</p>
-              <p className="truncate text-sm font-semibold text-emerald-100">{meta.metaTitle || meta.title || "Título"}</p>
-              <p className="text-[12px] text-zinc-300 line-clamp-2">{meta.metaDescription || "Resumo do post"}</p>
+              <p className="mt-2 text-[11px] text-emerald-600">/{meta.slug || "slug"}</p>
+              <p className="truncate text-sm font-semibold text-emerald-700">{meta.metaTitle || meta.title || "TÃ­tulo"}</p>
+              <p className="text-[12px] text-[color:var(--muted)] line-clamp-2">{meta.metaDescription || "Resumo do post"}</p>
             </div>
           </div>
         ) : null}
@@ -119,7 +291,7 @@ export function EditorInspector() {
               <select
                 value={meta.authorName}
                 onChange={(event) => setMeta({ authorName: event.target.value })}
-                className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               >
                 <option value="">Selecionar</option>
                 {AUTHORS.map((name) => (
@@ -135,7 +307,7 @@ export function EditorInspector() {
                 rows={3}
                 value={meta.authorLinks.join("\n")}
                 onChange={(event) => setMeta({ authorLinks: event.target.value.split(/\n+/).map((s) => s.trim()).filter(Boolean) })}
-                className="w-full resize-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full resize-none rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
                 placeholder="https://linkedin.com/..."
               />
             </Field>
@@ -145,15 +317,15 @@ export function EditorInspector() {
                 <input
                   value={meta.reviewedBy}
                   onChange={(event) => setMeta({ reviewedBy: event.target.value })}
-                  className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                  className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
                 />
               </Field>
-              <Field label="Data da revisão">
+              <Field label="Data da revisÃ£o">
                 <input
                   type="datetime-local"
                   value={meta.reviewedAt}
                   onChange={(event) => setMeta({ reviewedAt: event.target.value })}
-                  className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                  className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
                 />
               </Field>
             </div>
@@ -163,17 +335,17 @@ export function EditorInspector() {
                 rows={2}
                 value={meta.disclaimer}
                 onChange={(event) => setMeta({ disclaimer: event.target.value })}
-                className="w-full resize-none rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full resize-none rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               />
             </Field>
 
-            <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-[11px] text-zinc-400">
-              <p className="flex items-center gap-2 font-semibold uppercase text-zinc-300">
+            <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] text-[color:var(--muted)]">
+              <p className="flex items-center gap-2 font-semibold uppercase text-[color:var(--muted)]">
                 <ShieldCheck size={12} /> Checklist
               </p>
               <Check label="Autor preenchido" ok={Boolean(meta.authorName)} />
               <Check label="Links sameAs" ok={meta.authorLinks.length > 0} />
-              <Check label="Revisão preenchida" ok={Boolean(meta.reviewedAt)} />
+              <Check label="RevisÃ£o preenchida" ok={Boolean(meta.reviewedAt)} />
               <Check label="Disclaimer" ok={Boolean(meta.disclaimer)} />
             </div>
           </div>
@@ -185,19 +357,33 @@ export function EditorInspector() {
               <select
                 value={meta.status}
                 onChange={(event) => setMeta({ status: event.target.value as typeof meta.status })}
-                className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               >
                 <option value="draft">Rascunho</option>
-                <option value="review">Revisão</option>
+                <option value="review">RevisÃ£o</option>
                 <option value="published">Publicado</option>
               </select>
             </Field>
 
-            <Field label="Silo">
+            <Field
+              label={
+                <>
+                  <span>Silo</span>
+                  <button
+                    type="button"
+                    onClick={() => void handleCreateSilo()}
+                    className="flex h-5 w-5 items-center justify-center rounded border border-[color:var(--border-strong)] text-[10px] text-[color:var(--text)] hover:border-emerald-400 hover:text-emerald-700"
+                    title="Criar silo"
+                  >
+                    +
+                  </button>
+                </>
+              }
+            >
               <select
                 value={meta.siloId}
                 onChange={(event) => setMeta({ siloId: event.target.value })}
-                className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               >
                 <option value="">Sem silo</option>
                 {silos.map((silo) => (
@@ -213,7 +399,7 @@ export function EditorInspector() {
                 type="datetime-local"
                 value={meta.scheduledAt}
                 onChange={(event) => setMeta({ scheduledAt: event.target.value })}
-                className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               />
             </Field>
 
@@ -222,15 +408,15 @@ export function EditorInspector() {
                 value={meta.canonicalPath}
                 onChange={(event) => setMeta({ canonicalPath: event.target.value })}
                 placeholder="/silo/slug"
-                className="w-full rounded-md border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm outline-none"
+                className="w-full rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm outline-none"
               />
             </Field>
 
-            <div className="rounded-md border border-zinc-800 bg-zinc-950 p-3 text-[11px] text-zinc-300">
-              <p className="flex items-center gap-2 font-semibold uppercase text-zinc-300">
+            <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] p-3 text-[11px] text-[color:var(--muted)]">
+              <p className="flex items-center gap-2 font-semibold uppercase text-[color:var(--muted)]">
                 <Info size={12} /> Status
               </p>
-              <p className="mt-2 flex items-center gap-2 text-zinc-400">
+              <p className="mt-2 flex items-center gap-2 text-[color:var(--muted)]">
                 <CalendarClock size={12} />
                 {saving ? "Salvando..." : lastSavedLabel}
               </p>
@@ -258,11 +444,11 @@ export function EditorInspector() {
   );
 }
 
-function Field({ label, helper, children }: { label: string; helper?: React.ReactNode; children: React.ReactNode }) {
+function Field({ label, helper, children }: { label: React.ReactNode; helper?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between text-[11px] font-semibold uppercase text-zinc-400">
-        <span>{label}</span>
+      <div className="flex items-center justify-between text-[11px] font-semibold uppercase text-[color:var(--muted)]">
+        <div className="flex items-center gap-2">{label}</div>
         {helper}
       </div>
       {children}
@@ -276,7 +462,7 @@ function TabButton({ label, active, onClick }: { label: string; active: boolean;
       type="button"
       onClick={onClick}
       className={`flex flex-1 items-center justify-center gap-1 border-b-2 py-3 ${
-        active ? "border-emerald-500 text-emerald-200" : "border-transparent text-zinc-500"
+        active ? "border-emerald-500 text-emerald-700" : "border-transparent text-[color:var(--muted-2)]"
       }`}
     >
       {label}
@@ -287,8 +473,10 @@ function TabButton({ label, active, onClick }: { label: string; active: boolean;
 function Check({ label, ok }: { label: string; ok: boolean }) {
   return (
     <div className="flex items-center gap-2 text-[11px]">
-      {ok ? <CheckCircle2 size={12} className="text-emerald-400" /> : <UserRound size={12} className="text-zinc-500" />}
-      <span className={ok ? "text-zinc-200" : "text-zinc-500"}>{label}</span>
+      {ok ? <CheckCircle2 size={12} className="text-emerald-400" /> : <UserRound size={12} className="text-[color:var(--muted-2)]" />}
+      <span className={ok ? "text-[color:var(--text)]" : "text-[color:var(--muted-2)]"}>{label}</span>
     </div>
   );
 }
+
+

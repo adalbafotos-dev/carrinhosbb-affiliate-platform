@@ -235,6 +235,31 @@ export async function adminGetPostById(id: string): Promise<PostWithSilo | null>
   } as PostWithSilo;
 }
 
+export async function adminGetPostBySlug(siloSlug: string, postSlug: string): Promise<PostWithSilo | null> {
+  const supabase = await getAdminSupabaseClient();
+  const { data, error } = await supabase
+    .from("posts")
+    .select("*, silos: silo_id (slug, name)")
+    .eq("slug", postSlug)
+    .eq("silos.slug", siloSlug)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return null;
+
+  return {
+    ...(data as Post),
+    silo: (data as any).silos ? { slug: (data as any).silos.slug, name: (data as any).silos.name } : null,
+  } as PostWithSilo;
+}
+
+export async function adminDeletePosts(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  const supabase = await getAdminSupabaseClient();
+  const { error } = await supabase.from("posts").delete().in("id", ids);
+  if (error) throw error;
+}
+
 export async function adminCreatePost(args: {
   silo_id: string | null;
   title: string;
@@ -693,18 +718,41 @@ export async function adminReplacePostLinks(postId: string, links: Array<Omit<Po
 
   if (!links.length) return;
 
-  const insertPayload = links.map((link) => ({
-    source_post_id: postId,
-    target_post_id: link.target_post_id ?? null,
-    target_url: link.target_url ?? null,
-    anchor_text: link.anchor_text ?? null,
-    link_type: link.link_type,
-    rel_flags: link.rel_flags ?? [],
-    is_blank: Boolean(link.is_blank),
-  }));
+  const deduped = (() => {
+    const seen = new Set<string>();
+    const result: typeof links = [];
+    for (const link of links) {
+      const key = [
+        link.target_post_id ?? "",
+        link.target_url ?? "",
+        link.anchor_text ?? "",
+        link.link_type ?? "",
+        (link.rel_flags ?? []).join(","),
+        link.is_blank ? "1" : "0",
+      ].join("|");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push(link);
+    }
+    return result;
+  })();
 
-  const { error } = await supabase.from("post_links").insert(insertPayload);
-  if (error) throw error;
+  for (const link of deduped) {
+    const payload = {
+      source_post_id: postId,
+      target_post_id: link.target_post_id ?? null,
+      target_url: link.target_url ?? null,
+      anchor_text: link.anchor_text ?? null,
+      link_type: link.link_type,
+      rel_flags: link.rel_flags ?? [],
+      is_blank: Boolean(link.is_blank),
+    };
+    const { error } = await supabase.from("post_links").insert(payload);
+    if (error && error.code !== "23505") {
+      console.error("Failed to insert post_link", { postId, payload, error });
+      throw error;
+    }
+  }
 }
 
 export async function adminListPostLinksBySilo(siloId: string) {
