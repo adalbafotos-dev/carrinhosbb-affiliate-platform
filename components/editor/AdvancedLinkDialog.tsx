@@ -55,19 +55,23 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
     const rel = parseRel(attrs.rel);
     const href = attrs.href ?? "";
     const type = (attrs["data-link-type"] as LinkType | undefined) ?? "";
+    const entity = attrs["data-entity"] ?? attrs["data-entity-type"];
 
     setUrl(href);
     setText(selectedText);
-    setOpenInNewTab(attrs.target === "_blank" || /^https?:\/\//i.test(href));
+    setOpenInNewTab(attrs.target === "_blank");
     setNofollow(rel.has("nofollow"));
     setSponsored(rel.has("sponsored"));
-    const entity = attrs["data-entity"] ?? attrs["data-entity-type"];
     setAboutEntity(rel.has("about") || entity === "about");
-    setMentionEntity(entity === "mention");
+    setMentionEntity(rel.has("mention") || entity === "mention");
     setPostId(attrs["data-post-id"] ?? null);
 
     if (type) {
       setLinkType(type);
+    } else if (entity === "about" || rel.has("about")) {
+      setLinkType("about");
+    } else if (entity === "mention" || rel.has("mention")) {
+      setLinkType("mention");
     } else if (rel.has("sponsored")) {
       setLinkType("affiliate");
     } else if (href.startsWith("/")) {
@@ -152,6 +156,7 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
     if (nofollow) relTokens.add("nofollow");
     if (sponsored || linkType === "affiliate") relTokens.add("sponsored");
     if (aboutEntity || linkType === "about") relTokens.add("about");
+    if (mentionEntity) relTokens.add("mention");
     if (openInNewTab) {
       relTokens.add("noopener");
       relTokens.add("noreferrer");
@@ -343,26 +348,43 @@ function Toggle({
   tone?: "accent" | "purple" | "blue";
   disabled?: boolean;
 }) {
-  const toneClass =
+  const bgClass =
     tone === "accent"
       ? checked
-        ? "text-orange-600"
-        : "text-orange-500"
+        ? "bg-orange-600"
+        : "bg-gray-300 dark:bg-gray-600"
       : tone === "purple"
         ? checked
-          ? "text-purple-600"
-          : "text-purple-500"
+          ? "bg-purple-600"
+          : "bg-gray-300 dark:bg-gray-600"
         : tone === "blue"
           ? checked
-            ? "text-blue-600"
-            : "text-blue-500"
+            ? "bg-blue-600"
+            : "bg-gray-300 dark:bg-gray-600"
           : checked
-            ? "text-[color:var(--text)]"
-            : "text-[color:var(--muted)]";
+            ? "bg-emerald-600"
+            : "bg-gray-300 dark:bg-gray-600";
+
+  const textClass =
+    tone === "accent"
+      ? checked
+        ? "text-orange-600 dark:text-orange-400 font-bold"
+        : "text-gray-600 dark:text-gray-400"
+      : tone === "purple"
+        ? checked
+          ? "text-purple-600 dark:text-purple-400 font-bold"
+          : "text-gray-600 dark:text-gray-400"
+        : tone === "blue"
+          ? checked
+            ? "text-blue-600 dark:text-blue-400 font-bold"
+            : "text-gray-600 dark:text-gray-400"
+          : checked
+            ? "text-emerald-700 dark:text-emerald-400 font-bold"
+            : "text-gray-600 dark:text-gray-400";
 
   return (
-    <label className={`group flex items-center justify-between text-sm ${disabled ? "opacity-60" : ""}`}>
-      <span className={`flex items-center gap-2 ${toneClass} group-hover:text-[color:var(--text)]`}>
+    <label className={`group flex items-center justify-between py-2 px-2 rounded-md hover:bg-gray-100/50 dark:hover:bg-gray-800/30 transition-colors ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
+      <span className={`flex items-center gap-2 text-sm transition-colors ${textClass}`}>
         {icon}
         {label}
       </span>
@@ -370,17 +392,17 @@ function Toggle({
         type="button"
         role="switch"
         aria-checked={checked}
-        onClick={() => (disabled ? null : onChange(!checked))}
-        className={`relative h-5 w-10 rounded-full transition ${checked ? "bg-[color:var(--brand-hot)]" : "bg-[color:var(--border-strong)]"}`}
+        onClick={(e) => {
+          e.preventDefault();
+          if (!disabled) onChange(!checked);
+        }}
+        className={`relative h-6 w-11 rounded-full transition-all duration-200 flex items-center ${bgClass} ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}
         disabled={disabled}
       >
         <span
-          className={`absolute top-0.5 h-4 w-4 rounded-full bg-[color:var(--surface)] transition ${
-            checked ? "translate-x-5" : "translate-x-1"
-          }`}
+          className={`h-5 w-5 rounded-full bg-white shadow-md transition-transform duration-200 ${checked ? "translate-x-[22px]" : "translate-x-[2px]"}`}
         />
       </button>
     </label>
   );
 }
-

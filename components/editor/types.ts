@@ -53,6 +53,7 @@ export type EditorMeta = {
   faq: FaqItem[];
   howto: HowToItem[];
   siloId: string;
+  amazonProducts: any[];
 };
 
 export type OutlineItem = {

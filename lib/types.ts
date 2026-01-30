@@ -27,6 +27,7 @@ export type Post = {
   seo_score: number | null;
   supporting_keywords: string[] | null;
   meta_description: string | null;
+  excerpt?: string | null;
   canonical_path?: string | null;
   entities?: string[] | null;
   faq_json?: any | null;
@@ -52,6 +53,9 @@ export type Post = {
   scheduled_at?: string | null;
   published_at?: string | null;
   status?: "draft" | "review" | "scheduled" | "published" | null;
+  imported_source?: string | null;
+  imported_at?: string | null;
+  raw_payload?: any | null;
   amazon_products: any | null;
   published: boolean | null;
   updated_at: string;

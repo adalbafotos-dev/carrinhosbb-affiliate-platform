@@ -52,19 +52,23 @@ export function LinkDialog({ editor, open, onClose }: Props) {
     const rel = parseRel(attrs.rel);
     const href = attrs.href ?? "";
     const type = (attrs["data-link-type"] as LinkType | undefined) ?? "";
+    const entity = attrs["data-entity"] ?? attrs["data-entity-type"];
 
     setUrl(href);
     setText(selectedText);
-    setOpenInNewTab(attrs.target === "_blank" || /^https?:\/\//i.test(href));
+    setOpenInNewTab(attrs.target === "_blank");
     setNofollow(rel.has("nofollow"));
     setSponsored(rel.has("sponsored"));
-    const entity = attrs["data-entity"] ?? attrs["data-entity-type"];
     setAboutEntity(rel.has("about") || entity === "about");
-    setMentionEntity(entity === "mention");
+    setMentionEntity(rel.has("mention") || entity === "mention");
     setPostId(attrs["data-post-id"] ?? null);
 
     if (type) {
       setLinkType(type);
+    } else if (entity === "about" || rel.has("about")) {
+      setLinkType("about");
+    } else if (entity === "mention" || rel.has("mention")) {
+      setLinkType("mention");
     } else if (rel.has("sponsored")) {
       setLinkType("affiliate");
     } else if (href.startsWith("/")) {
@@ -371,18 +375,15 @@ function Toggle({
         role="switch"
         aria-checked={checked}
         onClick={() => (disabled ? null : onChange(!checked))}
-        className={`relative h-5 w-10 rounded-full transition ${
-          checked ? "bg-[color:var(--brand-hot)]" : "bg-[color:var(--border-strong)]"
-        }`}
+        className={`relative h-5 w-10 rounded-full transition ${checked ? "bg-[color:var(--brand-hot)]" : "bg-[color:var(--border-strong)]"
+          }`}
         disabled={disabled}
       >
         <span
-          className={`absolute top-0.5 h-4 w-4 rounded-full bg-[color:var(--surface)] transition ${
-            checked ? "translate-x-5" : "translate-x-1"
-          }`}
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-[color:var(--surface)] transition ${checked ? "translate-x-5" : "translate-x-1"
+            }`}
         />
       </button>
     </label>
   );
 }
-

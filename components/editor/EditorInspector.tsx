@@ -79,7 +79,7 @@ export function EditorInspector() {
   const displayImages = [...images, ...fallbackHero];
 
   return (
-    <aside className="flex h-full w-[380px] flex-col border-l border-[color:var(--border)] bg-[color:var(--surface)]">
+    <aside className="flex h-full w-[400px] flex-col border-l border-[color:var(--border)] bg-[color:var(--surface)]">
       <div className="flex border-b border-[color:var(--border)] text-[11px] font-semibold uppercase text-[color:var(--muted)]">
         <TabButton label="Post" active={tab === "post"} onClick={() => setTab("post")} />
         <TabButton label="SEO / KGR" active={tab === "seo"} onClick={() => setTab("seo")} />
@@ -461,9 +461,8 @@ function TabButton({ label, active, onClick }: { label: string; active: boolean;
     <button
       type="button"
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1 border-b-2 py-3 ${
-        active ? "border-emerald-500 text-emerald-700" : "border-transparent text-[color:var(--muted-2)]"
-      }`}
+      className={`flex flex-1 items-center justify-center gap-1 border-b-2 py-3 ${active ? "border-emerald-500 text-emerald-700" : "border-transparent text-[color:var(--muted-2)]"
+        }`}
     >
       {label}
     </button>

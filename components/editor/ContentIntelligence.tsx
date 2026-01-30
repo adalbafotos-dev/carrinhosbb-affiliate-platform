@@ -10,10 +10,10 @@ export function ContentIntelligence() {
   const { outline, onJumpToHeading } = useEditorContext();
 
   return (
-    <aside className="flex h-full w-[320px] flex-col border-r border-[color:var(--border)] bg-[color:var(--surface)]">
+    <aside className="flex h-full w-[400px] flex-col border-r border-[color:var(--border)] bg-[color:var(--surface)]">
       <div className="border-b border-[color:var(--border)] px-4 py-3 text-[11px] font-semibold uppercase text-[color:var(--muted)]">Inteligência</div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+      <div id="intelligence-scroll-container" className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
         <GuardianPanel />
 
         <section>
@@ -31,10 +31,10 @@ export function ContentIntelligence() {
                   type="button"
                   onClick={() => onJumpToHeading(item.pos)}
                   className={`block w-full truncate text-left text-xs text-[color:var(--text)] hover:text-[color:var(--brand-accent)] ${item.level === 3
-                      ? "pl-3 text-[color:var(--muted)]"
-                      : item.level === 4
-                        ? "pl-5 text-[color:var(--muted-2)]"
-                        : ""
+                    ? "pl-3 text-[color:var(--muted)]"
+                    : item.level === 4
+                      ? "pl-5 text-[color:var(--muted-2)]"
+                      : ""
                     }`}
                 >
                   {item.text}

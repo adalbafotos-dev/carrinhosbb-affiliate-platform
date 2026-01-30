@@ -14,12 +14,13 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { EditorImage } from "@/components/editor/extensions/EditorImage";
 import { EntityLink } from "@/components/editor/extensions/EntityLink";
 import { InternalLinkMention } from "@/components/editor/extensions/InternalLinkMention";
-import { AffiliateProductCard } from "@/components/editor/extensions/AffiliateProductCard";
+import AffiliateProductCard from "@/components/editor/extensions/AffiliateProductCard";
 import { YoutubeEmbed, normalizeYoutubeUrl } from "@/components/editor/extensions/YoutubeEmbed";
 import { EditorCanvas } from "@/components/editor/EditorCanvas";
 import { ContentIntelligence } from "@/components/editor/ContentIntelligence";
 import { EditorInspector } from "@/components/editor/EditorInspector";
 import { AdvancedLinkDialog } from "@/components/editor/AdvancedLinkDialog";
+import { LinkBubbleMenu } from "@/components/editor/LinkBubbleMenu";
 import { saveEditorPost } from "@/app/admin/editor/actions";
 import type { EditorMeta, ImageAsset, LinkItem, OutlineItem } from "@/components/editor/types";
 import type { PostWithSilo, Silo } from "@/lib/types";
@@ -91,7 +92,7 @@ function transformGoogleDocsPaste(html: string) {
       if (!wrapper || !current) return;
 
       while (span.firstChild) {
-        current.appendChild(span.firstChild);
+        (current as HTMLElement).appendChild(span.firstChild);
       }
 
       span.replaceWith(wrapper);
@@ -126,14 +127,14 @@ function extractAffiliateProducts(json: any) {
     if (!node) return;
     if (Array.isArray(node)) return node.forEach(walk);
 
-    if (node.type === "affiliateProduct" && node.attrs) {
+    if ((node.type === "affiliateProduct" || node.type === "affiliateProductCard") && node.attrs) {
       products.push({
         title: node.attrs.title,
         image: node.attrs.image,
         price: node.attrs.price,
         rating: node.attrs.rating,
         features: node.attrs.features,
-        url: node.attrs.href,
+        url: node.attrs.url || node.attrs.href,
         currency: "BRL",
       });
     }
@@ -166,14 +167,15 @@ function extractOutline(editor: Editor | null): OutlineItem[] {
 }
 
 function resolveLinkType(attrs: Record<string, any>, href: string): LinkItem["type"] {
+  const rel = String(attrs.rel ?? "");
+  const entity = attrs["data-entity-type"] ?? attrs["data-entity"];
+  if (entity === "about" || rel.includes("about")) return "about";
+  if (entity === "mention" || rel.includes("mention")) return "mention";
+
   const explicit = attrs["data-link-type"] as LinkItem["type"] | undefined;
   if (explicit) return explicit;
-  const entity = attrs["data-entity-type"] ?? attrs["data-entity"];
-  if (entity === "about") return "about";
-  if (entity === "mention") return "mention";
-  if (href.startsWith("/")) return "internal";
-  const rel = String(attrs.rel ?? "");
   if (rel.includes("sponsored")) return "affiliate";
+  if (href.startsWith("/")) return "internal";
   return "external";
 }
 
@@ -371,6 +373,59 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     }
   }, [meta.title, meta.metaTitle, metaTitleTouched]);
 
+  // HYDRATION: Sync state from 'post' prop if it changes
+  useEffect(() => {
+    if (!post) return;
+
+    // Parse meta from json if needed
+    const metaFromJson = (post.content_json as any)?.meta ?? {};
+
+    updateMeta({
+      title: post.title ?? "",
+      metaTitle: post.meta_title ?? post.seo_title ?? post.title ?? "",
+      slug: post.slug ?? "",
+      targetKeyword: post.target_keyword ?? "",
+      metaDescription: post.meta_description ?? "",
+      supportingKeywords: Array.isArray(post.supporting_keywords) ? post.supporting_keywords : [],
+      entities: Array.isArray(post.entities) ? post.entities : [],
+      schemaType: (post.schema_type as EditorMeta["schemaType"]) ?? "article",
+      status: (post.status as EditorMeta["status"]) ?? (post.published ? "published" : "draft"),
+      scheduledAt: toLocalInput(post.scheduled_at),
+      canonicalPath: post.canonical_path ?? "",
+      heroImageUrl: post.hero_image_url ?? "",
+      heroImageAlt: post.hero_image_alt ?? "",
+      ogImageUrl: post.og_image_url ?? "",
+      images: Array.isArray(post.images) ? (post.images as ImageAsset[]) : [],
+      authorName: post.author_name ?? "",
+      expertName: post.expert_name ?? "",
+      expertRole: post.expert_role ?? "",
+      expertBio: post.expert_bio ?? "",
+      amazonProducts: Array.isArray(post.amazon_products) ? post.amazon_products : [],
+      expertCredentials: post.expert_credentials ?? "",
+      reviewedBy: post.reviewed_by ?? "",
+      reviewedAt: toLocalInput(post.reviewed_at),
+      authorLinks: Array.isArray(metaFromJson.authorLinks) ? metaFromJson.authorLinks : [],
+      sources: Array.isArray(post.sources) ? post.sources : [],
+      disclaimer: post.disclaimer ?? "",
+      faq: Array.isArray(post.faq_json) ? post.faq_json : [],
+      howto: Array.isArray(post.howto_json) ? post.howto_json : [],
+      siloId: post.silo_id ?? "",
+    });
+
+    setDocJson(post.content_json ?? null);
+    setDocHtml(post.content_html ?? "");
+
+    // Also ensure editor content is updated if editor instance exists? 
+    // Usually Tiptap handles content update via useEditor({ content }) but if content changes later need commands.setContent
+    // But be careful not to overwrite unsaved changes if 'post' prop updates from a revalidation while editing.
+    // For now, assume this effect is mostly for initial hydration or explicit resets.
+  }, [post.id]); // Only re-hydrate if post ID changes to avoid overwriting typing
+
+  // Also sync silos if initialSilos changes
+  useEffect(() => {
+    if (initialSilos.length) setSilos(initialSilos);
+  }, [initialSilos]);
+
   useEffect(() => {
     if (!slugTouched) {
       const next = slugify(meta.title);
@@ -474,7 +529,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
         placeholder: "Escreva aqui. Use a barra fixa para inserir blocos.",
       }),
     ],
-    content: post.content_json ?? defaultDoc(meta),
+    content: post.content_html || post.content_json || defaultDoc(meta),
     editorProps: {
       attributes: {
         class: "editor-content min-h-[520px] outline-none prose max-w-none",
@@ -904,6 +959,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
         <div className="flex h-full flex-1 flex-col">
           <EditorCanvas />
           <AdvancedLinkDialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} />
+          <LinkBubbleMenu editor={editor} onOpenLinkDialog={() => setLinkDialogOpen(true)} />
         </div>
 
         <EditorInspector />

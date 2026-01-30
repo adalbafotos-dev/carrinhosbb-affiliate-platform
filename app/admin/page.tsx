@@ -85,7 +85,7 @@ export default async function AdminPage({
       </form>
 
       <div className="overflow-hidden rounded-3xl border border-[color:var(--border)]">
-        <form id="deleteForm" action={bulkDeletePosts} className="flex items-center justify-between bg-[color:var(--paper)] px-4 py-3 text-xs text-[color:var(--muted-2)]">
+        <form id="deleteForm" action={bulkDeletePosts as any} className="flex items-center justify-between bg-[color:var(--paper)] px-4 py-3 text-xs text-[color:var(--muted-2)]">
           <span>Selecione posts para apagar (rascunhos ou outros)</span>
           <button
             type="submit"
@@ -122,7 +122,7 @@ export default async function AdminPage({
                 const publicHref = siloSlug ? `/${siloSlug}/${p.slug}` : `/${p.slug}`;
 
                 return (
-              <tr key={p.id} className="border-t border-[color:var(--border)] align-top">
+                  <tr key={p.id} className="border-t border-[color:var(--border)] align-top">
                     <td className="px-4 py-4">
                       <input type="checkbox" name="ids" value={p.id} form="deleteForm" className="h-4 w-4" aria-label={`Selecionar ${p.title}`} />
                     </td>

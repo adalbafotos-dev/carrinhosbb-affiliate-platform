@@ -47,21 +47,21 @@ export function GuardianPanel() {
             {issues.length > 0 ? (
                 <div className="space-y-1 pt-2">
                     {criticalIssues.map((issue) => (
-                        <div key={issue.id} className="flex items-start gap-2 rounded bg-red-100 p-2 text-[11px] font-medium text-red-900 dark:bg-red-900/40 dark:text-red-100">
-                            <AlertCircle size={14} className="mt-0.5 shrink-0 text-red-700 dark:text-red-400" />
+                        <div key={issue.id} className="flex items-start gap-2 rounded-lg bg-red-600 p-3 text-sm font-semibold text-white shadow-md">
+                            <AlertCircle size={16} className="mt-0.5 shrink-0" />
                             <span>{issue.message}</span>
                         </div>
                     ))}
                     {warnIssues.map((issue) => (
-                        <div key={issue.id} className="flex items-start gap-2 rounded bg-amber-100 p-2 text-[11px] font-medium text-amber-900 dark:bg-amber-900/40 dark:text-amber-100">
-                            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-700 dark:text-amber-400" />
+                        <div key={issue.id} className="flex items-start gap-2 rounded-lg bg-amber-600 p-3 text-sm font-semibold text-white shadow-md">
+                            <AlertTriangle size={16} className="mt-0.5 shrink-0" />
                             <span>{issue.message}</span>
                         </div>
                     ))}
                 </div>
             ) : (
-                <div className="flex items-center gap-2 rounded bg-emerald-100 p-2 text-[11px] font-medium text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-100">
-                    <CheckCircle2 size={14} className="text-emerald-700 dark:text-emerald-400" />
+                <div className="flex items-center gap-2 rounded-lg bg-emerald-600 p-3 text-sm font-semibold text-white shadow-md">
+                    <CheckCircle2 size={16} />
                     <span>Tudo certo com o SEO!</span>
                 </div>
             )}

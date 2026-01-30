@@ -24,6 +24,8 @@ import {
   Underline,
   Youtube,
 } from "lucide-react";
+import { useState } from "react";
+import ProductDialog from "@/components/editor/ProductDialog";
 
 type Props = {
   editor: Editor | null;
@@ -46,6 +48,8 @@ export function FixedToolbar({
   onInsertCallout,
   onAlignImage,
 }: Props) {
+  const [isProductOpen, setIsProductOpen] = useState(false);
+
   if (!editor) return null;
 
   const headingValue = editor.isActive("heading", { level: 2 })
@@ -178,41 +182,49 @@ export function FixedToolbar({
         <ToolbarButton label="Tabela" onClick={onInsertTable}>
           <TableIcon size={16} />
         </ToolbarButton>
-        <ToolbarButton label="Produto" onClick={onInsertProduct}>
+        <button
+          type="button"
+          onClick={() => setIsProductOpen(true)}
+          className="ml-2 flex items-center gap-2 rounded-md bg-orange-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-all hover:bg-orange-500"
+        >
           <ShoppingCart size={16} />
-        </ToolbarButton>
-
-        {onAlignImage ? (
-          <>
-            <Separator />
-            <ToolbarButton
-              label="Alinhar esquerda"
-              active={imageAlign === "left"}
-              disabled={!isImageSelected}
-              onClick={() => onAlignImage("left")}
-            >
-              <AlignLeft size={16} />
-            </ToolbarButton>
-            <ToolbarButton
-              label="Centralizar imagem"
-              active={imageAlign === "center"}
-              disabled={!isImageSelected}
-              onClick={() => onAlignImage("center")}
-            >
-              <AlignCenter size={16} />
-            </ToolbarButton>
-            <ToolbarButton
-              label="Alinhar direita"
-              active={imageAlign === "right"}
-              disabled={!isImageSelected}
-              onClick={() => onAlignImage("right")}
-            >
-              <AlignRight size={16} />
-            </ToolbarButton>
-          </>
-        ) : null}
+          Produto
+        </button>
       </div>
+
+      <ProductDialog isOpen={isProductOpen} onClose={() => setIsProductOpen(false)} editor={editor} />
+
+      {onAlignImage ? (
+        <>
+          <Separator />
+          <ToolbarButton
+            label="Alinhar esquerda"
+            active={imageAlign === "left"}
+            disabled={!isImageSelected}
+            onClick={() => onAlignImage("left")}
+          >
+            <AlignLeft size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label="Centralizar imagem"
+            active={imageAlign === "center"}
+            disabled={!isImageSelected}
+            onClick={() => onAlignImage("center")}
+          >
+            <AlignCenter size={16} />
+          </ToolbarButton>
+          <ToolbarButton
+            label="Alinhar direita"
+            active={imageAlign === "right"}
+            disabled={!isImageSelected}
+            onClick={() => onAlignImage("right")}
+          >
+            <AlignRight size={16} />
+          </ToolbarButton>
+        </>
+      ) : null}
     </div>
+
   );
 }
 
@@ -235,11 +247,10 @@ function ToolbarButton({
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-md border px-2 py-1 text-xs transition ${
-        active
-          ? "border-emerald-500 bg-emerald-100 text-emerald-700"
-          : "border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text)] hover:bg-[color:var(--surface-muted)]"
-      } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+      className={`rounded-md border px-2 py-1 text-xs transition ${active
+        ? "border-emerald-500 bg-emerald-100 text-emerald-700"
+        : "border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text)] hover:bg-[color:var(--surface-muted)]"
+        } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       {children}
     </button>

@@ -22,6 +22,9 @@ export type GuardianMetrics = {
   imagesCount: number;
   imagesWithoutAltCount: number;
   entitiesDetected: string[];
+  schemaScore: number; // 0-100
+  imageAltScore: number; // 0-100
+  eeatScore: number; // 0-100
   score: number;
 };
 
@@ -60,6 +63,9 @@ export function useContentGuardian(
     imagesCount: 0,
     imagesWithoutAltCount: 0,
     entitiesDetected: [],
+    schemaScore: 100,
+    imageAltScore: 100,
+    eeatScore: 100,
     score: 100,
   });
 
@@ -117,7 +123,7 @@ export function useContentGuardian(
       // 4. Links Analysis
       const internalLinks = links.filter((l) => ["internal", "mention", "about"].includes(l.type));
       const externalLinks = links.filter((l) => l.type === "external" || l.type === "affiliate");
-      
+
       // Internal links in first 20%
       const first20PercentLimit = text.length * 0.2;
       const internalLinksEarlyCount = links.filter(
@@ -128,10 +134,10 @@ export function useContentGuardian(
       let amazonLinksWithoutSponsored = 0;
       externalLinks.forEach((l) => {
         if (l.href.includes("amazon") || l.href.includes("amzn")) {
-            const rel = (l.rel || "").toLowerCase();
-            if (!rel.includes("sponsored")) {
-                amazonLinksWithoutSponsored++;
-            }
+          const rel = (l.rel || "").toLowerCase();
+          if (!rel.includes("sponsored")) {
+            amazonLinksWithoutSponsored++;
+          }
         }
       });
 
@@ -140,14 +146,14 @@ export function useContentGuardian(
       let imagesWithoutAltCount = 0;
       doc.descendants((node) => {
         if (node.type.name === "image") {
-            imagesCount++;
-            if (!node.attrs.alt) {
-                imagesWithoutAltCount++;
-            }
+          imagesCount++;
+          if (!node.attrs.alt) {
+            imagesWithoutAltCount++;
+          }
         }
         return true;
       });
-      
+
       // Issues Generation
       const newIssues: GuardianIssue[] = [];
       let scoreDeduction = 0;
@@ -172,7 +178,7 @@ export function useContentGuardian(
       }
       if (targetKeyword && !normalize(meta.metaDescription).includes(targetKeyword)) {
         newIssues.push({ id: "desc-kw", level: "critical", message: "Meta description sem palavra-chave." });
-         scoreDeduction += 10;
+        scoreDeduction += 10;
       }
 
       // Rule: Keyword First Para
@@ -183,8 +189,8 @@ export function useContentGuardian(
 
       // Rule: Keyword First H2
       if (!firstH2HasKeyword && targetKeyword) {
-         newIssues.push({ id: "kw-first-h2", level: "warn", message: "Palavra-chave não encontrada no primeiro H2." });
-         scoreDeduction += 5;
+        newIssues.push({ id: "kw-first-h2", level: "warn", message: "Palavra-chave não encontrada no primeiro H2." });
+        scoreDeduction += 5;
       }
 
       // Rule: Density
@@ -211,6 +217,28 @@ export function useContentGuardian(
         scoreDeduction += 5;
       }
 
+      // 6. Schema Score
+      let schemaScore = 100;
+      if (meta.schemaType === "faq" && (!meta.faq || meta.faq.length === 0)) {
+        schemaScore -= 30;
+      }
+      if (meta.schemaType === "howto" && (!meta.howto || meta.howto.length === 0)) {
+        schemaScore -= 30;
+      }
+
+      // 7. Image ALT Score
+      let imageAltScore = 100;
+      if (imagesCount < 2) imageAltScore -= 30;
+      if (imagesWithoutAltCount > 0) imageAltScore -= imagesWithoutAltCount * 15;
+      imageAltScore = Math.max(0, imageAltScore);
+
+      // 8. EEAT Score
+      let eeatScore = 100;
+      if (!meta.authorName || meta.authorName.trim().length === 0) eeatScore -= 20;
+      if (!meta.expertName || meta.expertName.trim().length === 0) eeatScore -= 10;
+      if (!meta.sources || meta.sources.length === 0) eeatScore -= 10;
+      eeatScore = Math.max(0, eeatScore);
+
       const finalScore = Math.max(0, 100 - scoreDeduction);
 
       setIssues(newIssues);
@@ -226,7 +254,10 @@ export function useContentGuardian(
         amazonLinksWithoutSponsored,
         imagesCount,
         imagesWithoutAltCount,
-        entitiesDetected: [], // To be implemented or passed if needed
+        entitiesDetected: meta.entities || [],
+        schemaScore,
+        imageAltScore,
+        eeatScore,
         score: finalScore,
       });
     }
