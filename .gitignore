@@ -9,3 +9,6 @@ out
 playwright-report
 test-results
 AGENTS.md
+cloudflared.exe
+cloudflared.log
+*.msi
