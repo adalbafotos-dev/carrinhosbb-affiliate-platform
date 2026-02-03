@@ -1,8 +1,11 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin/auth";
-import { adminGetSiloBySlug } from "@/lib/db";
+import { adminGetSiloBySlug, adminListPostsBySiloId } from "@/lib/db";
 import { updateSiloAction } from "@/app/admin/silos/actions";
+import { buildSiloMetrics } from "@/lib/seo/buildSiloMetrics";
+import { buildInternalSimilarity } from "@/lib/seo/cannibalization";
+import { SiloIntelligenceTabs } from "@/components/silos/SiloIntelligenceTabs";
 
 export const revalidate = 0;
 
@@ -11,13 +14,25 @@ export default async function EditSiloPage({ params }: { params: Promise<{ slug:
   const { slug } = await params;
   const silo = await adminGetSiloBySlug(slug);
   if (!silo) return notFound();
+  const posts = await adminListPostsBySiloId(silo.id);
+  const metrics = buildSiloMetrics({ silo, posts, siteUrl: process.env.SITE_URL ?? "http://localhost:3000" });
+  const cannibalization = buildInternalSimilarity(posts);
+
+  const postsSummary = posts.map((post) => ({
+    id: post.id,
+    title: post.title,
+    slug: post.slug,
+    status: post.status ?? (post.published ? "published" : "draft"),
+    focusKeyword: post.focus_keyword ?? null,
+    targetKeyword: post.target_keyword ?? null,
+  }));
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-[color:var(--text)]">Editar Silo</h1>
-          <p className="text-sm text-[color:var(--muted-2)]">Atualize metadados e conteÃºdo do pilar.</p>
+          <p className="text-sm text-[color:var(--muted-2)]">Atualize metadados e conteúdo do pilar.</p>
         </div>
         <Link
           href="/admin/silos"
@@ -48,7 +63,7 @@ export default async function EditSiloPage({ params }: { params: Promise<{ slug:
           </Field>
         </div>
 
-        <Field label="DescriÃ§Ã£o">
+        <Field label="Descrição">
           <textarea
             name="description"
             defaultValue={silo.description ?? ""}
@@ -91,13 +106,13 @@ export default async function EditSiloPage({ params }: { params: Promise<{ slug:
           </Field>
         </div>
 
-        <Field label="ConteÃºdo do pilar (HTML ou markdown simples)">
+        <Field label="Conteúdo do pilar (HTML ou markdown simples)">
           <textarea
             name="pillar_content_html"
             defaultValue={silo.pillar_content_html ?? ""}
             rows={6}
             className="w-full rounded-md border border-[color:var(--border)] px-3 py-2 text-sm outline-none"
-            placeholder="ConteÃºdo opcional do pilar"
+            placeholder="Conteúdo opcional do pilar"
           />
         </Field>
 
@@ -119,7 +134,7 @@ export default async function EditSiloPage({ params }: { params: Promise<{ slug:
                 defaultChecked={silo.is_active ?? true}
                 className="h-4 w-4 rounded border-[color:var(--border-strong)]"
               />
-              <label htmlFor="is_active">Listar na navegaÃ§Ã£o pÃºblica</label>
+              <label htmlFor="is_active">Listar na navegação pública</label>
             </div>
           </Field>
         </div>
@@ -133,6 +148,13 @@ export default async function EditSiloPage({ params }: { params: Promise<{ slug:
           </button>
         </div>
       </form>
+
+      <SiloIntelligenceTabs
+        silo={{ id: silo.id, name: silo.name, slug: silo.slug }}
+        posts={postsSummary}
+        metrics={metrics}
+        cannibalization={cannibalization}
+      />
     </div>
   );
 }
@@ -145,4 +167,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
-

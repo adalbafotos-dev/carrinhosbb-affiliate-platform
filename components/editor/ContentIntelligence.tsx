@@ -5,9 +5,10 @@ import { GuardianPanel } from "@/components/editor/GuardianPanel";
 import { TermsPanel } from "@/components/editor/TermsPanel";
 import { LinkHygienePanel } from "@/components/editor/LinkHygienePanel";
 import { FileText } from "lucide-react";
+import { SerpAnalysisPanel } from "@/components/serp/SerpAnalysisPanel";
 
 export function ContentIntelligence() {
-  const { outline, onJumpToHeading } = useEditorContext();
+  const { outline, onJumpToHeading, meta } = useEditorContext();
 
   return (
     <aside className="flex h-full w-[400px] flex-col border-r border-[color:var(--border)] bg-[color:var(--surface)]">
@@ -45,6 +46,12 @@ export function ContentIntelligence() {
         </section>
 
         <TermsPanel />
+
+        <SerpAnalysisPanel
+          defaultQuery={meta.targetKeyword || meta.title}
+          intentSource={meta.title || meta.targetKeyword}
+          title="Analise SERP (Post)"
+        />
 
         <LinkHygienePanel />
       </div>

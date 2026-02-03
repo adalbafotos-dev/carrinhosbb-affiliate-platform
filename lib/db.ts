@@ -216,6 +216,18 @@ export async function adminListPosts(args: { published?: boolean | null; status?
   })) as Array<PostWithSilo>;
 }
 
+export async function adminListPostsBySiloId(siloId: string): Promise<Post[]> {
+  const supabase = await getAdminSupabaseClient();
+  const { data, error } = await supabase
+    .from("posts")
+    .select("*")
+    .eq("silo_id", siloId)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as Post[];
+}
+
 export async function adminGetPostById(id: string): Promise<PostWithSilo | null> {
   const supabase = await getAdminSupabaseClient();
 

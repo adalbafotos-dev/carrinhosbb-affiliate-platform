@@ -2,6 +2,8 @@ import Link from "next/link";
 import { adminListPosts } from "@/lib/db";
 import { bulkDeletePosts, schedulePost, setPublishState } from "@/app/admin/actions";
 import { requireAdminSession } from "@/lib/admin/auth";
+import { getGoogleCseSettingsSummary } from "@/lib/google/settings";
+import { GoogleIntegrationCard } from "@/components/admin/GoogleIntegrationCard";
 
 export const revalidate = 0;
 
@@ -29,7 +31,10 @@ export default async function AdminPage({
   await requireAdminSession();
   const { status, q } = await searchParams;
   const statusFilter = status && status !== "all" ? status : null;
-  const posts = await adminListPosts({ status: statusFilter, query: q ?? null });
+  const [posts, googleSummary] = await Promise.all([
+    adminListPosts({ status: statusFilter, query: q ?? null }),
+    getGoogleCseSettingsSummary(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -49,6 +54,8 @@ export default async function AdminPage({
           Novo post
         </Link>
       </header>
+
+      <GoogleIntegrationCard summary={googleSummary} />
 
       <form method="get" className="flex flex-wrap items-end gap-3 rounded-2xl border border-[color:var(--border)] bg-[color:var(--paper)] px-4 py-3">
         <div className="flex flex-col gap-1">
@@ -200,4 +207,3 @@ export default async function AdminPage({
     </div>
   );
 }
-

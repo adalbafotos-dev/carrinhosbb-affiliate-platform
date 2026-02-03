@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="h-screen w-screen overflow-hidden bg-[color:var(--bg)] text-[color:var(--text)]">
+    <div className="flex h-screen w-screen flex-col overflow-hidden bg-[color:var(--bg)] text-[color:var(--text)]">
       <header className="flex h-12 items-center justify-between border-b border-[color:var(--border)] bg-[color:var(--surface)] px-4">
         <div className="text-sm font-semibold tracking-tight">Cockpit CMS</div>
         <nav className="flex items-center gap-2 text-[11px] font-semibold uppercase text-[color:var(--muted)]">

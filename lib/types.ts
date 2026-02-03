@@ -22,6 +22,7 @@ export type Post = {
   meta_title?: string | null;
   slug: string;
   target_keyword: string;
+  focus_keyword?: string | null;
   content_json: any | null;
   content_html: string | null;
   seo_score: number | null;
