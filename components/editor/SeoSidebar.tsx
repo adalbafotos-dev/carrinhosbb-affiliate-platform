@@ -29,16 +29,16 @@ export function SeoSidebar(props: {
     (supportingStatus.length ? Math.round((supportingUsed / supportingStatus.length) * 40) : 0);
 
   return (
-    <aside className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--paper)] p-6">
-      <p className="text-xs text-[color:var(--muted-2)]">SEO (KGR)</p>
+    <aside className="rounded-3xl border border-(--border) bg-(--paper) p-6">
+      <p className="text-xs text-(--muted-2)">SEO (KGR)</p>
       <div className="mt-3 space-y-4 text-sm">
-        <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--paper)] p-4">
-          <p className="text-xs text-[color:var(--muted-2)]">Score</p>
+        <div className="rounded-2xl border border-(--border) bg-(--paper) p-4">
+          <p className="text-xs text-(--muted-2)">Score</p>
           <p className="mt-1 text-2xl font-semibold">{score}/100</p>
         </div>
 
         <div className="space-y-2">
-          <p className="text-xs text-[color:var(--muted-2)]">Checklist</p>
+          <p className="text-xs text-(--muted-2)">Checklist</p>
 
           <Check ok={firstHasTarget} label="Keyword no 1º parágrafo" />
           <Check ok={wc >= 800} label="800+ palavras (mínimo recomendado)" />
@@ -46,9 +46,9 @@ export function SeoSidebar(props: {
         </div>
 
         <div className="space-y-2">
-          <p className="text-xs text-[color:var(--muted-2)]">Supporting keywords</p>
+          <p className="text-xs text-(--muted-2)">Supporting keywords</p>
           {supportingStatus.length === 0 ? (
-            <p className="text-xs text-[color:var(--muted-3)]">Sem supporting keywords definidas.</p>
+            <p className="text-xs text-(--muted-3)">Sem supporting keywords definidas.</p>
           ) : (
             <div className="space-y-1">
               {supportingStatus.map((s) => (
@@ -58,10 +58,10 @@ export function SeoSidebar(props: {
           )}
         </div>
 
-        <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--paper)] p-4 text-xs text-[color:var(--muted-2)] space-y-1">
-          <p>Palavras: <span className="text-[color:var(--muted)]">{wc}</span></p>
-          <p>Ocorrências da keyword: <span className="text-[color:var(--muted)]">{occ}</span></p>
-          <p className="text-[color:var(--muted-3)]">Ajuste fino depois: links internos, headings e snippet.</p>
+        <div className="rounded-2xl border border-(--border) bg-(--paper) p-4 text-xs text-(--muted-2) space-y-1">
+          <p>Palavras: <span className="text-(--muted)">{wc}</span></p>
+          <p>Ocorrências da keyword: <span className="text-(--muted)">{occ}</span></p>
+          <p className="text-(--muted-3)">Ajuste fino depois: links internos, headings e snippet.</p>
         </div>
       </div>
     </aside>
@@ -71,10 +71,10 @@ export function SeoSidebar(props: {
 function Check({ ok, label }: { ok: boolean; label: string }) {
   return (
     <div className="flex items-start gap-2">
-      <span className={`mt-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full border ${ok ? "border-[color:rgba(165,119,100,0.45)] bg-[color:var(--brand-primary)]" : "border-[color:var(--border)] bg-[color:var(--surface-muted)]"}`}>
-        <span className={`h-1.5 w-1.5 rounded-full ${ok ? "bg-[color:var(--brand-hot)]" : "bg-[color:rgba(43,44,48,0.2)]"}`} />
+      <span className={`mt-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full border ${ok ? "border-[color:rgba(165,119,100,0.45)] bg-(--brand-primary)" : "border-(--border) bg-(--surface-muted)"}`}>
+        <span className={`h-1.5 w-1.5 rounded-full ${ok ? "bg-(--brand-hot)" : "bg-[color:rgba(43,44,48,0.2)]"}`} />
       </span>
-      <span className={`text-xs ${ok ? "text-[color:var(--ink)]" : "text-[color:var(--muted-3)]"}`}>{label}</span>
+      <span className={`text-xs ${ok ? "text-(--ink)" : "text-(--muted-3)"}`}>{label}</span>
     </div>
   );
 }

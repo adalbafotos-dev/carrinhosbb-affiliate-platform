@@ -15,8 +15,8 @@ export default async function BatchPage({ params }: { params: Promise<{ slug: st
   if (!items.length) {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-4">
-        <p className="text-sm text-[color:var(--muted)]">Pacote vazio ou inexistente.</p>
-        <Link href={`/admin/silos/${slug}/batch/new`} className="text-sm text-[color:var(--brand-hot)] underline">
+        <p className="text-sm text-(--muted)">Pacote vazio ou inexistente.</p>
+        <Link href={`/admin/silos/${slug}/batch/new`} className="text-sm text-(--brand-hot) underline">
           Criar novo pacote
         </Link>
       </div>
@@ -25,15 +25,15 @@ export default async function BatchPage({ params }: { params: Promise<{ slug: st
 
   return (
     <div className="space-y-6">
-      <header className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--paper)] p-8">
-        <p className="text-xs text-[color:var(--muted-2)]">Guardian do Silo</p>
+      <header className="rounded-3xl border border-(--border) bg-(--paper) p-8">
+        <p className="text-xs text-(--muted-2)">Guardian do Silo</p>
         <h1 className="mt-2 text-2xl font-semibold">Pacote do silo {silo.name}</h1>
-        <p className="mt-2 text-sm text-[color:var(--muted)]">Posts prontos para edição e varredura.</p>
+        <p className="mt-2 text-sm text-(--muted)">Posts prontos para edição e varredura.</p>
       </header>
 
-      <div className="overflow-hidden rounded-3xl border border-[color:var(--border)] bg-[color:var(--paper)]">
+      <div className="overflow-hidden rounded-3xl border border-(--border) bg-(--paper)">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[color:var(--surface-muted)] text-xs text-[color:var(--muted-2)]">
+          <thead className="bg-(--surface-muted) text-xs text-(--muted-2)">
             <tr>
               <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">Titulo</th>
@@ -47,16 +47,16 @@ export default async function BatchPage({ params }: { params: Promise<{ slug: st
               const post = item.post;
               const status = post?.status ?? (post?.published ? "published" : "draft");
               return (
-                <tr key={item.post_id} className="border-t border-[color:var(--border)]">
-                  <td className="px-4 py-3 text-[color:var(--muted-2)]">{idx + 1}</td>
+                <tr key={item.post_id} className="border-t border-(--border)">
+                  <td className="px-4 py-3 text-(--muted-2)">{idx + 1}</td>
                   <td className="px-4 py-3 font-medium">{post?.title ?? "Post"}</td>
-                  <td className="px-4 py-3 text-[color:var(--muted)]">{post?.slug}</td>
-                  <td className="px-4 py-3 text-[color:var(--muted)]">{status}</td>
+                  <td className="px-4 py-3 text-(--muted)">{post?.slug}</td>
+                  <td className="px-4 py-3 text-(--muted)">{status}</td>
                   <td className="px-4 py-3">
                     {post ? (
                       <Link
                         href={`/admin/editor/${post.id}`}
-                        className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-1.5 text-xs hover:bg-[color:var(--brand-primary)]"
+                        className="rounded-lg border border-(--border) bg-(--surface-muted) px-3 py-1.5 text-xs hover:bg-(--brand-primary)"
                       >
                         Abrir editor
                       </Link>
@@ -72,13 +72,13 @@ export default async function BatchPage({ params }: { params: Promise<{ slug: st
       <div className="flex flex-wrap gap-3">
         <Link
           href={`/admin/silos/${slug}/links`}
-          className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-2 text-xs hover:bg-[color:var(--brand-primary)]"
+          className="rounded-lg border border-(--border) bg-(--surface-muted) px-3 py-2 text-xs hover:bg-(--brand-primary)"
         >
           Dashboard do silo
         </Link>
         <Link
           href={`/admin/silos/${slug}/batch/new`}
-          className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-2 text-xs hover:bg-[color:var(--brand-primary)]"
+          className="rounded-lg border border-(--border) bg-(--surface-muted) px-3 py-2 text-xs hover:bg-(--brand-primary)"
         >
           Novo pacote
         </Link>

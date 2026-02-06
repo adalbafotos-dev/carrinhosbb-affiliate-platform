@@ -46,15 +46,15 @@ export default async function SiloLinksPage({ params }: { params: Promise<{ slug
 
   return (
     <div className="space-y-6">
-      <header className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--paper)] p-8">
-        <p className="text-xs text-[color:var(--muted-2)]">Guardian do Silo</p>
+      <header className="rounded-3xl border border-(--border) bg-(--paper) p-8">
+        <p className="text-xs text-(--muted-2)">Guardian do Silo</p>
         <h1 className="mt-2 text-2xl font-semibold">Arquitetura do silo {silo.name}</h1>
-        <p className="mt-2 text-sm text-[color:var(--muted)]">Inbound/outbound e vazamentos.</p>
+        <p className="mt-2 text-sm text-(--muted)">Inbound/outbound e vazamentos.</p>
       </header>
 
-      <div className="overflow-hidden rounded-3xl border border-[color:var(--border)] bg-[color:var(--paper)]">
+      <div className="overflow-hidden rounded-3xl border border-(--border) bg-(--paper)">
         <table className="w-full text-left text-sm">
-          <thead className="bg-[color:var(--surface-muted)] text-xs text-[color:var(--muted-2)]">
+          <thead className="bg-(--surface-muted) text-xs text-(--muted-2)">
             <tr>
               <th className="px-4 py-3">Post</th>
               <th className="px-4 py-3">Inbound</th>
@@ -66,16 +66,16 @@ export default async function SiloLinksPage({ params }: { params: Promise<{ slug
           </thead>
           <tbody>
             {stats.map((item) => (
-              <tr key={item.post.id} className="border-t border-[color:var(--border)]">
+              <tr key={item.post.id} className="border-t border-(--border)">
                 <td className="px-4 py-3 font-medium">{item.post.title}</td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">{item.inbound}</td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">{item.outboundInternal}</td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">{item.outboundExternal}</td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">{item.affiliateIssues}</td>
+                <td className="px-4 py-3 text-(--muted)">{item.inbound}</td>
+                <td className="px-4 py-3 text-(--muted)">{item.outboundInternal}</td>
+                <td className="px-4 py-3 text-(--muted)">{item.outboundExternal}</td>
+                <td className="px-4 py-3 text-(--muted)">{item.affiliateIssues}</td>
                 <td className="px-4 py-3">
                   <Link
                     href={`/admin/editor/${item.post.id}`}
-                    className="rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-1.5 text-xs hover:bg-[color:var(--brand-primary)]"
+                    className="rounded-lg border border-(--border) bg-(--surface-muted) px-3 py-1.5 text-xs hover:bg-(--brand-primary)"
                   >
                     Abrir
                   </Link>
@@ -86,15 +86,15 @@ export default async function SiloLinksPage({ params }: { params: Promise<{ slug
         </table>
       </div>
 
-      <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--paper)] p-6 space-y-3">
+      <div className="rounded-2xl border border-(--border) bg-(--paper) p-6 space-y-3">
         <h2 className="text-sm font-semibold">Paginas orfas</h2>
         {orphans.length === 0 ? (
-          <p className="text-xs text-[color:var(--muted)]">Nenhuma pagina orfa.</p>
+          <p className="text-xs text-(--muted)">Nenhuma pagina orfa.</p>
         ) : (
-          <ul className="text-sm text-[color:var(--muted)] space-y-1">
+          <ul className="text-sm text-(--muted) space-y-1">
             {orphans.map((o) => (
               <li key={o.post.id}>
-                <Link href={`/admin/editor/${o.post.id}`} className="text-[color:var(--brand-hot)] underline">
+                <Link href={`/admin/editor/${o.post.id}`} className="text-(--brand-hot) underline">
                   {o.post.title}
                 </Link>
               </li>

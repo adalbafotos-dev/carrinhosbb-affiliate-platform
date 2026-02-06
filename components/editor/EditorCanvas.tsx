@@ -48,20 +48,20 @@ export function EditorCanvas() {
   const savedLabel = useMemo(() => formatRelativeTime(lastSavedAt), [lastSavedAt]);
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-[color:var(--bg)]">
+    <div className="flex h-full flex-1 flex-col bg-(--bg)">
       <div ref={scrollRef} className="h-full overflow-y-auto">
-        <div className="sticky top-0 z-30 border-b border-[color:var(--border)] bg-[color:var(--surface)]">
-          <div className="flex items-center justify-between px-4 py-2 text-[11px] text-[color:var(--muted)]">
+        <div className="sticky top-0 z-30 border-b border-(--border) bg-(--surface)">
+          <div className="flex items-center justify-between px-4 py-2 text-[11px] text-(--muted)">
             <div className="flex items-center gap-2">
               <Link
                 href="/admin"
-                className="inline-flex items-center gap-1 rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-[10px] font-semibold text-[color:var(--text)] hover:bg-[color:var(--surface-muted)]"
+                className="inline-flex items-center gap-1 rounded-md border border-(--border) bg-(--surface) px-2 py-1 text-[10px] font-semibold text-(--text) hover:bg-(--surface-muted)"
               >
                 <ArrowLeft size={12} />
                 Voltar ao admin
               </Link>
-              <span className="text-[color:var(--text)]">Editor</span>
-              <span className="h-1 w-24 rounded-full bg-[color:var(--surface-muted)]">
+              <span className="text-(--text)">Editor</span>
+              <span className="h-1 w-24 rounded-full bg-(--surface-muted)">
                 <span
                   className="block h-1 rounded-full bg-emerald-500 transition-all"
                   style={{ width: `${Math.min(100, scrollProgress * 100)}%` }}
@@ -69,7 +69,7 @@ export function EditorCanvas() {
               </span>
             </div>
             <div className="flex items-center gap-3">
-              <span className={saving ? "text-amber-400" : "text-[color:var(--muted)]"}>
+              <span className={saving ? "text-amber-400" : "text-(--muted)"}>
                 {saving ? "Salvando..." : savedLabel}
               </span>
               <button

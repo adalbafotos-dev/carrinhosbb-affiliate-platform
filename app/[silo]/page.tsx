@@ -67,9 +67,9 @@ export default async function PillarPage({ params }: { params: Promise<{ silo: s
 
   return (
     <div className="space-y-10">
-      <header className="rounded-3xl border border-[color:var(--border)] bg-[color:var(--paper)] p-6 md:p-8">
+      <header className="rounded-3xl border border-(--border) bg-(--paper) p-6 md:p-8">
         {pillar.hero_image_url ? (
-          <div className="relative mb-5 overflow-hidden rounded-xl border border-[color:var(--border-muted)]">
+          <div className="relative mb-5 overflow-hidden rounded-xl border border-(--border-muted)">
             <img
               src={pillar.hero_image_url}
               alt={pillar.hero_image_alt || pillar.name}
@@ -78,12 +78,12 @@ export default async function PillarPage({ params }: { params: Promise<{ silo: s
             />
           </div>
         ) : null}
-        <p className="text-xs uppercase tracking-wide text-[color:var(--muted-2)]">Pilar</p>
-        <h1 className="mt-2 text-3xl font-semibold leading-tight text-[color:var(--ink)] md:text-4xl">{pillar.name}</h1>
-        {pillar.description ? <p className="mt-3 text-sm text-[color:var(--muted)]">{pillar.description}</p> : null}
+        <p className="text-xs uppercase tracking-wide text-(--muted-2)">Pilar</p>
+        <h1 className="mt-2 text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">{pillar.name}</h1>
+        {pillar.description ? <p className="mt-3 text-sm text-(--muted)">{pillar.description}</p> : null}
         {pillar.pillar_content_html ? (
           <div
-            className="prose prose-zinc mt-5 max-w-none text-[color:var(--muted)]"
+            className="prose prose-zinc mt-5 max-w-none text-(--muted)"
             dangerouslySetInnerHTML={{ __html: pillar.pillar_content_html }}
           />
         ) : null}
@@ -91,7 +91,7 @@ export default async function PillarPage({ params }: { params: Promise<{ silo: s
 
       {groups.featured.length ? (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-[color:var(--ink)]">Destaques</h2>
+          <h2 className="text-lg font-semibold text-(--ink)">Destaques</h2>
           <div className="grid gap-4 md:grid-cols-2">
             {groups.featured.map((post) => (
               <PostCard key={post.id} post={post} silo={pillar.slug} />
@@ -102,7 +102,7 @@ export default async function PillarPage({ params }: { params: Promise<{ silo: s
 
       {groups.commercial.length ? (
         <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-[color:var(--ink)]">Guias / Reviews</h2>
+          <h2 className="text-lg font-semibold text-(--ink)">Guias / Reviews</h2>
           <div className="grid gap-4 md:grid-cols-2">
             {groups.commercial.map((post) => (
               <PostCard key={post.id} post={post} silo={pillar.slug} />
@@ -113,11 +113,11 @@ export default async function PillarPage({ params }: { params: Promise<{ silo: s
 
       <section className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[color:var(--ink)]">Últimos publicados</h2>
-          <span className="text-sm text-[color:var(--muted-2)]">{ordered.length} páginas</span>
+          <h2 className="text-lg font-semibold text-(--ink)">Últimos publicados</h2>
+          <span className="text-sm text-(--muted-2)">{ordered.length} páginas</span>
         </div>
         {ordered.length === 0 ? (
-          <div className="rounded-xl border border-[color:var(--border)] bg-[color:var(--paper)] p-5 text-sm text-[color:var(--muted)]">
+          <div className="rounded-xl border border-(--border) bg-(--paper) p-5 text-sm text-(--muted)">
             Nenhum post publicado neste silo ainda.
           </div>
         ) : (
@@ -138,17 +138,17 @@ function PostCard({ post, silo }: { post: Post; silo: string }) {
   return (
     <a
       href={`/${silo}/${post.slug}`}
-      className="flex h-full flex-col rounded-xl border border-[color:var(--border)] bg-[color:var(--paper)] p-4 transition hover:-translate-y-0.5 hover:shadow-sm"
+      className="flex h-full flex-col rounded-xl border border-(--border) bg-(--paper) p-4 transition hover:-translate-y-0.5 hover:shadow-sm"
     >
       <div className="flex items-center gap-2">
         {badge(post.intent)}
         {post.is_featured ? <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700">Pilar</span> : null}
       </div>
-      <h3 className="mt-2 line-clamp-2 text-base font-semibold text-[color:var(--ink)]">{post.title}</h3>
-      <p className="mt-2 line-clamp-3 text-sm text-[color:var(--muted)]">
+      <h3 className="mt-2 line-clamp-2 text-base font-semibold text-(--ink)">{post.title}</h3>
+      <p className="mt-2 line-clamp-3 text-sm text-(--muted)">
         {post.meta_description || "Resumo indisponível para este post."}
       </p>
-      <span className="mt-auto pt-3 text-sm font-semibold text-[color:var(--brand-accent)]">Abrir →</span>
+      <span className="mt-auto pt-3 text-sm font-semibold text-(--brand-accent)">Abrir →</span>
     </a>
   );
 }

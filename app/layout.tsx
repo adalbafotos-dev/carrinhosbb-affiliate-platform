@@ -17,7 +17,7 @@ const body = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "Affiliate Content Platform",
+  title: "Estética da Verdade",
   description: "CMS neutro para silos, pilares e posts otimizados.",
   metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:3000"),
 };

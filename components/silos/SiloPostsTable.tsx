@@ -20,9 +20,9 @@ export function SiloPostsTable({ posts, metrics, onViewSerp }: SiloPostsTablePro
   const metricsByPost = new Map(metrics.perPostMetrics.map((metric) => [metric.postId, metric]));
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-[color:var(--border)] bg-[color:var(--paper)]">
+    <div className="overflow-hidden rounded-2xl border border-(--border) bg-(--paper)">
       <table className="w-full text-left text-sm">
-        <thead className="bg-[color:var(--surface-muted)] text-[11px] uppercase text-[color:var(--muted-2)]">
+        <thead className="bg-(--surface-muted) text-[11px] uppercase text-(--muted-2)">
           <tr>
             <th className="px-4 py-3">Post</th>
             <th className="px-4 py-3">Status</th>
@@ -40,26 +40,26 @@ export function SiloPostsTable({ posts, metrics, onViewSerp }: SiloPostsTablePro
           {posts.map((post) => {
             const metric = metricsByPost.get(post.id);
             return (
-              <tr key={post.id} className="border-t border-[color:var(--border)]">
-                <td className="px-4 py-3 font-medium text-[color:var(--text)]">{post.title}</td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">{statusLabel(post.status)}</td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">
-                  {post.focusKeyword?.trim() || post.targetKeyword?.trim() || post.title}
+              <tr key={post.id} className="border-t border-(--border)">
+                <td className="px-4 py-3 font-medium text-(--text)">{post.title}</td>
+                <td className="px-4 py-3 text-(--muted)">{statusLabel(post.status)}</td>
+                <td className="px-4 py-3 text-(--muted)">
+                  {post.focus_keyword || post.targetKeyword?.trim() || post.title}
                 </td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">{metric?.internalSiloLinks ?? 0}</td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">{metric?.externalLinks ?? 0}</td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">{metric?.amazonLinks ?? 0}</td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">
+                <td className="px-4 py-3 text-(--muted)">{metric?.internalSiloLinks ?? 0}</td>
+                <td className="px-4 py-3 text-(--muted)">{metric?.externalLinks ?? 0}</td>
+                <td className="px-4 py-3 text-(--muted)">{metric?.amazonLinks ?? 0}</td>
+                <td className="px-4 py-3 text-(--muted)">
                   {(metric?.nofollow ?? 0)}/{metric?.sponsored ?? 0}
                 </td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">{metric?.inboundWithinSilo ?? 0}</td>
-                <td className="px-4 py-3 text-[color:var(--muted)]">{metric?.outboundWithinSilo ?? 0}</td>
+                <td className="px-4 py-3 text-(--muted)">{metric?.inboundWithinSilo ?? 0}</td>
+                <td className="px-4 py-3 text-(--muted)">{metric?.outboundWithinSilo ?? 0}</td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <Link
                       href={`/admin/editor/${post.id}`}
                       target="_blank"
-                      className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-2 py-1 text-[11px] text-[color:var(--text)] hover:border-[color:var(--brand-hot)]"
+                      className="rounded-md border border-(--border) bg-(--surface-muted) px-2 py-1 text-[11px] text-(--text) hover:border-(--brand-hot)"
                     >
                       Abrir no editor
                     </Link>
@@ -67,7 +67,7 @@ export function SiloPostsTable({ posts, metrics, onViewSerp }: SiloPostsTablePro
                       <button
                         type="button"
                         onClick={() => onViewSerp(post.id)}
-                        className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-2 py-1 text-[11px] text-[color:var(--text)] hover:border-[color:var(--brand-accent)]"
+                        className="rounded-md border border-(--border) bg-(--surface-muted) px-2 py-1 text-[11px] text-(--text) hover:border-(--brand-accent)"
                       >
                         Ver relatório SERP
                       </button>

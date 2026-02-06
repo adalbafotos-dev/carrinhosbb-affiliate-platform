@@ -7,6 +7,7 @@ import type { Silo } from "@/lib/types";
 
 export type EditorContextValue = {
   editor: Editor | null;
+  postId: string;
   meta: EditorMeta;
   setMeta: (patch: Partial<EditorMeta>) => void;
   outline: OutlineItem[];

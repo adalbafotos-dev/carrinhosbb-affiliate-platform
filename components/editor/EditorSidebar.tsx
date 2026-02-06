@@ -229,7 +229,7 @@ export function EditorSidebar(props: {
             </div>
             <div className="mt-2 h-2 w-full rounded-full bg-zinc-100">
               <div
-                className="h-2 rounded-full bg-[color:var(--brand-accent)]"
+                className="h-2 rounded-full bg-(--brand-accent)"
                 style={{ width: `${score}%` }}
               />
             </div>

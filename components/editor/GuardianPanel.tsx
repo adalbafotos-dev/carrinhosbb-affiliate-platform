@@ -18,7 +18,7 @@ export function GuardianPanel() {
     };
 
     return (
-        <section className="space-y-3 rounded-lg border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-3">
+        <section className="space-y-3 rounded-lg border border-(--border) bg-(--surface-muted) p-3">
             <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     {metrics.score >= 90 ? (
@@ -26,18 +26,18 @@ export function GuardianPanel() {
                     ) : (
                         <ShieldAlert size={18} className={metrics.score >= 70 ? "text-amber-500" : "text-red-500"} />
                     )}
-                    <span className="text-xs font-semibold uppercase text-[color:var(--muted)]">Guardião SEO</span>
+                    <span className="text-xs font-semibold uppercase text-(--muted)">Guardião SEO</span>
                 </div>
                 <span className={`text-sm font-bold ${getScoreColor(metrics.score)}`}>{metrics.score}%</span>
             </div>
 
-            <div className="grid grid-cols-2 gap-2 text-[10px] text-[color:var(--muted-foreground)]">
-                <div className="flex flex-col rounded bg-[color:var(--surface)] p-2 text-center border border-[color:var(--border)]">
-                    <span className="font-bold text-[color:var(--text)]">{metrics.wordCount}</span>
+            <div className="grid grid-cols-2 gap-2 text-[10px] text-(--muted-foreground)">
+                <div className="flex flex-col rounded bg-(--surface) p-2 text-center border border-(--border)">
+                    <span className="font-bold text-(--text)">{metrics.wordCount}</span>
                     <span>Palavras</span>
                 </div>
-                <div className="flex flex-col rounded bg-[color:var(--surface)] p-2 text-center border border-[color:var(--border)]">
-                    <span className={`font-bold ${metrics.keywordDensity > 2.5 ? "text-red-500" : "text-[color:var(--text)]"}`}>
+                <div className="flex flex-col rounded bg-(--surface) p-2 text-center border border-(--border)">
+                    <span className={`font-bold ${metrics.keywordDensity > 2.5 ? "text-red-500" : "text-(--text)"}`}>
                         {metrics.keywordDensity.toFixed(1)}%
                     </span>
                     <span>Densidade</span>

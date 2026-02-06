@@ -1,5 +1,6 @@
 import { getPublicSupabase } from "@/lib/supabase/public";
 import type { Post, PostLink, PostWithSilo, Silo, SiloBatch, SiloBatchPost } from "@/lib/types";
+import type { SiloPost } from "@/lib/types/silo";
 
 function hasPublicEnv() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -26,6 +27,16 @@ function getMissingColumnFromError(error: any): string | null {
   }
 
   return null;
+}
+
+function handleDbError(error: any) {
+  if (error?.code === "23505") {
+    if (error.details?.includes("key (slug)")) {
+      throw new Error("Já existe um item com este slug. Por favor, escolha outro.");
+    }
+    throw new Error("Este registro já existe (slug ou outro campo único duplicado).");
+  }
+  throw error;
 }
 
 const REQUIRED_POST_COLUMNS = [
@@ -385,11 +396,11 @@ export async function adminCreatePost(args: {
       );
     }
 
-    throw error;
+    throw handleDbError(error);
   }
 
   const { data, error } = await tryInsert(body);
-  if (error) throw error;
+  if (error) throw handleDbError(error);
   if (!data) throw new Error("Falha ao criar o post.");
   const row: any = data;
   return {
@@ -578,7 +589,9 @@ export async function adminCreateSilo(args: {
     .select("*")
     .maybeSingle();
 
-  if (error) throw error;
+
+
+  if (error) throw handleDbError(error);
   if (!data) throw new Error("Falha ao criar o silo.");
   return data as Silo;
 }
@@ -616,11 +629,11 @@ export async function adminUpdateSilo(id: string, patch: Partial<Silo>): Promise
       continue;
     }
 
-    throw error;
+    throw handleDbError(error);
   }
 
   const { data, error } = await tryUpdate(body);
-  if (error) throw error;
+  if (error) throw handleDbError(error);
   if (!data) throw new Error("Falha ao atualizar silo");
   return data as Silo;
 }
@@ -716,9 +729,9 @@ export async function adminListBatchPosts(batchId: string): Promise<Array<SiloBa
     created_at: row.created_at,
     post: row.posts
       ? {
-          ...(row.posts as Post),
-          silo: row.posts.silos ? { slug: row.posts.silos.slug, name: row.posts.silos.name } : null,
-        }
+        ...(row.posts as Post),
+        silo: row.posts.silos ? { slug: row.posts.silos.slug, name: row.posts.silos.name } : null,
+      }
       : (null as any),
   }));
 }
@@ -787,4 +800,116 @@ export async function adminGetPostLinks(postId: string): Promise<PostLink[]> {
   const { data, error } = await supabase.from("post_links").select("*").eq("source_post_id", postId);
   if (error) throw error;
   return (data ?? []) as PostLink[];
+}
+
+// --- Silo Posts (Hierarchy Management) ---
+
+export async function adminGetSiloPostsBySiloId(siloId: string): Promise<SiloPost[]> {
+  const supabase = await getAdminSupabaseClient();
+  const { data, error } = await supabase
+    .from("silo_posts")
+    .select("*")
+    .eq("silo_id", siloId)
+    .order("level", { ascending: true })
+    .order("position", { ascending: true });
+
+  if (error) {
+    // If table doesn't exist yet, return empty array
+    if (error.code === "42P01") return [];
+    throw error;
+  }
+
+  return (data ?? []) as SiloPost[];
+}
+
+export async function adminGetSiloPost(siloId: string, postId: string): Promise<SiloPost | null> {
+  const supabase = await getAdminSupabaseClient();
+  const { data, error } = await supabase
+    .from("silo_posts")
+    .select("*")
+    .eq("silo_id", siloId)
+    .eq("post_id", postId)
+    .maybeSingle();
+
+  if (error) {
+    if (error.code === "42P01") return null;
+    throw error;
+  }
+
+  return (data ?? null) as SiloPost | null;
+}
+
+export async function adminUpsertSiloPost(args: {
+  silo_id: string;
+  post_id: string;
+  role?: "PILLAR" | "SUPPORT" | "AUX";
+  position?: number;
+  level?: number;
+  parent_post_id?: string | null;
+}): Promise<void> {
+  const supabase = await getAdminSupabaseClient();
+
+  const payload: Record<string, any> = {
+    silo_id: args.silo_id,
+    post_id: args.post_id,
+  };
+
+  if (args.role) payload.role = args.role;
+  if (typeof args.position !== "undefined") payload.position = args.position;
+  if (typeof args.level !== "undefined") payload.level = args.level;
+  if (typeof args.parent_post_id !== "undefined") payload.parent_post_id = args.parent_post_id;
+
+  const { error } = await supabase.from("silo_posts").upsert(payload, {
+    onConflict: "silo_id,post_id",
+  });
+
+  if (error) {
+    if (error.code === "42P01") {
+      console.warn("silo_posts table does not exist. Run migration: migrations/create_silo_posts.sql");
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function adminUpdateSiloPost(
+  siloId: string,
+  postId: string,
+  update: Partial<Pick<SiloPost, "role" | "position" | "level" | "parent_post_id">>
+): Promise<void> {
+  const supabase = await getAdminSupabaseClient();
+
+  const payload: Record<string, any> = { updated_at: new Date().toISOString() };
+
+  if (update.role) payload.role = update.role;
+  if (typeof update.position !== "undefined") payload.position = update.position;
+  if (typeof update.level !== "undefined") payload.level = update.level;
+  if (typeof update.parent_post_id !== "undefined") payload.parent_post_id = update.parent_post_id;
+
+  const { error } = await supabase
+    .from("silo_posts")
+    .update(payload)
+    .eq("silo_id", siloId)
+    .eq("post_id", postId);
+
+  if (error) {
+    if (error.code === "42P01") {
+      console.warn("silo_posts table does not exist. Skipping update.");
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function adminDeleteSiloPost(siloId: string, postId: string): Promise<void> {
+  const supabase = await getAdminSupabaseClient();
+  const { error } = await supabase
+    .from("silo_posts")
+    .delete()
+    .eq("silo_id", siloId)
+    .eq("post_id", postId);
+
+  if (error && error.code !== "42P01") {
+    throw error;
+  }
 }

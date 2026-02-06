@@ -30,7 +30,7 @@ function renderList() {
       currentIndex = 0;
 
       dom = document.createElement("div");
-      dom.className = "rounded-2xl border border-[color:var(--border)] bg-[color:rgba(255,255,255,0.96)] p-2 shadow-xl";
+      dom.className = "rounded-2xl border border-(--border) bg-[color:rgba(255,255,255,0.96)] p-2 shadow-xl";
 
       ul = document.createElement("div");
       ul.className = "flex flex-col";
@@ -90,7 +90,7 @@ function renderList() {
     const items: Item[] = props.items ?? [];
     if (!items.length) {
       const empty = document.createElement("div");
-      empty.className = "px-3 py-2 text-xs text-[color:var(--muted-2)]";
+      empty.className = "px-3 py-2 text-xs text-(--muted-2)";
       empty.textContent = "Nenhum artigo encontrado";
       list.appendChild(empty);
       return;
@@ -101,16 +101,16 @@ function renderList() {
       row.type = "button";
       row.className = `text-left rounded-xl px-3 py-2 text-xs transition ${
         idx === currentIndex
-          ? "bg-[color:var(--brand-primary)] text-[color:var(--ink)]"
-          : "text-[color:var(--muted)] hover:bg-[color:var(--surface-muted)]"
+          ? "bg-(--brand-primary) text-(--ink)"
+          : "text-(--muted) hover:bg-(--surface-muted)"
       }`;
 
       const title = document.createElement("div");
-      title.className = "text-[color:var(--ink)]";
+      title.className = "text-(--ink)";
       title.textContent = item.title;
 
       const meta = document.createElement("div");
-      meta.className = "text-[10px] text-[color:var(--muted-2)]";
+      meta.className = "text-[10px] text-(--muted-2)";
       meta.textContent = `/${item.siloSlug}/${item.slug}`;
 
       row.appendChild(title);
@@ -173,7 +173,7 @@ export const InternalLinkMention = Mention.extend({
         "data-link-type": "mention",
         "data-post-id": postId,
         "data-entity": "mention",
-        class: "internal-link underline underline-offset-4 decoration-[color:var(--brand-primary)] text-[color:var(--brand-hot)]",
+        class: "internal-link underline underline-offset-4 decoration-(--brand-primary) text-(--brand-hot)",
       },
       label,
     ];

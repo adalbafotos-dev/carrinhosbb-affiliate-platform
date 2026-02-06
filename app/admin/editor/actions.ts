@@ -2,12 +2,22 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { adminFindTargetKeywordConflict, adminGetPostById, adminGetPostLinks, adminPublishPost, adminReplacePostLinks, adminUpdatePost } from "@/lib/db";
+import {
+  adminFindTargetKeywordConflict,
+  adminGetPostById,
+  adminGetPostLinks,
+  adminPublishPost,
+  adminReplacePostLinks,
+  adminUpdatePost,
+  adminUpsertSiloPost,
+} from "@/lib/db";
 import { requireAdminSession } from "@/lib/admin/auth";
 
 const SaveSchema = z.object({
   id: z.string().uuid(),
   silo_id: z.string().uuid().nullable().optional(),
+  silo_role: z.enum(["PILLAR", "SUPPORT", "AUX"]).nullable().optional(),
+  silo_position: z.number().int().min(1).max(100).nullable().optional(),
   title: z.string().min(3).max(180),
   seo_title: z.string().max(180).nullable().optional(),
   meta_title: z.string().max(180).nullable().optional(),
@@ -159,6 +169,64 @@ export async function saveEditorPost(payload: unknown) {
     console.error("Nao foi possivel sincronizar post_links, seguindo com o save do post", error);
   }
 
+  // ========================================
+  // SYNC LINK OCCURRENCES (SILO V2)
+  // ========================================
+  const finalSiloId = data.silo_id ?? post.silo_id;
+  if (finalSiloId && data.content_html) {
+    try {
+      const { syncLinkOccurrences } = await import("@/lib/silo/siloService");
+      await syncLinkOccurrences(finalSiloId, data.id, data.content_html);
+    } catch (error) {
+      console.error("Erro ao sincronizar ocorrencias de links (V2):", error);
+    }
+  }
+
+  // ========================================
+  // SALVAR HIERARQUIA DO SILO (role + position)
+  // ========================================
+  if (data.silo_id && (data.silo_role || typeof data.silo_position === "number")) {
+    try {
+      // Validação: apenas 1 pilar por silo
+      if (data.silo_role === "PILLAR") {
+        const { adminGetSiloPostsBySiloId } = await import("@/lib/db");
+        const existingPosts = await adminGetSiloPostsBySiloId(data.silo_id);
+        const existingPillar = existingPosts.find((sp) => sp.role === "PILLAR" && sp.post_id !== data.id);
+
+        if (existingPillar) {
+          throw new Error("Já existe um post Pilar nesse silo. Remova o outro pilar primeiro ou mude o papel.");
+        }
+      }
+
+      // Validação: posição única dentro do silo
+      if (typeof data.silo_position === "number") {
+        const { adminGetSiloPostsBySiloId } = await import("@/lib/db");
+        const existingPosts = await adminGetSiloPostsBySiloId(data.silo_id);
+        const positionConflict = existingPosts.find(
+          (sp) => sp.position === data.silo_position && sp.post_id !== data.id
+        );
+
+        if (positionConflict) {
+          throw new Error(`Posição ${data.silo_position} já está ocupada por outro post neste silo.`);
+        }
+      }
+
+      // Salvar hierarquia
+      const { adminUpsertSiloPost } = await import("@/lib/db");
+      await adminUpsertSiloPost({
+        silo_id: data.silo_id,
+        post_id: data.id,
+        role: data.silo_role || undefined,
+        position: data.silo_position || undefined,
+      });
+    } catch (error) {
+      console.error("Erro ao salvar hierarquia do silo:", error);
+      throw error; // Re-throw para mostrar erro ao usuário
+    }
+  }
+
+
+
   if ((data.status ?? undefined) === "published") {
     const validation = await validatePostForPublish(data.id, { links, html: data.content_html ?? "", title: data.title, target_keyword: data.target_keyword, meta_description: metaDescription ?? "" });
     if (validation.errors.length) {
@@ -270,6 +338,42 @@ function wordCountFromHtml(html: string) {
   return text.split(/\s+/).length;
 }
 
+function extractListItemsFromHtml(html: string, limit = 5) {
+  if (!html) return [];
+  const items: string[] = [];
+  const listMatch = html.match(/<(ol|ul)[^>]*>([\s\S]*?)<\/\1>/i);
+  if (!listMatch) return items;
+  const listHtml = listMatch[2] ?? "";
+  const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+  let match: RegExpExecArray | null = null;
+  while ((match = liRegex.exec(listHtml)) && items.length < limit) {
+    const raw = match[1] ?? "";
+    const text = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (text) items.push(text);
+  }
+  return items;
+}
+
+function detectFaqFromHtml(html: string, limit = 3) {
+  if (!html) return [];
+  const faqs: Array<{ question: string; answer: string }> = [];
+  const h2Regex = /<h2[^>]*>([\s\S]*?)<\/h2>\s*<p[^>]*>([\s\S]*?)<\/p>/gi;
+  let match: RegExpExecArray | null = null;
+  while ((match = h2Regex.exec(html)) && faqs.length < limit) {
+    const q = (match[1] ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const a = (match[2] ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (q.endsWith("?") && a) {
+      faqs.push({ question: q, answer: a });
+    }
+  }
+  return faqs;
+}
+
+function detectYouTubeEmbed(html: string) {
+  if (!html) return false;
+  return /youtube\.com\/embed\/|youtube\.com\/watch\?v=|youtu\.be\//i.test(html);
+}
+
 function anchorWordCount(links: ExtractedLink[]) {
   return links.reduce((acc, link) => {
     const words = (link.anchor_text || "").trim().split(/\s+/).filter(Boolean).length;
@@ -300,6 +404,9 @@ export async function validatePostForPublish(
   }
   if (!post.meta_description && !(opts?.meta_description)) {
     warnings.push("Meta description ausente");
+  }
+  if (post.hero_image_url && !post.hero_image_alt) {
+    errors.push("Alt text da imagem de capa é obrigatório");
   }
 
   const siloSlug = post.silo?.slug ?? null;
@@ -347,6 +454,42 @@ export async function validatePostForPublish(
   const repeated = Array.from(duplicateAnchors.entries()).filter(([, count]) => count > 2);
   if (repeated.length) {
     warnings.push("Ancoras repetidas mais de 2x no mesmo post");
+  }
+
+  // Schema checklist
+  const schemaType = post.schema_type ?? "article";
+  if (schemaType === "review") {
+    const products = Array.isArray(post.amazon_products) ? post.amazon_products : [];
+    if (!products.length) {
+      errors.push("Schema Review exige pelo menos 1 produto (amazon_products)");
+    }
+  }
+  if (schemaType === "howto") {
+    const steps = Array.isArray(post.howto_json) ? post.howto_json : [];
+    if (!steps.length) {
+      errors.push("Schema HowTo exige passos (howto_json) ou conteúdo estruturado");
+    }
+  }
+  if (schemaType === "faq") {
+    const faq = Array.isArray(post.faq_json) ? post.faq_json : [];
+    const detectedFaq = detectFaqFromHtml(html);
+    if (!faq.length && !detectedFaq.length) {
+      errors.push("Schema FAQ exige perguntas e respostas (faq_json ou H2 + parágrafo)");
+    }
+  }
+
+  const title = opts?.title ?? post.title ?? "";
+  const isTopList = /top|melhor|melhores|lista|ranking/i.test(title);
+  if (isTopList) {
+    const listItems = extractListItemsFromHtml(html);
+    if (listItems.length === 0) {
+      warnings.push("Artigo Top Lista detectado, mas nenhuma lista <ol>/<ul> foi encontrada");
+    }
+  }
+
+  const mentionsVideo = /video|vídeo/i.test(title);
+  if (mentionsVideo && !detectYouTubeEmbed(html)) {
+    warnings.push("Artigo com vídeo no título, mas nenhum embed do YouTube foi detectado");
   }
 
   return { errors, warnings };

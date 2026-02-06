@@ -5,11 +5,12 @@ import { ExternalLink, Link2, Shield, MapPinned, AlertCircle, ChevronDown, Chevr
 import { useMemo, useState, useEffect, useRef } from "react";
 
 export function LinkHygienePanel() {
-    const { links, editor, docText } = useEditorContext();
+    const { links, editor, docText, postId } = useEditorContext();
     const [isMapExpanded, setIsMapExpanded] = useState(true);
     const [isListExpanded, setIsListExpanded] = useState(true);
     const [isPanelExpanded, setIsPanelExpanded] = useState(false);
     const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
+    const [auditItems, setAuditItems] = useState<any[]>([]);
     const linkRefs = useRef<Map<string, HTMLDivElement>>(new Map());
     const lastScrolledLinkRef = useRef<string | null>(null);
     const shouldIgnoreNextScrollRef = useRef(false);
@@ -27,6 +28,25 @@ export function LinkHygienePanel() {
             .filter(Boolean);
 
     const serializeRelTokens = (tokens: string[]) => (tokens.length ? tokens.join(" ") : null);
+
+    const normalizeText = (value: string) =>
+        value
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s]/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+
+    const normalizeHref = (href: string) => {
+        if (!href) return "";
+        try {
+            const url = new URL(href, "http://local");
+            return url.pathname.replace(/\/+$/g, "");
+        } catch {
+            return href.split(/[?#]/)[0].replace(/\/+$/g, "");
+        }
+    };
 
     const updateLink = (from: number, to: number, newAttrs: Record<string, any>) => {
         if (!editor) return;
@@ -123,6 +143,40 @@ export function LinkHygienePanel() {
             });
         }
     };
+
+    useEffect(() => {
+        if (!postId) return;
+        let cancelled = false;
+        fetch(`/api/admin/link-audits?postId=${postId}`)
+            .then((res) => res.json())
+            .then((data) => {
+                if (cancelled) return;
+                setAuditItems(Array.isArray(data?.items) ? data.items : []);
+            })
+            .catch(() => {
+                if (!cancelled) setAuditItems([]);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [postId]);
+
+    const auditMap = useMemo(() => {
+        const map = new Map<string, { label: string; score?: number }>();
+        const rank: Record<string, number> = { WEAK: 3, OK: 2, STRONG: 1 };
+        auditItems.forEach((item) => {
+            if (!item?.audit?.label) return;
+            const key = `${normalizeText(item.anchor_text || "")}||${normalizeHref(item.href_normalized || "")}`;
+            const existing = map.get(key);
+            const nextRank = rank[item.audit.label] ?? 0;
+            const existingRank = existing ? rank[existing.label] ?? 0 : 0;
+            if (!existing || nextRank > existingRank) {
+                map.set(key, { label: item.audit.label, score: item.audit.score });
+            }
+        });
+        return map;
+    }, [auditItems]);
 
     const jumpToLink = (from: number, to: number, linkId: string) => {
         if (!editor) return;
@@ -291,8 +345,21 @@ export function LinkHygienePanel() {
         const isExternal = link.type === "external" || link.type === "affiliate";
         const isAmazon = link.href.includes("amazon") || link.href.includes("amzn");
         const isAffiliate = link.type === "affiliate";
+        const isInternal = link.type === "internal";
+        const isLocked = isInternal || isAffiliate || isAmazon;
         const hasIssue = isAmazon && !(link.rel || "").includes("sponsored");
         const position = getLinkPosition(link.from);
+        const auditKey = `${normalizeText(link.text || "")}||${normalizeHref(link.href || "")}`;
+        const auditInfo = auditMap.get(auditKey);
+        const auditLabel = auditInfo?.label;
+        const auditBorder =
+            auditLabel === "WEAK"
+                ? "border-red-500 ring-1 ring-red-300"
+                : auditLabel === "OK"
+                    ? "border-yellow-400 ring-1 ring-yellow-200"
+                    : auditLabel === "STRONG"
+                        ? "border-emerald-400"
+                        : "";
 
         // Verifica se este link está selecionado
         const isSelected = currentSelectedLink?.id === link.id;
@@ -307,7 +374,9 @@ export function LinkHygienePanel() {
                     ? "border-blue-500 shadow-lg ring-2 ring-blue-400 bg-(--surface)"
                     : hasIssue
                         ? "border-orange-500 shadow-md ring-1 ring-orange-400 bg-(--surface)"
-                        : "border-(--border) bg-(--surface) hover:shadow-lg"
+                        : auditBorder
+                            ? `${auditBorder} bg-(--surface)`
+                            : "border-(--border) bg-(--surface) hover:shadow-lg"
                     }`}
                 onClick={() => jumpToLink(link.from, link.to, link.id)}
                 title="Clique para ir até o link no editor"
@@ -326,6 +395,20 @@ export function LinkHygienePanel() {
                         {/* Position Indicator */}
                         <div className={`w-2 h-8 rounded-full ${position.color}`} title={`Posição: ${position.label}`} />
 
+                        {auditLabel && (
+                            <span
+                                className={`text-xs px-2 py-1 rounded-md font-bold uppercase ${auditLabel === "WEAK"
+                                    ? "bg-red-600 text-white"
+                                    : auditLabel === "OK"
+                                        ? "bg-yellow-500 text-white"
+                                        : "bg-emerald-600 text-white"
+                                    }`}
+                                title={`Audit: ${auditLabel}${typeof auditInfo?.score === "number" ? ` (${auditInfo.score})` : ""}`}
+                            >
+                                {auditLabel}
+                            </span>
+                        )}
+
                         {/* Type Badge */}
                         {isAffiliate && <span className="text-xs px-2 py-1 rounded-md bg-purple-600 text-white font-bold uppercase">Affiliate</span>}
                         {isAmazon && <span className="text-xs px-2 py-1 rounded-md bg-orange-600 text-white font-bold uppercase">AMZ</span>}
@@ -336,53 +419,60 @@ export function LinkHygienePanel() {
                     </div>
                 </div>
 
-                <div className="flex flex-wrap gap-2 pt-2 mt-2 border-t border-(--border)">
-                    <button
-                        onClick={(e) => { e.stopPropagation(); toggleAttribute(link, "target", "_blank"); }}
-                        className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md ${link.target === "_blank"
-                            ? "bg-emerald-600 text-white border-2 border-emerald-700"
-                            : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border-2 border-gray-300 dark:border-gray-600"
-                            }`}
-                    >
-                        _blank
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); toggleAttribute(link, "rel", "nofollow"); }}
-                        className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md ${(link.rel || "").includes("nofollow")
-                            ? "bg-emerald-600 text-white border-2 border-emerald-700"
-                            : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border-2 border-gray-300 dark:border-gray-600"
-                            }`}
-                    >
-                        nofollow
-                    </button>
-                    <button
-                        onClick={(e) => { e.stopPropagation(); toggleAttribute(link, "rel", "sponsored"); }}
-                        className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md ${(link.rel || "").includes("sponsored")
-                            ? "bg-orange-500 text-white border-2 border-orange-600"
-                            : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border-2 border-gray-300 dark:border-gray-600"
-                            }`}
-                    >
-                        sponsored
-                    </button>
-                    <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleAttribute(link, "data-entity-type", "about"); }}
-                        className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md ${(link.rel || "").includes("about")
-                            ? "bg-purple-600 text-white border-2 border-purple-700"
-                            : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border-2 border-gray-300 dark:border-gray-600"
-                            }`}
-                    >
-                        about
-                    </button>
-                    <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleAttribute(link, "data-entity-type", "mention"); }}
-                        className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md ${(link.rel || "").includes("mention")
-                            ? "bg-indigo-600 text-white border-2 border-indigo-700"
-                            : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border-2 border-gray-300 dark:border-gray-600"
-                            }`}
-                    >
-                        mention
-                    </button>
-                </div>
+                {!isLocked ? (
+                    <div className="flex flex-wrap gap-2 pt-2 mt-2 border-t border-(--border)">
+                        <button
+                            onClick={(e) => { e.stopPropagation(); toggleAttribute(link, "target", "_blank"); }}
+                            className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md ${link.target === "_blank"
+                                ? "bg-emerald-600 text-white border-2 border-emerald-700"
+                                : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border-2 border-gray-300 dark:border-gray-600"
+                                }`}
+                        >
+                            _blank
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); toggleAttribute(link, "rel", "nofollow"); }}
+                            className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md ${(link.rel || "").includes("nofollow")
+                                ? "bg-emerald-600 text-white border-2 border-emerald-700"
+                                : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border-2 border-gray-300 dark:border-gray-600"
+                                }`}
+                        >
+                            nofollow
+                        </button>
+                        <button
+                            onClick={(e) => { e.stopPropagation(); toggleAttribute(link, "rel", "sponsored"); }}
+                            className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md ${(link.rel || "").includes("sponsored")
+                                ? "bg-orange-500 text-white border-2 border-orange-600"
+                                : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border-2 border-gray-300 dark:border-gray-600"
+                                }`}
+                        >
+                            sponsored
+                        </button>
+                        <button
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleAttribute(link, "data-entity-type", "about"); }}
+                            className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md ${(link.rel || "").includes("about")
+                                ? "bg-purple-600 text-white border-2 border-purple-700"
+                                : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border-2 border-gray-300 dark:border-gray-600"
+                                }`}
+                        >
+                            about
+                        </button>
+                        <button
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleAttribute(link, "data-entity-type", "mention"); }}
+                            className={`text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md ${(link.rel || "").includes("mention")
+                                ? "bg-indigo-600 text-white border-2 border-indigo-700"
+                                : "bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 border-2 border-gray-300 dark:border-gray-600"
+                                }`}
+                        >
+                            mention
+                        </button>
+                    </div>
+                ) : (
+                    <div className="pt-2 mt-2 border-t border-(--border) text-[10px] text-(--muted-2)">
+                        {isInternal && "Interno: sem _blank, nofollow, sponsored, about ou mention."}
+                        {!isInternal && (isAmazon || isAffiliate) && "Affiliate/Amazon: atributos fixos (_blank, nofollow, sponsored)."}
+                    </div>
+                )}
             </div>
         );
     };

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
@@ -42,6 +43,69 @@ function slugify(value: string) {
     .trim()
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+}
+
+type HighlightOccurrence = {
+  id: string;
+  source_post_id: string;
+  target_post_id?: string | null;
+  anchor_text: string;
+  href_normalized: string;
+  context_snippet?: string | null;
+  start_index?: number | null;
+  end_index?: number | null;
+  occurrence_key?: string | null;
+};
+
+function normalizeText(value: string) {
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function normalizeHref(href: string) {
+  if (!href) return "";
+  try {
+    const url = new URL(href, "http://local");
+    return url.pathname.replace(/\/+$/g, "");
+  } catch {
+    return href.split(/[?#]/)[0].replace(/\/+$/g, "");
+  }
+}
+
+function highlightOccurrenceInEditor(editor: Editor, occurrence: HighlightOccurrence) {
+  const candidates: Array<{ pos: number; nodeSize: number; hrefMatch: boolean; anchorMatch: boolean }> = [];
+  const targetHref = normalizeHref(occurrence.href_normalized);
+  const targetAnchor = normalizeText(occurrence.anchor_text);
+
+  editor.state.doc.descendants((node, pos) => {
+    if (!node.isText) return;
+    const linkMark = node.marks.find((mark) => mark.type.name === "link");
+    if (!linkMark) return;
+    const href = normalizeHref(String(linkMark.attrs?.href ?? ""));
+    const text = normalizeText(node.text || "");
+    const hrefMatch = Boolean(targetHref && href === targetHref);
+    const anchorMatch = Boolean(targetAnchor && text === targetAnchor);
+    if (hrefMatch || anchorMatch) {
+      candidates.push({ pos, nodeSize: node.nodeSize, hrefMatch, anchorMatch });
+    }
+  });
+
+  if (!candidates.length) return false;
+  candidates.sort((a, b) => {
+    const aScore = (a.hrefMatch ? 2 : 0) + (a.anchorMatch ? 1 : 0);
+    const bScore = (b.hrefMatch ? 2 : 0) + (b.anchorMatch ? 1 : 0);
+    return bScore - aScore;
+  });
+  const match = candidates[0];
+  const from = match.pos;
+  const to = match.pos + match.nodeSize;
+  editor
+    .chain()
+    .focus()
+    .setTextSelection({ from, to })
+    .setMark("highlight", { color: "#FDE68A" })
+    .scrollIntoView()
+    .run();
+  return true;
 }
 
 function hasBoldStyle(style: string) {
@@ -294,6 +358,9 @@ function defaultDoc(meta: EditorMeta) {
 }
 
 export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
+  const searchParams = useSearchParams();
+  const highlightOccurrenceId = searchParams.get("highlightOccurrenceId");
+  const openLinkDialogParam = searchParams.get("openLinkDialog");
   const metaFromJson = (post.content_json as any)?.meta ?? {};
   const [meta, updateMeta] = useReducer(
     (state: EditorMeta, patch: MetaPatch) => ({ ...state, ...patch }),
@@ -325,6 +392,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       disclaimer: post.disclaimer ?? "",
       faq: Array.isArray(post.faq_json) ? post.faq_json : [],
       howto: Array.isArray(post.howto_json) ? post.howto_json : [],
+      amazonProducts: Array.isArray(post.amazon_products) ? post.amazon_products : [],
       siloId: post.silo_id ?? "",
     }
   );
@@ -350,6 +418,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
   const autoTimer = useRef<NodeJS.Timeout | null>(null);
   const dirtyRef = useRef(false);
   const silosRefreshRef = useRef(false);
+  const openedHighlightRef = useRef<string | null>(null);
 
   const currentSilo = useMemo(() => {
     if (meta.siloId && silos.length) {
@@ -425,6 +494,30 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
   useEffect(() => {
     if (initialSilos.length) setSilos(initialSilos);
   }, [initialSilos]);
+
+  // Load silo hierarchy (role + position) from database
+  useEffect(() => {
+    async function loadHierarchy() {
+      if (!post.silo_id || !post.id) return;
+
+      try {
+        const response = await fetch(`/api/admin/silo-posts?siloId=${post.silo_id}&postId=${post.id}`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (data?.role || typeof data?.position === "number") {
+          updateMeta({
+            siloRole: data.role || undefined,
+            siloPosition: data.position || undefined,
+          });
+        }
+      } catch (error) {
+        console.error("Erro ao carregar hierarquia do silo:", error);
+      }
+    }
+
+    void loadHierarchy();
+  }, [post.id, post.silo_id]);
 
   useEffect(() => {
     if (!slugTouched) {
@@ -557,6 +650,37 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       dirtyRef.current = true;
     },
   });
+
+  useEffect(() => {
+    if (!editor || !highlightOccurrenceId) return;
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/admin/link-occurrences/${highlightOccurrenceId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const occurrence = data?.occurrence as HighlightOccurrence | undefined;
+        if (!occurrence) return;
+        setTimeout(() => {
+          if (editor.isDestroyed) return;
+          const highlighted = highlightOccurrenceInEditor(editor, occurrence);
+          if (highlighted && openLinkDialogParam && openedHighlightRef.current !== highlightOccurrenceId) {
+            openedHighlightRef.current = highlightOccurrenceId;
+            setLinkDialogOpen(true);
+          }
+        }, 200);
+      } catch (error) {
+        console.error("Erro ao buscar ocorrência para highlight:", error);
+      }
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [editor, highlightOccurrenceId, openLinkDialogParam]);
 
   useEffect(() => {
     if (!editor) return;
@@ -809,6 +933,8 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       const payload = {
         id: post.id,
         silo_id: metaRef.current.siloId || post.silo_id || null,
+        silo_role: metaRef.current.siloRole || null,
+        silo_position: metaRef.current.siloPosition || null,
         title: metaRef.current.title,
         seo_title: metaRef.current.metaTitle || metaRef.current.title,
         meta_title: metaRef.current.metaTitle || metaRef.current.title,
@@ -881,6 +1007,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
   const contextValue = useMemo(
     () => ({
       editor,
+      postId: post.id,
       meta,
       setMeta: handleMetaChange,
       outline,
@@ -919,6 +1046,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     }),
     [
       editor,
+      post.id,
       meta,
       handleMetaChange,
       outline,
@@ -953,7 +1081,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
 
   return (
     <EditorProvider value={contextValue}>
-      <div className="flex h-screen w-screen overflow-hidden bg-[color:var(--bg)] text-[color:var(--text)]">
+      <div className="flex h-full w-full overflow-hidden bg-(--bg) text-(--text)">
         <ContentIntelligence />
 
         <div className="flex h-full flex-1 flex-col">

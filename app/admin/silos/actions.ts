@@ -6,6 +6,7 @@ import { requireAdminSession } from "@/lib/admin/auth";
 import {
   adminAddPostToBatch,
   adminCreatePost,
+  adminCreateSilo,
   adminCreateSiloBatch,
   adminGetSiloBySlug,
   adminUpdateSilo,
@@ -47,6 +48,25 @@ export async function createBatchWithPosts(formData: FormData) {
   }
 
   redirect(`/admin/silos/${silo.slug}/batch/${batch.id}`);
+}
+
+
+const CreateSiloSchema = z.object({
+  name: z.string().min(2),
+  slug: z.string().min(2),
+  description: z.string().optional().nullable(),
+});
+
+export async function createSiloAction(formData: FormData) {
+  await requireAdminSession();
+  const payload = CreateSiloSchema.parse({
+    name: formData.get("name"),
+    slug: formData.get("slug"),
+    description: formData.get("description"),
+  });
+
+  await adminCreateSilo(payload);
+  redirect(`/admin/silos/${payload.slug}`);
 }
 
 const UpdateSiloSchema = z.object({

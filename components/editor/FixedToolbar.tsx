@@ -65,8 +65,8 @@ export function FixedToolbar({
   const imageAlign = isImageSelected ? selection.node.attrs["data-align"] ?? "left" : null;
 
   return (
-    <div className="sticky top-0 z-20 border-b border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 backdrop-blur">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-[color:var(--text)]">
+    <div className="sticky top-0 z-20 border-b border-(--border) bg-(--surface) px-3 py-2 backdrop-blur">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-(--text)">
         <div className="flex items-center gap-2">
           <ToolbarButton
             label="Desfazer"
@@ -101,7 +101,7 @@ export function FixedToolbar({
                 editor.chain().focus().setHeading({ level: 4 }).run();
               }
             }}
-            className="rounded border border-[color:var(--border)] bg-[color:var(--surface)] px-2 py-1 text-[11px] font-medium text-[color:var(--text)] outline-none"
+            className="rounded border border-(--border) bg-(--surface) px-2 py-1 text-[11px] font-medium text-(--text) outline-none"
           >
             <option value="paragraph">Parágrafo</option>
             <option value="h2">H2</option>
@@ -249,7 +249,7 @@ function ToolbarButton({
       disabled={disabled}
       className={`rounded-md border px-2 py-1 text-xs transition ${active
         ? "border-emerald-500 bg-emerald-100 text-emerald-700"
-        : "border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text)] hover:bg-[color:var(--surface-muted)]"
+        : "border-(--border) bg-(--surface) text-(--text) hover:bg-(--surface-muted)"
         } ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
     >
       {children}
@@ -258,5 +258,5 @@ function ToolbarButton({
 }
 
 function Separator() {
-  return <span className="hidden h-5 w-px bg-[color:var(--border)] md:inline-flex" />;
+  return <span className="hidden h-5 w-px bg-(--border) md:inline-flex" />;
 }

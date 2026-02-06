@@ -18,10 +18,10 @@ function DevCard({
 }) {
   return (
     <div className="flex w-full justify-center p-8">
-      <div className="w-full max-w-3xl space-y-6 rounded-3xl border border-[color:var(--border)] bg-[color:var(--surface)] p-8 shadow-lg">
+      <div className="w-full max-w-3xl space-y-6 rounded-3xl border border-(--border) bg-(--surface) p-8 shadow-lg">
         <div className="space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">{badge}</p>
-          <h1 className="text-3xl font-semibold text-[color:var(--text)]">{title}</h1>
+          <h1 className="text-3xl font-semibold text-(--text)">{title}</h1>
         </div>
         {children}
       </div>
@@ -54,16 +54,16 @@ export default async function NewEditorPage() {
 
     return (
       <DevCard title="Atualize o schema do Supabase" badge="Database not migrated">
-        <p className="text-sm text-[color:var(--muted)]">
+        <p className="text-sm text-(--muted)">
           O editor precisa de algumas colunas novas em <code className="text-orange-200">public.posts</code>. Rode a
           migration de sincronizacao e recarregue esta tela.
         </p>
 
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-2)]">Colunas faltando</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">Colunas faltando</p>
           <div className="flex flex-wrap gap-2">
             {missing.map((col) => (
-              <span key={col} className="rounded-full bg-[color:var(--surface-muted)] px-3 py-1 text-xs text-[color:var(--text)]">
+              <span key={col} className="rounded-full bg-(--surface-muted) px-3 py-1 text-xs text-(--text)">
                 {col}
               </span>
             ))}
@@ -71,8 +71,8 @@ export default async function NewEditorPage() {
         </div>
 
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-2)]">SQL para aplicar</p>
-          <pre className="overflow-auto rounded-xl bg-[color:var(--surface-muted)] p-4 text-xs text-[color:var(--text)]">
+          <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">SQL para aplicar</p>
+          <pre className="overflow-auto rounded-xl bg-(--surface-muted) p-4 text-xs text-(--text)">
 {`-- Cole o conteudo do arquivo abaixo no SQL Editor:
 -- ${MIGRATION_PATH}
 -- Depois force o recarregamento do PostgREST:
@@ -80,7 +80,7 @@ NOTIFY pgrst, 'reload schema';`}
           </pre>
         </div>
 
-        <p className="text-xs text-[color:var(--muted-2)]">Depois de aplicar a migration, recarregue esta pagina.</p>
+        <p className="text-xs text-(--muted-2)">Depois de aplicar a migration, recarregue esta pagina.</p>
       </DevCard>
     );
   }
@@ -107,14 +107,14 @@ NOTIFY pgrst, 'reload schema';`}
     if (!IS_PROD) {
       return (
         <DevCard title="Falha ao criar rascunho" badge="Draft error">
-          <p className="text-sm text-[color:var(--muted)]">
+          <p className="text-sm text-(--muted)">
             Verifique as credenciais do Supabase, politicas RLS e se as migrations foram aplicadas.
           </p>
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[color:var(--muted-2)]">Detalhes</p>
-            <pre className="overflow-auto rounded-xl bg-[color:var(--surface-muted)] p-4 text-xs text-[color:var(--text)]">{formatErrorDetails(error)}</pre>
+            <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">Detalhes</p>
+            <pre className="overflow-auto rounded-xl bg-(--surface-muted) p-4 text-xs text-(--text)">{formatErrorDetails(error)}</pre>
           </div>
-          <p className="text-xs text-[color:var(--muted-2)]">
+          <p className="text-xs text-(--muted-2)">
             Se o erro indicar schema desatualizado, aplique {MIGRATION_PATH} e rode NOTIFY pgrst.
           </p>
         </DevCard>

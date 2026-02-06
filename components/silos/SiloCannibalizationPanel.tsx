@@ -72,7 +72,7 @@ export function SiloCannibalizationPanel({ posts, pairs, onViewSerp }: SiloCanni
           type="button"
           onClick={handleAnalyzeSerp}
           disabled={loadingSerp}
-          className="rounded-md bg-[color:var(--text)] px-3 py-2 text-[11px] font-semibold text-[color:var(--surface)] disabled:opacity-50"
+          className="rounded-md bg-(--text) px-3 py-2 text-[11px] font-semibold text-(--surface) disabled:opacity-50"
         >
           {loadingSerp ? "Buscando SERP..." : "Analisar overlap SERP"}
         </button>
@@ -81,7 +81,7 @@ export function SiloCannibalizationPanel({ posts, pairs, onViewSerp }: SiloCanni
             key={level}
             type="button"
             onClick={() => setFilter(level)}
-            className={`rounded-full border px-3 py-1 text-[10px] uppercase ${filter === level ? "border-[color:var(--brand-hot)] text-[color:var(--brand-hot)]" : "border-[color:var(--border)] text-[color:var(--muted)]"
+            className={`rounded-full border px-3 py-1 text-[10px] uppercase ${filter === level ? "border-(--brand-hot) text-(--brand-hot)" : "border-(--border) text-(--muted)"
               }`}
           >
             {level === "all" ? "todos" : level}
@@ -94,7 +94,7 @@ export function SiloCannibalizationPanel({ posts, pairs, onViewSerp }: SiloCanni
       ) : null}
 
       {visiblePairs.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[color:var(--border)] p-6 text-sm text-[color:var(--muted)]">
+        <div className="rounded-lg border border-dashed border-(--border) p-6 text-sm text-(--muted)">
           Sem pares para analisar.
         </div>
       ) : (
@@ -106,10 +106,10 @@ export function SiloCannibalizationPanel({ posts, pairs, onViewSerp }: SiloCanni
             const serpScore =
               typeof pair.serpOverlapScore === "number" ? (pair.serpOverlapScore * 100).toFixed(0) + "%" : "N/D";
             return (
-              <div key={`${pair.postAId}-${pair.postBId}`} className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
+              <div key={`${pair.postAId}-${pair.postBId}`} className="rounded-xl border border-(--border) bg-(--surface) p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="text-[12px] font-semibold text-[color:var(--text)]">
-                    {postA.title} <span className="text-[color:var(--muted-2)]">vs</span> {postB.title}
+                  <div className="text-[12px] font-semibold text-(--text)">
+                    {postA.title} <span className="text-(--muted-2)">vs</span> {postB.title}
                   </div>
                   <span
                     className={`rounded-full px-2 py-1 text-[9px] uppercase ${pair.riskLevel === "high"
@@ -123,12 +123,12 @@ export function SiloCannibalizationPanel({ posts, pairs, onViewSerp }: SiloCanni
                   </span>
                 </div>
 
-                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-[color:var(--muted)]">
+                <div className="mt-2 flex flex-wrap gap-3 text-[11px] text-(--muted)">
                   <span>Similaridade: {(pair.similarityScore * 100).toFixed(0)}%</span>
                   <span>Overlap SERP: {serpScore}</span>
                 </div>
 
-                <div className="mt-2 text-[11px] text-[color:var(--text)]">{pair.recommendation}</div>
+                <div className="mt-2 text-[11px] text-(--text)">{pair.recommendation}</div>
 
                 <div className="mt-2 flex items-center gap-2">
                   {onViewSerp ? (
@@ -136,14 +136,14 @@ export function SiloCannibalizationPanel({ posts, pairs, onViewSerp }: SiloCanni
                       <button
                         type="button"
                         onClick={() => onViewSerp(postA.id)}
-                        className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-2 py-1 text-[10px] text-[color:var(--text)] hover:border-[color:var(--brand-accent)]"
+                        className="rounded-md border border-(--border) bg-(--surface-muted) px-2 py-1 text-[10px] text-(--text) hover:border-(--brand-accent)"
                       >
                         Ver SERP de A
                       </button>
                       <button
                         type="button"
                         onClick={() => onViewSerp(postB.id)}
-                        className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-2 py-1 text-[10px] text-[color:var(--text)] hover:border-[color:var(--brand-accent)]"
+                        className="rounded-md border border-(--border) bg-(--surface-muted) px-2 py-1 text-[10px] text-(--text) hover:border-(--brand-accent)"
                       >
                         Ver SERP de B
                       </button>

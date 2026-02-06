@@ -1,8 +1,8 @@
-﻿import Image from "next/image";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getPublicPostBySlug, listAllPostParams, adminGetPostBySlug } from "@/lib/db";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { PostToc } from "@/components/site/PostToc";
 import type { PostWithSilo } from "@/lib/types";
 import { isAdminSession } from "@/lib/admin/auth";
 
@@ -198,6 +198,85 @@ function buildHowToJsonLd(steps: Array<{ name: string; text: string }> = [], pos
   };
 }
 
+function extractListItemsFromHtml(html: string, limit = 10) {
+  if (!html) return [];
+  const items: string[] = [];
+  const listMatch = html.match(/<(ol|ul)[^>]*>([\s\S]*?)<\/\1>/i);
+  if (!listMatch) return items;
+  const listHtml = listMatch[2] ?? "";
+  const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+  let match: RegExpExecArray | null = null;
+  while ((match = liRegex.exec(listHtml)) && items.length < limit) {
+    const raw = match[1] ?? "";
+    const text = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (text) items.push(text);
+  }
+  return items;
+}
+
+function shouldRenderTopList(post: PostWithSilo) {
+  const title = (post.title || "").toLowerCase();
+  return /top|melhor|melhores|lista|ranking/.test(title);
+}
+
+function buildItemListJsonLd(post: PostWithSilo, canonical: string) {
+  const items = extractListItemsFromHtml(post.content_html ?? "", 10);
+  if (!items.length) return null;
+  return {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    itemListOrder: "https://schema.org/ItemListOrderDescending",
+    name: post.title,
+    url: canonical,
+    itemListElement: items.map((name, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name,
+    })),
+  };
+}
+
+function extractFaqFromHtml(html: string, limit = 8) {
+  if (!html) return [];
+  const faqs: Array<{ question: string; answer: string }> = [];
+  const h2Regex = /<h2[^>]*>([\s\S]*?)<\/h2>\s*<p[^>]*>([\s\S]*?)<\/p>/gi;
+  let match: RegExpExecArray | null = null;
+  while ((match = h2Regex.exec(html)) && faqs.length < limit) {
+    const q = (match[1] ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    const a = (match[2] ?? "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+    if (q.endsWith("?") && a) {
+      faqs.push({ question: q, answer: a });
+    }
+  }
+  return faqs;
+}
+
+function extractYouTubeIdFromHtml(html: string) {
+  if (!html) return null;
+  const iframeMatch = html.match(/<iframe[^>]+src=["']([^"']+)["'][^>]*>/i);
+  const src = iframeMatch?.[1];
+  if (!src) return null;
+  const idMatch = src.match(/(?:youtube\.com\/embed\/|youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/i);
+  return idMatch?.[1] ?? null;
+}
+
+function buildVideoObjectJsonLd(post: PostWithSilo, canonical: string) {
+  const videoId = extractYouTubeIdFromHtml(post.content_html ?? "");
+  if (!videoId) return null;
+  const thumbnailUrl = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+  return {
+    "@context": "https://schema.org",
+    "@type": "VideoObject",
+    name: post.meta_title ?? post.title,
+    description: post.meta_description ?? undefined,
+    thumbnailUrl,
+    uploadDate: post.published_at ?? post.updated_at,
+    embedUrl: `https://www.youtube.com/embed/${videoId}`,
+    contentUrl: `https://www.youtube.com/watch?v=${videoId}`,
+    mainEntityOfPage: canonical,
+  };
+}
+
 function buildBreadcrumbJsonLd(post: PostWithSilo, siteUrl: string, silo: string, canonical: string) {
   const base = siteUrl.replace(/\/$/, "");
   return {
@@ -244,8 +323,11 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
   const reviewLd = post.schema_type === "review" ? buildReviewJsonLd(post, canonical) : null;
   const faqItems = Array.isArray(post.faq_json) ? post.faq_json : [];
   const howToItems = Array.isArray(post.howto_json) ? post.howto_json : [];
-  const faqLd = post.schema_type === "faq" ? buildFaqJsonLd(faqItems, canonical, post) : null;
+  const detectedFaq = faqItems.length ? faqItems : extractFaqFromHtml(post.content_html ?? "");
+  const faqLd = detectedFaq.length ? buildFaqJsonLd(detectedFaq, canonical, post) : null;
   const howToLd = post.schema_type === "howto" ? buildHowToJsonLd(howToItems, post, canonical) : null;
+  const itemListLd = shouldRenderTopList(post) ? buildItemListJsonLd(post, canonical) : null;
+  const videoLd = buildVideoObjectJsonLd(post, canonical);
   const breadcrumbLd = buildBreadcrumbJsonLd(post, siteUrl, silo, canonical);
 
   const schemaBlocks = [
@@ -254,73 +336,104 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
     ...(reviewLd ? reviewLd : []),
     faqLd,
     howToLd,
+    itemListLd,
+    videoLd,
     breadcrumbLd,
   ].filter(Boolean);
 
   return (
-    <article className="space-y-8 page-in">
-      <header className="space-y-3">
-        <nav className="text-[11px] text-[color:var(--muted-2)]">
-          <a href="/">Home</a> / <a href={`/${silo}`}>{post.silo?.name ?? silo}</a> / {post.title}
-        </nav>
-        <div>
-          <a
-            href={`/${silo}`}
-            className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-1 text-xs font-semibold text-[color:var(--ink)] hover:bg-[color:var(--brand-primary)]/10"
-          >
-            ← {post.silo?.name ?? silo}
-          </a>
+    <div className="post-page relative min-h-screen bg-transparent pb-12">
+      <div className="pointer-events-none fixed inset-x-0 top-0 h-[600px] z-0 bg-linear-to-b from-white via-white/200 to-transparent" />
+      <section className="relative z-10 bg-transparent">
+        <article className="page-in relative z-10 mx-auto max-w-6xl px-6 pb-8 pt-8">
+          <header className="space-y-3">
+            <nav className="text-[11px] text-(--muted-2)">
+              <a href="/">Home</a> / <a href={`/${silo}`}>{post.silo?.name ?? silo}</a> / {post.title}
+            </nav>
+
+            <h1 className="text-3xl font-semibold leading-tight md:text-4xl">{post.title}</h1>
+
+            <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-(--muted)">
+              <div className="flex items-center gap-1">
+                <span className="text-(--muted-2)">Por</span>
+                <span className="font-semibold text-(--ink)">
+                  {post.expert_name || post.author_name || "Redação"}
+                </span>
+              </div>
+
+              {post.reviewed_by && (
+                <div className="flex items-center gap-1 border-l border-(--border) pl-4">
+                  <span className="text-(--muted-2)">Revisado por</span>
+                  <span className="font-semibold text-(--ink)">{post.reviewed_by}</span>
+                </div>
+              )}
+
+              <div className="flex items-center gap-1 border-l border-(--border) pl-4">
+                <span className="text-(--muted-2)">Atualizado</span>
+                <time>
+                  {new Date(post.updated_at || post.published_at || new Date()).toLocaleDateString("pt-BR", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                  })}
+                </time>
+              </div>
+            </div>
+          </header>
+
+          {post.hero_image_url ? (
+            <div className="mt-6 overflow-hidden rounded-xl">
+              <img
+                src={post.hero_image_url}
+                alt={post.hero_image_alt || post.title}
+                className="h-auto w-full object-cover"
+                loading="lazy"
+              />
+            </div>
+          ) : null}
+        </article>
+      </section>
+
+      <article className="page-in mx-auto max-w-6xl px-6 pt-8">
+        <div className="grid gap-10 md:grid-cols-[260px_1fr]">
+          <PostToc contentSelector=".content" title="Índice" />
+
+          <div className="space-y-8">
+            {post.disclaimer ? (
+              <div className="text-xs text-(--muted) italic">
+                {post.disclaimer}
+              </div>
+            ) : null}
+
+            <div className="content">
+              {post.content_html ? (
+                <div dangerouslySetInnerHTML={{ __html: post.content_html }} />
+              ) : (
+                <p className="text-sm text-(--muted)">
+                  Este artigo ainda nao tem conteudo. Abra no <a href={`/admin/editor/${post.id}`} className="underline">editor</a>.
+                </p>
+              )}
+            </div>
+
+            {Array.isArray(post.sources) && post.sources.length ? (
+              <div className="rounded-2xl border border-(--border) bg-transparent p-6 text-xs text-(--muted)">
+                <p className="text-[11px] font-semibold uppercase text-(--muted-2)">Fontes</p>
+                <ul className="mt-3 list-disc space-y-2 pl-5">
+                  {post.sources.map((source: any, index: number) => (
+                    <li key={`${source.url}-${index}`}>
+                      <a href={source.url} target="_blank" rel="noreferrer" className="underline">
+                        {source.label || source.url}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
         </div>
-        <h1 className="text-3xl font-semibold leading-tight md:text-4xl">{post.title}</h1>
-        <p className="text-sm text-[color:var(--muted)]">
-          Palavra-chave alvo: <span className="font-medium text-[color:var(--brand-accent)]">{post.target_keyword}</span>
-        </p>
-      </header>
 
-      {post.hero_image_url ? (
-        <div className="overflow-hidden rounded-xl">
-          <img
-            src={post.hero_image_url}
-            alt={post.hero_image_alt || post.title}
-            className="h-auto w-full object-cover"
-            loading="lazy"
-          />
-        </div>
-      ) : null}
-
-      {post.disclaimer ? (
-        <div className="text-xs text-[color:var(--muted)] italic">
-          {post.disclaimer}
-        </div>
-      ) : null}
-
-      <div className="content">
-        {post.content_html ? (
-          <div dangerouslySetInnerHTML={{ __html: post.content_html }} />
-        ) : (
-          <p className="text-sm text-[color:var(--muted)]">
-            Este artigo ainda nao tem conteudo. Abra no <a href={`/admin/editor/${post.id}`} className="underline">editor</a>.
-          </p>
-        )}
-      </div>
-
-      {Array.isArray(post.sources) && post.sources.length ? (
-        <div className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--paper)] p-6 text-xs text-[color:var(--muted)]">
-          <p className="text-[11px] font-semibold uppercase text-[color:var(--muted-2)]">Fontes</p>
-          <ul className="mt-3 list-disc space-y-2 pl-5">
-            {post.sources.map((source: any, index: number) => (
-              <li key={`${source.url}-${index}`}>
-                <a href={source.url} target="_blank" rel="noreferrer" className="underline">
-                  {source.label || source.url}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-
-      {schemaBlocks.length ? <JsonLd data={schemaBlocks as any} /> : null}
-    </article>
+        {schemaBlocks.length ? <JsonLd data={schemaBlocks as any} /> : null}
+      </article>
+    </div>
   );
 }
-

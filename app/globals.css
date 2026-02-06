@@ -27,9 +27,7 @@ html, body {
 
 body {
   font-family: var(--font-body), "Segoe UI", sans-serif;
-  background:
-    radial-gradient(1200px 600px at 10% -10%, rgba(241, 188, 153, 0.35), transparent 60%),
-    linear-gradient(180deg, var(--brand-secondary), var(--paper) 60%);
+  background: var(--brand-secondary);
   color: var(--text);
 }
 
@@ -52,12 +50,14 @@ a {
   font-weight: 700;
   margin-top: 2rem;
   margin-bottom: 0.75rem;
+  scroll-margin-top: 120px;
 }
 .content h3 {
   font-size: 1.25rem;
   font-weight: 700;
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
+  scroll-margin-top: 120px;
 }
 .content p {
   line-height: 1.75;
@@ -74,6 +74,19 @@ a {
   text-decoration: underline;
   text-decoration-color: rgba(243, 97, 65, 0.5);
   text-underline-offset: 4px;
+}
+.content [data-type="affiliate-product"] > div,
+.content [data-type="affiliate-product"] > div > div {
+  background: transparent !important;
+}
+.post-page .content,
+.post-page .content * {
+  background-color: transparent !important;
+}
+.post-page section,
+.post-page article,
+.post-page .page-in {
+  background-color: transparent !important;
 }
 
 /* Editor cockpit helpers */
@@ -140,7 +153,7 @@ a {
 /* Card de produto renderizado no frontend */
 .affiliate-card {
   border: 1px solid var(--border);
-  background: var(--surface);
+  background: transparent;
   border-radius: 16px;
   padding: 16px;
   margin: 16px 0;

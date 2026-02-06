@@ -53,6 +53,8 @@ export type EditorMeta = {
   faq: FaqItem[];
   howto: HowToItem[];
   siloId: string;
+  siloRole?: "PILLAR" | "SUPPORT" | "AUX";
+  siloPosition?: number;
   amazonProducts: any[];
 };
 

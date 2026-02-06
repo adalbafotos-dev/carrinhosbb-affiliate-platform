@@ -192,24 +192,24 @@ export function LinkDialog({ editor, open, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-xl overflow-hidden rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-[color:var(--border)] px-5 py-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-[color:var(--text)]">
+      <div className="w-full max-w-xl overflow-hidden rounded-xl border border-(--border) bg-(--surface) shadow-2xl">
+        <div className="flex items-center justify-between border-b border-(--border) px-5 py-4">
+          <div className="flex items-center gap-2 text-sm font-semibold text-(--text)">
             <LinkIcon size={16} />
             Super Link
           </div>
-          <button type="button" onClick={onClose} className="text-[color:var(--muted-2)] hover:text-[color:var(--muted)]">
+          <button type="button" onClick={onClose} className="text-(--muted-2) hover:text-(--muted)">
             <X size={18} />
           </button>
         </div>
 
         <div className="space-y-4 px-5 py-4">
           <div>
-            <label className="text-xs font-semibold uppercase text-[color:var(--muted-2)]">Tipo do link</label>
+            <label className="text-xs font-semibold uppercase text-(--muted-2)">Tipo do link</label>
             <select
               value={linkType}
               onChange={(event) => handleTypeChange(event.target.value as LinkType)}
-              className="mt-2 w-full rounded-md border border-[color:var(--border)] px-3 py-2 text-sm outline-none"
+              className="mt-2 w-full rounded-md border border-(--border) px-3 py-2 text-sm outline-none"
             >
               <option value="internal">Interno</option>
               <option value="external">Externo</option>
@@ -220,28 +220,28 @@ export function LinkDialog({ editor, open, onClose }: Props) {
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase text-[color:var(--muted-2)]">URL</label>
+            <label className="text-xs font-semibold uppercase text-(--muted-2)">URL</label>
             <input
               value={url}
               onChange={(event) => setUrl(event.target.value)}
-              className="mt-2 w-full rounded-md border border-[color:var(--border)] px-3 py-2 text-sm outline-none"
+              className="mt-2 w-full rounded-md border border-(--border) px-3 py-2 text-sm outline-none"
               placeholder="https://..."
               autoFocus
             />
           </div>
 
           <div>
-            <label className="text-xs font-semibold uppercase text-[color:var(--muted-2)]">Texto do link</label>
+            <label className="text-xs font-semibold uppercase text-(--muted-2)">Texto do link</label>
             <input
               value={text}
               onChange={(event) => setText(event.target.value)}
-              className="mt-2 w-full rounded-md border border-[color:var(--border)] px-3 py-2 text-sm outline-none"
+              className="mt-2 w-full rounded-md border border-(--border) px-3 py-2 text-sm outline-none"
               placeholder={selectedText || "Texto visivel"}
             />
           </div>
 
-          <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-3">
-            <p className="text-[11px] font-semibold uppercase text-[color:var(--muted-2)]">Relacionamento</p>
+          <div className="rounded-md border border-(--border) bg-(--surface-muted) p-3">
+            <p className="text-[11px] font-semibold uppercase text-(--muted-2)">Relacionamento</p>
             <div className="mt-3 space-y-3">
               <Toggle
                 label="Abrir em nova aba"
@@ -272,10 +272,10 @@ export function LinkDialog({ editor, open, onClose }: Props) {
             </div>
           </div>
 
-          <div className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface)] p-3">
-            <p className="text-[11px] font-semibold uppercase text-[color:var(--muted-2)]">Buscar posts internos</p>
-            <div className="mt-2 flex items-center gap-2 rounded-md border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-2 py-2">
-              <Search size={14} className="text-[color:var(--muted-2)]" />
+          <div className="rounded-md border border-(--border) bg-(--surface) p-3">
+            <p className="text-[11px] font-semibold uppercase text-(--muted-2)">Buscar posts internos</p>
+            <div className="mt-2 flex items-center gap-2 rounded-md border border-(--border) bg-(--surface-muted) px-2 py-2">
+              <Search size={14} className="text-(--muted-2)" />
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
@@ -284,9 +284,9 @@ export function LinkDialog({ editor, open, onClose }: Props) {
               />
             </div>
             {searching ? (
-              <p className="mt-2 text-xs text-[color:var(--muted-2)]">Buscando...</p>
+              <p className="mt-2 text-xs text-(--muted-2)">Buscando...</p>
             ) : results.length === 0 ? (
-              <p className="mt-2 text-xs text-[color:var(--muted-2)]">Nenhum resultado.</p>
+              <p className="mt-2 text-xs text-(--muted-2)">Nenhum resultado.</p>
             ) : (
               <div className="mt-2 space-y-2">
                 {results.map((item) => (
@@ -299,10 +299,10 @@ export function LinkDialog({ editor, open, onClose }: Props) {
                       setPostId(item.id);
                       setLinkType("internal");
                     }}
-                    className="w-full rounded-md border border-[color:var(--border)] px-3 py-2 text-left text-xs text-[color:var(--muted)] hover:bg-[color:var(--surface-muted)]"
+                    className="w-full rounded-md border border-(--border) px-3 py-2 text-left text-xs text-(--muted) hover:bg-(--surface-muted)"
                   >
-                    <p className="font-medium text-[color:var(--text)]">{item.title}</p>
-                    <p className="text-[10px] text-[color:var(--muted-2)]">/{item.siloSlug}/{item.slug}</p>
+                    <p className="font-medium text-(--text)">{item.title}</p>
+                    <p className="text-[10px] text-(--muted-2)">/{item.siloSlug}/{item.slug}</p>
                   </button>
                 ))}
               </div>
@@ -310,18 +310,18 @@ export function LinkDialog({ editor, open, onClose }: Props) {
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-[color:var(--border)] bg-[color:var(--surface-muted)] px-5 py-4">
+        <div className="flex items-center justify-end gap-2 border-t border-(--border) bg-(--surface-muted) px-5 py-4">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-[color:var(--border)] px-3 py-2 text-xs font-semibold text-[color:var(--muted)] hover:bg-[color:var(--surface-muted)]"
+            className="rounded-md border border-(--border) px-3 py-2 text-xs font-semibold text-(--muted) hover:bg-(--surface-muted)"
           >
             Cancelar
           </button>
           <button
             type="button"
             onClick={apply}
-            className="inline-flex items-center gap-2 rounded-md bg-[color:var(--brand-hot)] px-4 py-2 text-xs font-semibold text-[color:var(--paper)] hover:bg-[color:var(--brand-accent)]"
+            className="inline-flex items-center gap-2 rounded-md bg-(--brand-hot) px-4 py-2 text-xs font-semibold text-(--paper) hover:bg-(--brand-accent)"
           >
             <Check size={14} />
             Aplicar link
@@ -361,12 +361,12 @@ function Toggle({
             ? "text-blue-600"
             : "text-blue-500"
           : checked
-            ? "text-[color:var(--text)]"
-            : "text-[color:var(--muted)]";
+            ? "text-(--text)"
+            : "text-(--muted)";
 
   return (
     <label className={`group flex items-center justify-between text-sm ${disabled ? "opacity-60" : ""}`}>
-      <span className={`flex items-center gap-2 ${toneClass} group-hover:text-[color:var(--text)]`}>
+      <span className={`flex items-center gap-2 ${toneClass} group-hover:text-(--text)`}>
         {icon}
         {label}
       </span>
@@ -375,12 +375,12 @@ function Toggle({
         role="switch"
         aria-checked={checked}
         onClick={() => (disabled ? null : onChange(!checked))}
-        className={`relative h-5 w-10 rounded-full transition ${checked ? "bg-[color:var(--brand-hot)]" : "bg-[color:var(--border-strong)]"
+        className={`relative h-5 w-10 rounded-full transition ${checked ? "bg-(--brand-hot)" : "bg-(--border-strong)"
           }`}
         disabled={disabled}
       >
         <span
-          className={`absolute top-0.5 h-4 w-4 rounded-full bg-[color:var(--surface)] transition ${checked ? "translate-x-5" : "translate-x-1"
+          className={`absolute top-0.5 h-4 w-4 rounded-full bg-(--surface) transition ${checked ? "translate-x-5" : "translate-x-1"
             }`}
         />
       </button>

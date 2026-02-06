@@ -75,35 +75,35 @@ export function GoogleIntegrationCard({ summary }: { summary: GoogleSettingsSumm
   };
 
   return (
-    <section className="rounded-2xl border border-[color:var(--border)] bg-[color:var(--paper)] p-5">
+    <section className="rounded-2xl border border-(--border) bg-(--paper) p-5">
       <div className="flex items-center gap-2 text-sm font-semibold">
         <PlugZap size={16} />
         Integracao com Google (Custom Search)
       </div>
-      <p className="mt-1 text-xs text-[color:var(--muted)]">
+      <p className="mt-1 text-xs text-(--muted)">
         Fonte ativa: <strong>{summary.source}</strong>
         {summary.envPresent ? " (env tem prioridade)" : ""}
       </p>
 
       <div className="mt-4 grid gap-3 md:grid-cols-2">
         <label className="block text-xs">
-          <span className="text-[11px] font-semibold uppercase text-[color:var(--muted-2)]">API Key</span>
+          <span className="text-[11px] font-semibold uppercase text-(--muted-2)">API Key</span>
           <input
             type="password"
             value={apiKey}
             onChange={(event) => setApiKey(event.target.value)}
             placeholder={apiKeyMasked ? apiKeyMasked : "Cole a API key"}
-            className="mt-2 w-full rounded-md border border-[color:var(--border)] px-3 py-2 text-sm outline-none"
+            className="mt-2 w-full rounded-md border border-(--border) px-3 py-2 text-sm outline-none"
           />
         </label>
 
         <label className="block text-xs">
-          <span className="text-[11px] font-semibold uppercase text-[color:var(--muted-2)]">Search Engine ID (cx)</span>
+          <span className="text-[11px] font-semibold uppercase text-(--muted-2)">Search Engine ID (cx)</span>
           <input
             value={cx}
             onChange={(event) => setCx(event.target.value)}
             placeholder="cx..."
-            className="mt-2 w-full rounded-md border border-[color:var(--border)] px-3 py-2 text-sm outline-none"
+            className="mt-2 w-full rounded-md border border-(--border) px-3 py-2 text-sm outline-none"
           />
         </label>
       </div>
@@ -113,7 +113,7 @@ export function GoogleIntegrationCard({ summary }: { summary: GoogleSettingsSumm
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="rounded-md bg-[color:var(--brand-hot)] px-4 py-2 text-xs font-semibold text-[color:var(--paper)] hover:bg-[color:var(--brand-accent)] disabled:opacity-60"
+          className="rounded-md bg-(--brand-hot) px-4 py-2 text-xs font-semibold text-(--paper) hover:bg-(--brand-accent) disabled:opacity-60"
         >
           {saving ? "Salvando..." : "Salvar"}
         </button>
@@ -121,7 +121,7 @@ export function GoogleIntegrationCard({ summary }: { summary: GoogleSettingsSumm
           type="button"
           onClick={handleTest}
           disabled={testing}
-          className="rounded-md border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-4 py-2 text-xs font-semibold hover:bg-[color:var(--brand-primary)] disabled:opacity-60"
+          className="rounded-md border border-(--border) bg-(--surface-muted) px-4 py-2 text-xs font-semibold hover:bg-(--brand-primary) disabled:opacity-60"
         >
           {testing ? "Testando..." : "Testar conexao"}
         </button>
@@ -139,7 +139,7 @@ export function GoogleIntegrationCard({ summary }: { summary: GoogleSettingsSumm
         </div>
       ) : null}
 
-      <p className="mt-3 text-[10px] text-[color:var(--muted-2)]">
+      <p className="mt-3 text-[10px] text-(--muted-2)">
         Necessario configurar <code>GOOGLE_CSE_API_KEY</code> e <code>GOOGLE_CSE_CX</code> (env ou salvar aqui).
       </p>
     </section>
