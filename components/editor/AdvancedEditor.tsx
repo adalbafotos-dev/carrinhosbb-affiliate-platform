@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useEditor, type Editor } from "@tiptap/react";
+import { NodeSelection } from "@tiptap/pm/state";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
-import { Table } from "@tiptap/extension-table";
 import { TableRow } from "@tiptap/extension-table-row";
 import { TableHeader } from "@tiptap/extension-table-header";
 import { TableCell } from "@tiptap/extension-table-cell";
@@ -15,17 +15,31 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { EditorImage } from "@/components/editor/extensions/EditorImage";
 import { EntityLink } from "@/components/editor/extensions/EntityLink";
 import { InternalLinkMention } from "@/components/editor/extensions/InternalLinkMention";
+import { InternalLinkCandidate } from "@/components/editor/extensions/InternalLinkCandidate";
 import AffiliateProductCard from "@/components/editor/extensions/AffiliateProductCard";
+import { CtaButton } from "@/components/editor/extensions/CtaButton";
+import { LockedTable } from "@/components/editor/extensions/LockedTable";
+import { FaqBlock } from "@/components/editor/extensions/FaqBlock";
+import { IconBlock } from "@/components/editor/extensions/IconBlock";
+import { CarouselBlock } from "@/components/editor/extensions/CarouselBlock";
 import { YoutubeEmbed, normalizeYoutubeUrl } from "@/components/editor/extensions/YoutubeEmbed";
 import { EditorCanvas } from "@/components/editor/EditorCanvas";
 import { ContentIntelligence } from "@/components/editor/ContentIntelligence";
 import { EditorInspector } from "@/components/editor/EditorInspector";
 import { AdvancedLinkDialog } from "@/components/editor/AdvancedLinkDialog";
 import { LinkBubbleMenu } from "@/components/editor/LinkBubbleMenu";
+import { InternalLinkCandidateMenu } from "@/components/editor/InternalLinkCandidateMenu";
 import { saveEditorPost } from "@/app/admin/editor/actions";
 import type { EditorMeta, ImageAsset, LinkItem, OutlineItem } from "@/components/editor/types";
 import type { PostWithSilo, Silo } from "@/lib/types";
 import { EditorProvider } from "@/components/editor/EditorContext";
+import {
+  getBpAttrs,
+  inheritDesktopToBp,
+  setDeviceVisibility,
+  setBpAttrs,
+  type ResponsiveMode,
+} from "@/lib/editor/responsive";
 
 type Props = {
   post: PostWithSilo;
@@ -267,6 +281,52 @@ function extractLinks(editor: Editor | null): LinkItem[] {
       return true;
     }
 
+    if (node.type.name === "cta_button") {
+      const attrs = node.attrs as any;
+      const href = attrs.href ?? attrs.url ?? "";
+      if (!href) return true;
+      const variant = String(attrs.variant ?? "");
+      const isInternal = href.startsWith("/");
+      const isAmazon =
+        variant.startsWith("amazon") ||
+        String(attrs.rel ?? "").includes("sponsored") ||
+        href.includes("amazon.") ||
+        href.includes("amzn.to") ||
+        href.includes("a.co");
+      items.push({
+        id: `${pos}-cta`,
+        href,
+        text: attrs.label ?? "CTA",
+        type: isInternal ? "internal" : isAmazon ? "affiliate" : "external",
+        target: attrs.target ?? (isAmazon ? "_blank" : isInternal ? "_self" : null),
+        rel: attrs.rel ?? (isAmazon ? "sponsored nofollow" : null),
+        from: pos,
+        to: pos + node.nodeSize,
+        dataPostId: null,
+        dataEntityType: null,
+      });
+      return true;
+    }
+
+    if (node.type.name === "affiliateProductCard") {
+      const attrs = node.attrs as any;
+      const href = attrs.url ?? attrs.href ?? "";
+      if (!href) return true;
+      items.push({
+        id: `${pos}-product`,
+        href,
+        text: attrs.title ?? "Produto",
+        type: "affiliate",
+        target: "_blank",
+        rel: "sponsored nofollow",
+        from: pos,
+        to: pos + node.nodeSize,
+        dataPostId: null,
+        dataEntityType: null,
+      });
+      return true;
+    }
+
     if (!node.isText) return true;
     const marks = node.marks ?? [];
     const linkMark = marks.find((mark) => mark.type.name === "link");
@@ -340,6 +400,183 @@ function updateImageBySrc(editor: Editor | null, src: string, attrs: Record<stri
   });
 }
 
+function updateClosestNodeAttrs(
+  editor: Editor | null,
+  nodeTypeName: string,
+  updater: (attrs: Record<string, any>) => Record<string, any>
+) {
+  if (!editor) return false;
+  return editor.commands.command(({ tr, state }) => {
+    const selectionAny = state.selection as any;
+    if (selectionAny?.node?.type?.name === nodeTypeName && Number.isFinite(selectionAny.from)) {
+      const nextAttrs = updater((selectionAny.node.attrs as Record<string, any>) || {});
+      tr.setNodeMarkup(selectionAny.from, undefined, nextAttrs);
+      return true;
+    }
+
+    const { $from } = state.selection;
+    for (let depth = $from.depth; depth >= 0; depth -= 1) {
+      const node = $from.node(depth);
+      if (node.type.name !== nodeTypeName) continue;
+      const pos = depth > 0 ? $from.before(depth) : 0;
+      const nextAttrs = updater((node.attrs as Record<string, any>) || {});
+      tr.setNodeMarkup(pos, undefined, nextAttrs);
+      return true;
+    }
+
+    const nodeAtSelection = state.doc.nodeAt(state.selection.from);
+    if (nodeAtSelection?.type?.name === nodeTypeName) {
+      const nextAttrs = updater((nodeAtSelection.attrs as Record<string, any>) || {});
+      tr.setNodeMarkup(state.selection.from, undefined, nextAttrs);
+      return true;
+    }
+
+    let closestPos: number | null = null;
+    let closestAttrs: Record<string, any> | null = null;
+    let closestDistance = Number.POSITIVE_INFINITY;
+    const targetPos = state.selection.from;
+    state.doc.descendants((node, pos) => {
+      if (node.type.name !== nodeTypeName) return true;
+      const distance = Math.abs(pos - targetPos);
+      if (distance < closestDistance) {
+        closestDistance = distance;
+        closestPos = pos;
+        closestAttrs = (node.attrs as Record<string, any>) || {};
+      }
+      return true;
+    });
+
+    if (closestPos !== null && closestAttrs) {
+      const nextAttrs = updater(closestAttrs);
+      tr.setNodeMarkup(closestPos, undefined, nextAttrs);
+      return true;
+    }
+
+    return false;
+  });
+}
+
+function normalizeHiddenColumnsInput(value: string | null | undefined) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const tokens = raw
+    .split(/[\s,;|]+/)
+    .map((item) => Number.parseInt(item, 10))
+    .filter((item) => Number.isFinite(item) && item > 0)
+    .map((item) => String(item));
+  if (!tokens.length) return "";
+  return `|${Array.from(new Set(tokens)).join("|")}|`;
+}
+
+function normalizeColumnWidthsInput(value: string | null | undefined) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return [];
+  const parts = raw
+    .split(/[\s,;|]+/)
+    .map((item) => Number.parseFloat(item))
+    .filter((item) => Number.isFinite(item) && item > 0)
+    .map((item) => Math.round(item * 100) / 100);
+  return Array.from(new Set(parts));
+}
+
+function normalizeStackKeyColumnInput(value: unknown) {
+  const parsed = Number.parseInt(String(value ?? ""), 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+function parseHiddenColumnsTokens(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return [];
+  const tokens = raw
+    .split(/[\s,;|]+/)
+    .map((item) => Number.parseInt(item, 10))
+    .filter((item) => Number.isFinite(item) && item > 0);
+  return Array.from(new Set(tokens));
+}
+
+function normalizeColumnWidthsArray(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((item) => Number(item))
+    .filter((item) => Number.isFinite(item) && item > 0)
+    .map((item) => Math.round(item * 100) / 100);
+}
+
+function syncTableLayoutAttrs(attrs: Record<string, any>) {
+  const desktop = getBpAttrs(attrs, "desktop");
+  const tablet = getBpAttrs(attrs, "tablet");
+  const mobile = getBpAttrs(attrs, "mobile");
+  return {
+    ...attrs,
+    layout: {
+      desktop: {
+        renderMode: desktop.renderMode || "table",
+        wrap: Boolean(desktop.wrapCells ?? true),
+        hideColumns: parseHiddenColumnsTokens(desktop.hiddenColumns),
+        columnWidths: normalizeColumnWidthsArray(desktop.columnWidths),
+        keyColumn: normalizeStackKeyColumnInput(desktop.stackKeyColumn),
+      },
+      tablet: {
+        renderMode: tablet.renderMode || desktop.renderMode || "table",
+        wrap: Boolean(tablet.wrapCells ?? desktop.wrapCells ?? true),
+        hideColumns: parseHiddenColumnsTokens(tablet.hiddenColumns),
+        columnWidths: normalizeColumnWidthsArray(tablet.columnWidths),
+        keyColumn: normalizeStackKeyColumnInput(tablet.stackKeyColumn ?? desktop.stackKeyColumn),
+      },
+      mobile: {
+        renderMode: mobile.renderMode || tablet.renderMode || desktop.renderMode || "stack",
+        wrap: Boolean(mobile.wrapCells ?? tablet.wrapCells ?? desktop.wrapCells ?? true),
+        hideColumns: parseHiddenColumnsTokens(mobile.hiddenColumns),
+        columnWidths: normalizeColumnWidthsArray(mobile.columnWidths),
+        keyColumn: normalizeStackKeyColumnInput(
+          mobile.stackKeyColumn ?? tablet.stackKeyColumn ?? desktop.stackKeyColumn
+        ),
+      },
+    },
+  };
+}
+
+function moveSelectedTopLevelBlock(editor: Editor | null, direction: "up" | "down") {
+  if (!editor) return false;
+  return editor.commands.command(({ tr, state, dispatch }) => {
+    const { doc, selection } = state;
+    if (doc.childCount <= 1) return false;
+    const currentPos =
+      selection.$from.depth >= 1
+        ? selection.$from.before(1)
+        : Math.max(0, selection.from);
+    let currentIndex = -1;
+    const blocks: Array<{ pos: number; nodeSize: number }> = [];
+    let pos = 0;
+    doc.forEach((node) => {
+      blocks.push({ pos, nodeSize: node.nodeSize });
+      pos += node.nodeSize;
+    });
+    currentIndex = blocks.findIndex((block) => block.pos === currentPos);
+    if (currentIndex < 0) return false;
+
+    const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= blocks.length) return false;
+
+    const current = blocks[currentIndex];
+    const target = blocks[targetIndex];
+    const movedSlice = tr.doc.slice(current.pos, current.pos + current.nodeSize);
+    tr.delete(current.pos, current.pos + current.nodeSize);
+
+    let insertPos = target.pos;
+    if (direction === "down") {
+      insertPos = target.pos - current.nodeSize + target.nodeSize;
+    }
+    tr.insert(insertPos, movedSlice.content);
+
+    const mappedPos = tr.mapping.map(insertPos);
+    tr.setSelection(NodeSelection.create(tr.doc, mappedPos));
+    if (dispatch) dispatch(tr.scrollIntoView());
+    return true;
+  });
+}
+
 function defaultDoc(meta: EditorMeta) {
   return {
     type: "doc",
@@ -355,6 +592,32 @@ function defaultDoc(meta: EditorMeta) {
       },
     ],
   };
+}
+
+function normalizeEditorDoc(doc: any) {
+  if (!doc || typeof doc !== "object") return doc;
+  const clone = Array.isArray(doc) ? [...doc] : { ...doc };
+
+  const walk = (node: any): any => {
+    if (!node || typeof node !== "object") return node;
+    const next = { ...node };
+    if (next.type === "affiliateCta") {
+      next.type = "cta_button";
+      next.attrs = {
+        label: next.attrs?.label ?? "VERIFICAR DISPONIBILIDADE",
+        href: next.attrs?.url ?? next.attrs?.href ?? "",
+        variant: "amazon_primary",
+        size: "md",
+        align: "center",
+      };
+    }
+    if (Array.isArray(next.content)) {
+      next.content = next.content.map(walk);
+    }
+    return next;
+  };
+
+  return walk(clone);
 }
 
 export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
@@ -399,18 +662,22 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
 
   const metaRef = useRef(meta);
   const [silos, setSilos] = useState<Silo[]>(initialSilos);
-  const [slugTouched, setSlugTouched] = useState(false);
+  const [slugTouched, setSlugTouched] = useState(() => {
+    const initialTitle = post.title ?? "";
+    const initialSlug = post.slug ?? "";
+    return Boolean(initialSlug && slugify(initialTitle) !== initialSlug);
+  });
   const [metaTitleTouched, setMetaTitleTouched] = useState(false);
   const [slugStatus, setSlugStatus] = useState<"idle" | "checking" | "ok" | "taken">("idle");
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
-  const [docJson, setDocJson] = useState<any>(post.content_json ?? null);
+  const [docJson, setDocJson] = useState<any>(normalizeEditorDoc(post.content_json ?? null));
   const [docHtml, setDocHtml] = useState<string>(post.content_html ?? "");
   const [docText, setDocText] = useState<string>("");
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [links, setLinks] = useState<LinkItem[]>([]);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-  const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
+  const [previewMode, setPreviewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
 
   const heroInputRef = useRef<HTMLInputElement | null>(null);
   const bodyInputRef = useRef<HTMLInputElement | null>(null);
@@ -431,6 +698,11 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
   }, [meta.siloId, post.silo, post.silo_id, silos]);
 
   const siloSlug = currentSilo?.slug ?? "silo";
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(new CustomEvent("editor-preview-mode-change", { detail: previewMode }));
+  }, [previewMode]);
 
   useEffect(() => {
     metaRef.current = meta;
@@ -481,8 +753,9 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       siloId: post.silo_id ?? "",
     });
 
-    setDocJson(post.content_json ?? null);
+    setDocJson(normalizeEditorDoc(post.content_json ?? null));
     setDocHtml(post.content_html ?? "");
+    setSlugTouched(Boolean(post.slug && slugify(post.title ?? "") !== (post.slug ?? "")));
 
     // Also ensure editor content is updated if editor instance exists? 
     // Usually Tiptap handles content update via useEditor({ content }) but if content changes later need commands.setContent
@@ -609,7 +882,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       }),
       Underline,
       Highlight.configure({ multicolor: true }),
-      Table.configure({ resizable: true }),
+      LockedTable.configure({ resizable: true }),
       TableRow,
       TableHeader,
       TableCell,
@@ -617,12 +890,17 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       EditorImage,
       YoutubeEmbed,
       InternalLinkMention,
+      InternalLinkCandidate,
       AffiliateProductCard,
+      CtaButton,
+      FaqBlock,
+      IconBlock,
+      CarouselBlock,
       Placeholder.configure({
         placeholder: "Escreva aqui. Use a barra fixa para inserir blocos.",
       }),
     ],
-    content: post.content_html || post.content_json || defaultDoc(meta),
+    content: normalizeEditorDoc(post.content_json) || post.content_html || defaultDoc(meta),
     editorProps: {
       attributes: {
         class: "editor-content min-h-[520px] outline-none prose max-w-none",
@@ -775,7 +1053,18 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
         height: metaData.height || null,
         "data-id": uploadId,
         "data-uploading": "true",
+        align: "left",
         "data-align": "left",
+        widthMode: "content",
+        maxWidth: null,
+        wrap: "none",
+        spacingY: "md",
+        visibleDesktop: true,
+        visibleTablet: true,
+        visibleMobile: true,
+        responsive: null,
+        "data-tablet-align": null,
+        "data-mobile-align": null,
       };
 
       if (typeof insertPos === "number") {
@@ -829,7 +1118,18 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
             alt: asset.alt,
             width: asset.width ?? null,
             height: asset.height ?? null,
+            align: "left",
             "data-align": "left",
+            widthMode: "content",
+            maxWidth: null,
+            wrap: "none",
+            spacingY: "md",
+            visibleDesktop: true,
+            visibleTablet: true,
+            visibleMobile: true,
+            responsive: null,
+            "data-tablet-align": null,
+            "data-mobile-align": null,
           },
         })
         .run();
@@ -851,12 +1151,81 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     updateMeta({ images: nextImages });
   }, []);
 
-  const onAlignImage = useCallback(
-    (align: "left" | "center" | "right") => {
+  const onUpdateImageResponsive = useCallback(
+    (patch: {
+      align?: "left" | "center" | "right";
+      widthMode?: "full" | "content" | "px";
+      maxWidth?: number | null;
+      wrap?: "none" | "wrap-left" | "wrap-right";
+      spacingY?: "none" | "sm" | "md" | "lg";
+    }) => {
       if (!editor) return;
-      editor.chain().focus().updateAttributes("image", { "data-align": align }).run();
+      const mode = previewMode as ResponsiveMode;
+      updateClosestNodeAttrs(editor, "image", (attrs) => {
+        const withBaseAlign = { ...attrs, align: attrs.align ?? attrs["data-align"] ?? "left" };
+        const next = setBpAttrs(withBaseAlign, mode, patch, {
+          legacyMap: {
+            align: { tablet: "data-tablet-align", mobile: "data-mobile-align" },
+          },
+        });
+
+        if (mode === "desktop" && typeof patch.align === "string") {
+          next["data-align"] = patch.align;
+        }
+        return next;
+      });
+    },
+    [editor, previewMode]
+  );
+
+  const onUpdateImageVisibility = useCallback(
+    (patch: { desktop?: boolean; tablet?: boolean; mobile?: boolean }) => {
+      if (!editor) return;
+      updateClosestNodeAttrs(editor, "image", (attrs) =>
+        setDeviceVisibility(attrs, patch)
+      );
     },
     [editor]
+  );
+
+  const onResetImageResponsive = useCallback(
+    (fields?: Array<"align" | "widthMode" | "maxWidth" | "wrap" | "spacingY">) => {
+      if (!editor) return;
+      if (previewMode === "desktop") return;
+      updateClosestNodeAttrs(editor, "image", (attrs) => {
+        const keys = fields ?? ["align", "widthMode", "maxWidth", "wrap", "spacingY"];
+        const next = inheritDesktopToBp(attrs, previewMode, keys, {
+          legacyMap: { align: { tablet: "data-tablet-align", mobile: "data-mobile-align" } },
+        });
+        return next;
+      });
+    },
+    [editor, previewMode]
+  );
+
+  const onClearImageResponsive = useCallback(
+    (fields?: Array<"align" | "widthMode" | "maxWidth" | "wrap" | "spacingY">) => {
+      if (!editor) return;
+      if (previewMode === "desktop") return;
+      updateClosestNodeAttrs(editor, "image", (attrs) => {
+        const keys = fields ?? ["align", "widthMode", "maxWidth", "wrap", "spacingY"];
+        const patch = keys.reduce<Record<string, any>>((acc, key) => {
+          acc[key] = undefined;
+          return acc;
+        }, {});
+        return setBpAttrs(attrs, previewMode, patch, {
+          legacyMap: { align: { tablet: "data-tablet-align", mobile: "data-mobile-align" } },
+        });
+      });
+    },
+    [editor, previewMode]
+  );
+
+  const onAlignImage = useCallback(
+    (align: "left" | "center" | "right") => {
+      onUpdateImageResponsive({ align });
+    },
+    [onUpdateImageResponsive]
   );
 
   const onInsertProduct = useCallback(() => {
@@ -873,6 +1242,9 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
           rating: 0,
           features: ["Ponto forte 1", "Ponto forte 2", "Ponto forte 3"],
           href: "",
+          visibleDesktop: true,
+          visibleTablet: true,
+          visibleMobile: true,
         },
       })
       .run();
@@ -888,7 +1260,242 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
 
   const onInsertTable = useCallback(() => {
     if (!editor) return;
-    editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+    editor
+      .chain()
+      .focus()
+      .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+      .updateAttributes("table", {
+        renderMode: "table",
+        renderModeTablet: null,
+        renderModeMobile: "stack",
+        wrapCells: true,
+        wrapCellsTablet: null,
+        wrapCellsMobile: null,
+        hiddenColumns: "",
+        hiddenColumnsTablet: null,
+        hiddenColumnsMobile: null,
+        columnWidths: [],
+        columnWidthsTablet: null,
+        columnWidthsMobile: null,
+        stackKeyColumn: null,
+        stackKeyColumnTablet: null,
+        stackKeyColumnMobile: 2,
+        visibleDesktop: true,
+        visibleTablet: true,
+        visibleMobile: true,
+        responsive: { mobile: { renderMode: "stack", stackKeyColumn: 2 } },
+        layout: {
+          desktop: { renderMode: "table", wrap: true, hideColumns: [], columnWidths: [], keyColumn: null },
+          tablet: { renderMode: "table", wrap: true, hideColumns: [], columnWidths: [], keyColumn: null },
+          mobile: { renderMode: "stack", wrap: true, hideColumns: [], columnWidths: [], keyColumn: 2 },
+        },
+      })
+      .run();
+  }, [editor]);
+
+  const onUpdateTableResponsive = useCallback(
+    (patch: {
+      renderMode?: "table" | "scroll" | "stack";
+      wrapCells?: boolean;
+      hiddenColumns?: string;
+      columnWidths?: string | number[];
+      stackKeyColumn?: number | null;
+    }) => {
+      if (!editor) return;
+      const mode = previewMode as ResponsiveMode;
+      const normalizedPatch: Record<string, unknown> = {};
+      if (Object.prototype.hasOwnProperty.call(patch, "renderMode")) {
+        normalizedPatch.renderMode = patch.renderMode;
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, "wrapCells")) {
+        normalizedPatch.wrapCells = patch.wrapCells;
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, "hiddenColumns")) {
+        normalizedPatch.hiddenColumns =
+          typeof patch.hiddenColumns === "string"
+            ? normalizeHiddenColumnsInput(patch.hiddenColumns)
+            : patch.hiddenColumns;
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, "columnWidths")) {
+        normalizedPatch.columnWidths =
+          typeof patch.columnWidths === "string"
+            ? normalizeColumnWidthsInput(patch.columnWidths)
+            : Array.isArray(patch.columnWidths)
+              ? patch.columnWidths.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0)
+              : patch.columnWidths;
+      }
+      if (Object.prototype.hasOwnProperty.call(patch, "stackKeyColumn")) {
+        normalizedPatch.stackKeyColumn = normalizeStackKeyColumnInput(patch.stackKeyColumn);
+      }
+      updateClosestNodeAttrs(editor, "table", (attrs) =>
+        syncTableLayoutAttrs(
+          setBpAttrs(attrs, mode, normalizedPatch as Record<string, any>, {
+            legacyMap: {
+              renderMode: { tablet: "renderModeTablet", mobile: "renderModeMobile" },
+              wrapCells: { tablet: "wrapCellsTablet", mobile: "wrapCellsMobile" },
+              hiddenColumns: { tablet: "hiddenColumnsTablet", mobile: "hiddenColumnsMobile" },
+              columnWidths: { tablet: "columnWidthsTablet", mobile: "columnWidthsMobile" },
+              stackKeyColumn: { tablet: "stackKeyColumnTablet", mobile: "stackKeyColumnMobile" },
+            },
+          })
+        )
+      );
+    },
+    [editor, previewMode]
+  );
+
+  const onUpdateTableVisibility = useCallback(
+    (patch: { desktop?: boolean; tablet?: boolean; mobile?: boolean }) => {
+      if (!editor) return;
+      updateClosestNodeAttrs(editor, "table", (attrs) =>
+        syncTableLayoutAttrs(setDeviceVisibility(attrs, patch))
+      );
+    },
+    [editor]
+  );
+
+  const onSetTableRenderMode = useCallback(
+    (renderMode: "table" | "scroll" | "stack") => {
+      onUpdateTableResponsive({ renderMode });
+    },
+    [onUpdateTableResponsive]
+  );
+
+  const onResetTableResponsive = useCallback(
+    (fields?: Array<"renderMode" | "wrapCells" | "hiddenColumns" | "columnWidths" | "stackKeyColumn">) => {
+      if (!editor) return;
+      if (previewMode === "desktop") return;
+      updateClosestNodeAttrs(editor, "table", (attrs) => {
+        const keys = fields ?? ["renderMode", "wrapCells", "hiddenColumns", "columnWidths", "stackKeyColumn"];
+        return syncTableLayoutAttrs(
+          inheritDesktopToBp(attrs, previewMode, keys, {
+            legacyMap: {
+              renderMode: { tablet: "renderModeTablet", mobile: "renderModeMobile" },
+              wrapCells: { tablet: "wrapCellsTablet", mobile: "wrapCellsMobile" },
+              hiddenColumns: { tablet: "hiddenColumnsTablet", mobile: "hiddenColumnsMobile" },
+              columnWidths: { tablet: "columnWidthsTablet", mobile: "columnWidthsMobile" },
+              stackKeyColumn: { tablet: "stackKeyColumnTablet", mobile: "stackKeyColumnMobile" },
+            },
+          })
+        );
+      });
+    },
+    [editor, previewMode]
+  );
+
+  const onClearTableResponsive = useCallback(
+    (fields?: Array<"renderMode" | "wrapCells" | "hiddenColumns" | "columnWidths" | "stackKeyColumn">) => {
+      if (!editor) return;
+      if (previewMode === "desktop") return;
+      updateClosestNodeAttrs(editor, "table", (attrs) => {
+        const keys = fields ?? ["renderMode", "wrapCells", "hiddenColumns", "columnWidths", "stackKeyColumn"];
+        const patch = keys.reduce<Record<string, any>>((acc, key) => {
+          acc[key] = undefined;
+          return acc;
+        }, {});
+        return syncTableLayoutAttrs(
+          setBpAttrs(attrs, previewMode, patch, {
+            legacyMap: {
+              renderMode: { tablet: "renderModeTablet", mobile: "renderModeMobile" },
+              wrapCells: { tablet: "wrapCellsTablet", mobile: "wrapCellsMobile" },
+              hiddenColumns: { tablet: "hiddenColumnsTablet", mobile: "hiddenColumnsMobile" },
+              columnWidths: { tablet: "columnWidthsTablet", mobile: "columnWidthsMobile" },
+              stackKeyColumn: { tablet: "stackKeyColumnTablet", mobile: "stackKeyColumnMobile" },
+            },
+          })
+        );
+      });
+    },
+    [editor, previewMode]
+  );
+
+  const onResetTableRenderMode = useCallback(() => {
+    onResetTableResponsive(["renderMode"]);
+  }, [onResetTableResponsive]);
+
+  const onMoveBlockUp = useCallback(() => {
+    moveSelectedTopLevelBlock(editor, "up");
+  }, [editor]);
+
+  const onMoveBlockDown = useCallback(() => {
+    moveSelectedTopLevelBlock(editor, "down");
+  }, [editor]);
+
+  const onInsertFaq = useCallback(() => {
+    if (!editor) return;
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "faq_block",
+        attrs: {
+          items: [
+            { question: "Qual o melhor produto para iniciantes?", answer: "Escolha modelos com uso simples e boa reputação." },
+            { question: "Vale a pena pagar mais caro?", answer: "Depende da frequência de uso e da durabilidade esperada." },
+          ],
+          renderMode: "expanded",
+          visibleDesktop: true,
+          visibleTablet: true,
+          visibleMobile: true,
+          responsive: null,
+        },
+      })
+      .run();
+  }, [editor]);
+
+  const onInsertIconBlock = useCallback(() => {
+    if (!editor) return;
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "icon_block",
+        attrs: {
+          title: "Destaques",
+          items: [
+            { icon: "check", text: "Beneficio 1" },
+            { icon: "check", text: "Beneficio 2" },
+            { icon: "star", text: "Diferencial" },
+          ],
+          align: "left",
+          widthMode: "content",
+          spacingY: "md",
+          visibleDesktop: true,
+          visibleTablet: true,
+          visibleMobile: true,
+          responsive: null,
+        },
+      })
+      .run();
+  }, [editor]);
+
+  const onInsertCarouselBlock = useCallback(() => {
+    if (!editor) return;
+    editor
+      .chain()
+      .focus()
+      .insertContent({
+        type: "carousel_block",
+        attrs: {
+          title: "Galeria",
+          slides: [
+            { image: "", caption: "Slide 1" },
+            { image: "", caption: "Slide 2" },
+          ],
+          align: "left",
+          widthMode: "content",
+          slidesPerView: 1,
+          spacingY: "md",
+          visibleDesktop: true,
+          visibleTablet: true,
+          visibleMobile: true,
+          responsive: {
+            tablet: { slidesPerView: 2 },
+            mobile: { slidesPerView: 1 },
+          },
+        },
+      })
+      .run();
   }, [editor]);
 
   const onInsertCallout = useCallback(() => {
@@ -925,14 +1532,25 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
         metaRef.current.canonicalPath ||
         (siloSlug && metaRef.current.slug ? `/${siloSlug}/${metaRef.current.slug}` : null);
 
-      const enrichedJson =
-        docJson && typeof docJson === "object"
-          ? { ...docJson, meta: { ...(docJson.meta ?? {}), authorLinks: metaRef.current.authorLinks } }
-          : { type: "doc", content: [], meta: { authorLinks: metaRef.current.authorLinks } };
+        const currentJson = editor ? editor.getJSON() : docJson;
+        const currentHtml = editor ? editor.getHTML() : docHtml;
+        const enrichedJson =
+          currentJson && typeof currentJson === "object"
+            ? {
+                ...currentJson,
+                meta: {
+                  ...(currentJson.meta ?? {}),
+                  authorLinks: metaRef.current.authorLinks,
+                  manualEdits: true,
+                  lastEditedAt: new Date().toISOString(),
+                },
+              }
+            : { type: "doc", content: [], meta: { authorLinks: metaRef.current.authorLinks } };
 
-      const payload = {
-        id: post.id,
-        silo_id: metaRef.current.siloId || post.silo_id || null,
+          const safeContentJson = JSON.parse(JSON.stringify(enrichedJson ?? null));
+          const payload = {
+            id: post.id,
+            silo_id: metaRef.current.siloId || post.silo_id || null,
         silo_role: metaRef.current.siloRole || null,
         silo_position: metaRef.current.siloPosition || null,
         title: metaRef.current.title,
@@ -962,8 +1580,8 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
         disclaimer: metaRef.current.disclaimer || null,
         scheduled_at: toIsoString(metaRef.current.scheduledAt) ?? null,
         status: statusToSave,
-        content_json: enrichedJson,
-        content_html: docHtml,
+          content_json: safeContentJson,
+          content_html: currentHtml,
         amazon_products: extractAffiliateProducts(enrichedJson),
       };
 
@@ -1032,12 +1650,26 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       onInsertTable,
       onInsertSection: () => undefined,
       onInsertCallout,
-      onInsertFaq: () => undefined,
+      onInsertFaq,
+      onInsertIconBlock,
+      onInsertCarouselBlock,
       onInsertHowTo: () => undefined,
       onInsertCtaBest: () => undefined,
       onInsertCtaValue: () => undefined,
       onInsertCtaTable: () => undefined,
       onAlignImage,
+      onUpdateImageResponsive,
+      onUpdateImageVisibility,
+      onResetImageResponsive,
+      onClearImageResponsive,
+      onSetTableRenderMode,
+      onResetTableRenderMode,
+      onUpdateTableResponsive,
+      onUpdateTableVisibility,
+      onResetTableResponsive,
+      onClearTableResponsive,
+      onMoveBlockUp,
+      onMoveBlockDown,
       onSelectLink,
       onInsertImage,
       onUpdateImageAlt,
@@ -1070,7 +1702,22 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       onInsertYoutube,
       onInsertTable,
       onInsertCallout,
+      onInsertFaq,
+      onInsertIconBlock,
+      onInsertCarouselBlock,
       onAlignImage,
+      onUpdateImageResponsive,
+      onUpdateImageVisibility,
+      onResetImageResponsive,
+      onClearImageResponsive,
+      onSetTableRenderMode,
+      onResetTableRenderMode,
+      onUpdateTableResponsive,
+      onUpdateTableVisibility,
+      onResetTableResponsive,
+      onClearTableResponsive,
+      onMoveBlockUp,
+      onMoveBlockDown,
       onSelectLink,
       onInsertImage,
       onUpdateImageAlt,
@@ -1088,6 +1735,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
           <EditorCanvas />
           <AdvancedLinkDialog open={linkDialogOpen} onClose={() => setLinkDialogOpen(false)} />
           <LinkBubbleMenu editor={editor} onOpenLinkDialog={() => setLinkDialogOpen(true)} />
+          <InternalLinkCandidateMenu editor={editor} />
         </div>
 
         <EditorInspector />
@@ -1119,3 +1767,4 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     </EditorProvider>
   );
 }
+

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminGetSiloPost } from "@/lib/db";
 import { requireAdminSession } from "@/lib/admin/auth";
 import { getAdminSupabase } from "@/lib/supabase/admin";
+import { isUuid } from "@/lib/uuid";
 
 export async function GET(request: NextRequest) {
     try {
@@ -11,8 +12,12 @@ export async function GET(request: NextRequest) {
         const siloId = searchParams.get("siloId");
         const postId = searchParams.get("postId");
 
-        if (!siloId) {
-            return NextResponse.json({ error: "siloId required" }, { status: 400 });
+        if (!siloId || !isUuid(siloId)) {
+            return NextResponse.json({ error: "Valid siloId required" }, { status: 400 });
+        }
+
+        if (postId && !isUuid(postId)) {
+            return NextResponse.json({ error: "Invalid postId" }, { status: 400 });
         }
 
         if (!postId) {

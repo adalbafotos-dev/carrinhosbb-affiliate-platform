@@ -45,6 +45,13 @@ export function LinkDialog({ editor, open, onClose }: Props) {
     if (from === to) return "";
     return editor.state.doc.textBetween(from, to, " ");
   }, [editor, open]);
+  const isAmazon = useMemo(() => {
+    const lower = url.toLowerCase();
+    return lower.includes("amazon.") || lower.includes("amzn.to") || lower.includes("a.co");
+  }, [url]);
+  const isInternal = linkType === "internal";
+  const isAffiliate = linkType === "affiliate" || isAmazon;
+  const showRelationshipPanel = !isInternal && !isAffiliate;
 
   useEffect(() => {
     if (!open || !editor) return;
@@ -77,6 +84,18 @@ export function LinkDialog({ editor, open, onClose }: Props) {
       setLinkType("external");
     }
   }, [editor, open, selectedText]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (isAmazon && linkType !== "affiliate") {
+      setLinkType("affiliate");
+      setSponsored(true);
+      setNofollow(true);
+      setOpenInNewTab(true);
+      setAboutEntity(false);
+      setMentionEntity(false);
+    }
+  }, [isAmazon, linkType, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -148,11 +167,21 @@ export function LinkDialog({ editor, open, onClose }: Props) {
       return;
     }
 
+    const forceInternal = linkType === "internal";
+    const isAmazonTarget = /amazon\.|amzn\.to|a\.co/i.test(href);
+    const effectiveLinkType = isAmazonTarget ? "affiliate" : linkType;
+    const forceAffiliate = effectiveLinkType === "affiliate";
+    const effectiveOpenInNewTab = forceInternal ? false : forceAffiliate ? true : openInNewTab;
+    const effectiveNofollow = forceInternal ? false : forceAffiliate ? true : nofollow;
+    const effectiveSponsored = forceInternal ? false : forceAffiliate ? true : sponsored;
+    const effectiveAbout = forceInternal || forceAffiliate ? false : aboutEntity || effectiveLinkType === "about";
+    const effectiveMention = forceInternal || forceAffiliate ? false : mentionEntity || effectiveLinkType === "mention";
+
     const relTokens = new Set<string>();
-    if (nofollow) relTokens.add("nofollow");
-    if (sponsored || linkType === "affiliate") relTokens.add("sponsored");
-    if (aboutEntity || linkType === "about") relTokens.add("about");
-    if (openInNewTab) {
+    if (effectiveNofollow) relTokens.add("nofollow");
+    if (effectiveSponsored) relTokens.add("sponsored");
+    if (effectiveAbout) relTokens.add("about");
+    if (effectiveOpenInNewTab) {
       relTokens.add("noopener");
       relTokens.add("noreferrer");
     }
@@ -165,12 +194,12 @@ export function LinkDialog({ editor, open, onClose }: Props) {
 
     const attrs = {
       href,
-      target: openInNewTab ? "_blank" : null,
+      target: effectiveOpenInNewTab ? "_blank" : null,
       rel,
-      "data-link-type": linkType,
-      "data-post-id": linkType === "mention" ? postId : null,
-      "data-entity-type": aboutEntity ? "about" : mentionEntity ? "mention" : null,
-      "data-entity": aboutEntity ? "about" : mentionEntity ? "mention" : null,
+      "data-link-type": effectiveLinkType,
+      "data-post-id": effectiveLinkType === "mention" ? postId : null,
+      "data-entity-type": effectiveAbout ? "about" : effectiveMention ? "mention" : null,
+      "data-entity": effectiveAbout ? "about" : effectiveMention ? "mention" : null,
     };
 
     if (!hasSelection) {
@@ -240,37 +269,38 @@ export function LinkDialog({ editor, open, onClose }: Props) {
             />
           </div>
 
-          <div className="rounded-md border border-(--border) bg-(--surface-muted) p-3">
-            <p className="text-[11px] font-semibold uppercase text-(--muted-2)">Relacionamento</p>
-            <div className="mt-3 space-y-3">
-              <Toggle
-                label="Abrir em nova aba"
-                checked={openInNewTab}
-                onChange={setOpenInNewTab}
-                icon={<ExternalLink size={14} />}
-              />
-              <Toggle label="Nofollow (SEO)" checked={nofollow} onChange={setNofollow} />
-              <Toggle
-                label="Sponsored (Afiliado)"
-                checked={sponsored || linkType === "affiliate"}
-                onChange={setSponsored}
-                tone="accent"
-                disabled={linkType === "affiliate"}
-              />
-              <Toggle
-                label="About (Entidade)"
-                checked={aboutEntity}
-                onChange={setAboutEntity}
-                tone="purple"
-              />
-              <Toggle
-                label="Mention (Entidade)"
-                checked={mentionEntity}
-                onChange={setMentionEntity}
-                tone="blue"
-              />
+          {showRelationshipPanel && (
+            <div className="rounded-md border border-(--border) bg-(--surface-muted) p-3">
+              <p className="text-[11px] font-semibold uppercase text-(--muted-2)">Relacionamento</p>
+              <div className="mt-3 space-y-3">
+                <Toggle
+                  label="Abrir em nova aba"
+                  checked={openInNewTab}
+                  onChange={setOpenInNewTab}
+                  icon={<ExternalLink size={14} />}
+                />
+                <Toggle label="Nofollow (SEO)" checked={nofollow} onChange={setNofollow} />
+                <Toggle
+                  label="Sponsored (Afiliado)"
+                  checked={sponsored}
+                  onChange={setSponsored}
+                  tone="accent"
+                />
+                <Toggle
+                  label="About (Entidade)"
+                  checked={aboutEntity}
+                  onChange={setAboutEntity}
+                  tone="purple"
+                />
+                <Toggle
+                  label="Mention (Entidade)"
+                  checked={mentionEntity}
+                  onChange={setMentionEntity}
+                  tone="blue"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="rounded-md border border-(--border) bg-(--surface) p-3">
             <p className="text-[11px] font-semibold uppercase text-(--muted-2)">Buscar posts internos</p>

@@ -47,7 +47,7 @@ export function InternalLinksPanel() {
                 // const data = await response.json();
 
                 // Simulação com dados mockados
-                const mockPosts = [];
+                const mockPosts: PostSuggestion[] = [];
 
                 setPosts(mockPosts);
             } catch (error) {
@@ -101,7 +101,7 @@ export function InternalLinksPanel() {
                     href: `/${post.slug}`,
                     "data-post-id": post.id,
                     "data-link-type": "internal"
-                })
+                } as any)
                 .run();
         } else {
             // Sem texto selecionado: inserir link com título do post

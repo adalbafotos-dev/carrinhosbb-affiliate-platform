@@ -7,7 +7,7 @@ import { SiloLinkGraph } from "@/components/silos/SiloLinkGraph";
 import { SiloPostsTable } from "@/components/silos/SiloPostsTable";
 import { SiloCannibalizationPanel } from "@/components/silos/SiloCannibalizationPanel";
 import { SiloSerpPanel } from "@/components/silos/SiloSerpPanel";
-import type { LinkOccurrence, LinkAudit, SiloAudit } from "@/lib/silo/types";
+import type { LinkOccurrence, LinkAudit, LinkOccurrenceEdge, SiloAudit } from "@/lib/silo/types";
 
 export type SiloPostSummary = {
   id: string;
@@ -30,6 +30,8 @@ type SiloIntelligenceTabsProps = {
   cannibalization: CannibalizationPair[];
   serpDefaultQuery: string;
   linkOccurrences?: LinkOccurrence[];
+  linkEdges?: LinkOccurrenceEdge[];
+  auditsByOccurrenceId?: Record<string, LinkAudit>;
   linkAudits?: LinkAudit[];
   siloAudit?: SiloAudit | null;
   settingsContent?: React.ReactNode;
@@ -42,6 +44,8 @@ export function SiloIntelligenceTabs({
   cannibalization,
   serpDefaultQuery,
   linkOccurrences,
+  linkEdges,
+  auditsByOccurrenceId,
   linkAudits,
   siloAudit,
   settingsContent
@@ -122,6 +126,8 @@ export function SiloIntelligenceTabs({
           posts={posts}
           metrics={metrics}
           linkOccurrences={linkOccurrences}
+          linkEdges={linkEdges}
+          auditsByOccurrenceId={auditsByOccurrenceId}
           linkAudits={linkAudits}
           siloAudit={siloAudit}
         />

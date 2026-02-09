@@ -1,4 +1,4 @@
-import * as cheerio from "cheerio";
+﻿import * as cheerio from "cheerio";
 
 export type LinkRelFlags = {
   nofollow: boolean;
@@ -286,6 +286,47 @@ function extractFromJson(doc: any, options: ExtractOptions): ExtractedLink[] {
       return;
     }
 
+    if (node.type === "affiliateCta") {
+      const attrs = node.attrs ?? {};
+      const href = typeof attrs.url === "string" ? attrs.url : typeof attrs.href === "string" ? attrs.href : "";
+      const label = typeof attrs.label === "string" ? attrs.label : "CTA";
+      appendLinkSegment({
+        href,
+        text: label ?? "",
+        rel: { nofollow: true, sponsored: true, ugc: false },
+        targetBlank: true,
+      });
+      return;
+    }
+
+    if (node.type === "affiliateProductCard" || node.type === "affiliateProduct") {
+      const attrs = node.attrs ?? {};
+      const href = typeof attrs.url === "string" ? attrs.url : typeof attrs.href === "string" ? attrs.href : "";
+      const label = typeof attrs.title === "string" ? attrs.title : "Produto";
+      appendLinkSegment({
+        href,
+        text: label ?? "",
+        rel: { nofollow: true, sponsored: true, ugc: false },
+        targetBlank: true,
+      });
+      return;
+    }
+
+    if (node.type === "cta_button") {
+      const attrs = node.attrs ?? {};
+      const href = typeof attrs.href === "string" ? attrs.href : typeof attrs.url === "string" ? attrs.url : "";
+      const label = typeof attrs.label === "string" ? attrs.label : "CTA";
+      const relRaw = typeof attrs.rel === "string" ? attrs.rel : "";
+      const relFlags = parseRel(relRaw);
+      appendLinkSegment({
+        href,
+        text: label ?? "",
+        rel: relFlags,
+        targetBlank: attrs.target === "_blank",
+      });
+      return;
+    }
+
     const marks = Array.isArray(node.marks) ? node.marks : activeMarks;
     if (node.type === "text") {
       const text = typeof node.text === "string" ? node.text : "";
@@ -320,3 +361,4 @@ export function extractLinksFromContent(content: string | any | null | undefined
   }
   return extractFromJson(content, options);
 }
+

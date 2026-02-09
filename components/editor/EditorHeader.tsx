@@ -1,15 +1,15 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { ArrowLeft, Laptop, MonitorSmartphone, Smartphone, Loader2 } from "lucide-react";
+import { ArrowLeft, Laptop, MonitorSmartphone, Smartphone, Tablet, Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 
 type Props = {
   breadcrumb: Array<{ label: string; href?: string }>;
   status: "draft" | "review" | "scheduled" | "published";
   saving?: boolean;
-  previewMode: "desktop" | "mobile";
-  onPreviewChange: (mode: "desktop" | "mobile") => void;
+  previewMode: "desktop" | "tablet" | "mobile";
+  onPreviewChange: (mode: "desktop" | "tablet" | "mobile") => void;
   onSave: () => void;
   onPublish: () => void;
   rightExtra?: ReactNode;
@@ -91,6 +91,18 @@ export function EditorHeader({
             title="Desktop"
           >
             <Laptop size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() => onPreviewChange("tablet")}
+            className={`rounded-full p-1 ${
+              previewMode === "tablet"
+                ? "bg-(--brand-accent) text-(--paper)"
+                : "text-(--muted-2)"
+            }`}
+            title="Tablet"
+          >
+            <Tablet size={16} />
           </button>
           <button
             type="button"

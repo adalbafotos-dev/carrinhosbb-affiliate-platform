@@ -5,6 +5,31 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isGenericAnchor } from "@/lib/seo/siloRules";
 
+function getMissingColumnFromError(error: any): string | null {
+    if (!error) return null;
+    const message = [error.message, error.details, error.hint].filter(Boolean).join(" ");
+    const patterns = [
+        /column\s+(?:["]?[a-zA-Z0-9_]+["]?\.)*["]?([a-zA-Z0-9_]+)["]?\s+does not exist/i,
+        /Could not find the '([a-zA-Z0-9_]+)' column/i,
+        /missing column:\s*["']?([a-zA-Z0-9_]+)["']?/i,
+    ];
+    for (const regex of patterns) {
+        const match = regex.exec(message);
+        if (match?.[1]) return match[1];
+    }
+    return null;
+}
+
+function logDbError(label: string, error: any) {
+    if (!error) return;
+    console.error(label, {
+        message: error?.message ?? null,
+        details: error?.details ?? null,
+        hint: error?.hint ?? null,
+        code: error?.code ?? null,
+    });
+}
+
 const auditSchema = z.object({
     siloId: z.string().uuid(),
     siloSlug: z.string(),
@@ -133,7 +158,10 @@ function clampScore(value: number): number {
     return Math.min(100, Math.max(0, Math.round(value)));
 }
 
-function buildSuggestedAnchor(targetTitle?: string, targetKeyword?: string): string | undefined {
+function buildSuggestedAnchor(
+    targetTitle?: string | null,
+    targetKeyword?: string | null
+): string | undefined {
     const base = (targetKeyword || targetTitle || "").trim();
     if (!base) return undefined;
     return base.length > 90 ? base.slice(0, 90) : base;
@@ -428,8 +456,9 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
         const internalOccurrences =
             occurrences?.filter((occ) => {
                 if (!occ.target_post_id) return false;
-                if (occ.link_type && occ.link_type !== "INTERNAL") return false;
-                return roleMap.has(occ.source_post_id) && roleMap.has(occ.target_post_id);
+                const linkType = occ.link_type ? String(occ.link_type).toUpperCase() : null;
+                if (linkType && linkType !== "INTERNAL") return false;
+                return true;
             }) || [];
 
         console.log("[SILO-AUDIT] snapshot", {
@@ -438,6 +467,7 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             occurrences: occurrences?.length ?? 0,
             occurrencesWithTarget: occurrences?.filter((occ) => Boolean(occ.target_post_id)).length ?? 0,
             internalOccurrences: internalOccurrences.length,
+            roleMapSize: roleMap.size,
             sampleOccurrenceIds: internalOccurrences.slice(0, 3).map((occ) => occ.id),
         });
 
@@ -462,10 +492,14 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
                 .single();
 
             if (existingAudit && existingAudit.fingerprint === currentFingerprint) {
-                const { data: linkAuditsCached } = await supabase
+                const { data: linkAuditsCached, error: linkAuditsError } = await supabase
                     .from("link_audits")
                     .select("occurrence_id, score, label, reasons, suggested_anchor, note, action, recommendation, spam_risk, intent_match")
                     .eq("silo_id", siloId);
+
+                if (linkAuditsError) {
+                    logDbError("[SILO-AUDIT] cache link_audits error", linkAuditsError);
+                }
 
                 const { data: siloAuditList } = await supabase
                     .from("silo_audits")
@@ -474,25 +508,32 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
                     .order("created_at", { ascending: false })
                     .limit(1);
 
-                return {
-                    success: true,
-                    message: "Auditoria ja esta atualizada (Cache).",
-                    cached: true,
-                    linkAudits: (linkAuditsCached || []).map((audit) => ({
-                        occurrenceId: audit.occurrence_id,
-                        occurrence_id: audit.occurrence_id,
-                        score: audit.score,
-                        label: audit.label,
-                        reasons: audit.reasons,
-                        suggested_anchor: audit.suggested_anchor,
-                        note: audit.note,
-                        action: audit.action,
-                        recommendation: audit.recommendation,
-                        spam_risk: audit.spam_risk,
-                        intent_match: audit.intent_match,
-                    })),
-                    siloAudit: siloAuditList?.[0] ?? null,
-                };
+                if ((linkAuditsCached ?? []).length > 0) {
+                    return {
+                        success: true,
+                        message: "Auditoria ja esta atualizada (Cache).",
+                        cached: true,
+                        linkAudits: (linkAuditsCached || []).map((audit) => ({
+                            occurrenceId: audit.occurrence_id,
+                            occurrence_id: audit.occurrence_id,
+                            score: audit.score,
+                            label: audit.label,
+                            reasons: audit.reasons,
+                            suggested_anchor: audit.suggested_anchor,
+                            note: audit.note,
+                            action: audit.action,
+                            recommendation: audit.recommendation,
+                            spam_risk: audit.spam_risk,
+                            intent_match: audit.intent_match,
+                        })),
+                        siloAudit: siloAuditList?.[0] ?? null,
+                    };
+                }
+
+                console.warn("[SILO-AUDIT] cache empty, recomputing audits", {
+                    siloId,
+                    fingerprint: currentFingerprint,
+                });
             }
         }
 
@@ -660,7 +701,8 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             };
         });
 
-        let aiResult: z.infer<typeof aiAuditSchema> | null = null;
+        type AiAuditResult = z.infer<typeof aiAuditSchema>;
+        let aiResult: AiAuditResult | null = null;
         if (internalOccurrences.length) {
             try {
                 const { auditSiloWithAI } = await import("@/lib/silo/aiAuditService");
@@ -706,7 +748,7 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             }
         }
 
-        const aiByOccurrence = new Map<string, (typeof aiResult)["linkSuggestions"][number]>();
+        const aiByOccurrence = new Map<string, AiAuditResult["linkSuggestions"][number]>();
         if (aiResult?.linkSuggestions?.length) {
             aiResult.linkSuggestions.forEach((item) => {
                 if (item && item.occurrenceId) aiByOccurrence.set(item.occurrenceId, item);
@@ -796,23 +838,47 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
 
         const siloStatus = healthScore < 50 ? "CRITICAL" : healthScore < 80 ? "WARNING" : "OK";
 
-        await supabase.from("link_audits").delete().eq("silo_id", siloId);
-        if (finalLinkAudits.length) {
-            await supabase.from("link_audits").insert(
-                finalLinkAudits.map((audit) => ({
-                    silo_id: audit.silo_id,
-                    occurrence_id: audit.occurrence_id,
-                    score: audit.score,
-                    label: audit.label,
-                    reasons: audit.reasons,
-                    suggested_anchor: audit.suggested_anchor,
-                    note: audit.note,
-                    action: audit.action,
-                    recommendation: audit.recommendation,
-                    spam_risk: audit.spam_risk,
-                    intent_match: audit.intent_match,
-                }))
-            );
+        const { error: linkAuditDeleteError } = await supabase.from("link_audits").delete().eq("silo_id", siloId);
+        if (linkAuditDeleteError) {
+            logDbError("[SILO-AUDIT] delete link_audits error", linkAuditDeleteError);
+        }
+
+        let auditsInserted = 0;
+        const linkAuditRows = finalLinkAudits.map((audit) => ({
+            silo_id: audit.silo_id,
+            occurrence_id: audit.occurrence_id,
+            score: audit.score,
+            label: audit.label,
+            reasons: audit.reasons,
+            suggested_anchor: audit.suggested_anchor,
+            note: audit.note,
+            action: audit.action,
+            recommendation: audit.recommendation,
+            spam_risk: audit.spam_risk,
+            intent_match: audit.intent_match,
+        }));
+
+        if (linkAuditRows.length) {
+            let payload: any[] = linkAuditRows;
+            let insertError: any = null;
+            for (let attempt = 0; attempt < 6; attempt += 1) {
+                const { error: err } = await supabase.from("link_audits").insert(payload);
+                if (!err) {
+                    insertError = null;
+                    auditsInserted = payload.length;
+                    break;
+                }
+                insertError = err;
+                const missing = getMissingColumnFromError(err);
+                if (!missing) break;
+                payload = payload.map((row) => {
+                    const { [missing]: _, ...rest } = row;
+                    return rest;
+                });
+            }
+            if (insertError) {
+                logDbError("[SILO-AUDIT] insert link_audits error", insertError);
+            }
         }
 
         const siloAuditPayload = {
@@ -834,11 +900,28 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             },
         };
 
-        await supabase.from("silo_audits").delete().eq("silo_id", siloId);
-        await supabase.from("silo_audits").insert({
+        const { error: siloAuditDeleteError } = await supabase.from("silo_audits").delete().eq("silo_id", siloId);
+        if (siloAuditDeleteError) {
+            logDbError("[SILO-AUDIT] delete silo_audits error", siloAuditDeleteError);
+        }
+
+        const { error: siloAuditInsertError } = await supabase.from("silo_audits").insert({
             silo_id: siloId,
             fingerprint: currentFingerprint,
             ...siloAuditPayload,
+        });
+        if (siloAuditInsertError) {
+            logDbError("[SILO-AUDIT] insert silo_audits error", siloAuditInsertError);
+        }
+
+        console.log("[SILO-AUDIT] final", {
+            occurrences_total: occurrences?.length ?? 0,
+            internal_with_target: internalOccurrences.length,
+            audits_created: finalLinkAudits.length,
+            audits_inserted: auditsInserted,
+            audits_returned_to_client: finalLinkAudits.length,
+            sample_occurrence_ids_input: internalOccurrences.slice(0, 5).map((occ) => occ.id),
+            sample_occurrence_ids_output: finalLinkAudits.slice(0, 5).map((audit) => audit.occurrence_id),
         });
 
         revalidatePath(`/admin/silos/${siloSlug}`);

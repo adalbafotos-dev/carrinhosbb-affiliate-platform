@@ -82,7 +82,12 @@ export function useContentGuardian(
       const doc = editor.state.doc;
       const text = editor.getText(); // Plain text
       const wordCount = text.trim().split(/\s+/).filter(Boolean).length;
-      const targetKeyword = normalize(meta.targetKeyword);
+      const rawKeyword = meta.targetKeyword?.trim() ?? "";
+      const targetKeyword = normalize(rawKeyword);
+      const isKgr = rawKeyword.split(/\s+/).filter(Boolean).length >= 3 || rawKeyword.length >= 20;
+      const normalizedTitle = normalize(meta.title);
+      const titleHasKeyword = Boolean(targetKeyword && normalizedTitle.includes(targetKeyword));
+      const titleStartsWithKeyword = Boolean(targetKeyword && normalizedTitle.startsWith(targetKeyword));
 
       // 1. Keyword Usage
       const keywordCount = countOccurrences(text, meta.targetKeyword);
@@ -158,39 +163,43 @@ export function useContentGuardian(
       const newIssues: GuardianIssue[] = [];
       let scoreDeduction = 0;
 
-      // Rule: Title Length
-      if (meta.title.length < 60) {
-        newIssues.push({ id: "title-short", level: "warn", message: "Título muito curto (<60 chars)." });
-        scoreDeduction += 5;
-      } else if (meta.title.length > 80) {
-        newIssues.push({ id: "title-long", level: "warn", message: "Título muito longo (>80 chars)." });
-        scoreDeduction += 5;
-      }
-      if (targetKeyword && !normalize(meta.title).includes(targetKeyword)) {
+      // Rule: Title & KGR
+      if (targetKeyword && !titleHasKeyword) {
         newIssues.push({ id: "title-kw", level: "critical", message: "Título não contém a palavra-chave." });
-        scoreDeduction += 15;
+        scoreDeduction += 12;
+      } else if (targetKeyword && titleHasKeyword && !titleStartsWithKeyword) {
+        newIssues.push({ id: "title-kw-start", level: "warn", message: "Palavra-chave não está no início do título." });
+        scoreDeduction += 4;
+      } else if (!isKgr) {
+        if (meta.title.length < 50) {
+          newIssues.push({ id: "title-short", level: "warn", message: "Título muito curto (<50 chars)." });
+          scoreDeduction += 3;
+        } else if (meta.title.length > 90) {
+          newIssues.push({ id: "title-long", level: "warn", message: "Título muito longo (>90 chars)." });
+          scoreDeduction += 3;
+        }
       }
 
       // Rule: Meta Description
-      if (meta.metaDescription.length > 156) {
-        newIssues.push({ id: "desc-long", level: "warn", message: "Meta description muito longa (>156)." });
-        scoreDeduction += 5;
+      if (meta.metaDescription.length > 170) {
+        newIssues.push({ id: "desc-long", level: "warn", message: "Meta description muito longa (>170)." });
+        scoreDeduction += 3;
       }
-      if (targetKeyword && !normalize(meta.metaDescription).includes(targetKeyword)) {
-        newIssues.push({ id: "desc-kw", level: "critical", message: "Meta description sem palavra-chave." });
-        scoreDeduction += 10;
+      if (targetKeyword && meta.metaDescription && !normalize(meta.metaDescription).includes(targetKeyword)) {
+        newIssues.push({ id: "desc-kw", level: "warn", message: "Meta description sem palavra-chave exata." });
+        scoreDeduction += 4;
       }
 
       // Rule: Keyword First Para
-      if (!firstParaHasKeyword && targetKeyword) {
-        newIssues.push({ id: "kw-first-para", level: "critical", message: "Palavra-chave não encontrada no início." });
-        scoreDeduction += 10;
+      if (!firstParaHasKeyword && targetKeyword && wordCount > 120) {
+        newIssues.push({ id: "kw-first-para", level: "warn", message: "Palavra-chave não encontrada no início." });
+        scoreDeduction += 6;
       }
 
       // Rule: Keyword First H2
-      if (!firstH2HasKeyword && targetKeyword) {
+      if (!firstH2HasKeyword && targetKeyword && wordCount > 300) {
         newIssues.push({ id: "kw-first-h2", level: "warn", message: "Palavra-chave não encontrada no primeiro H2." });
-        scoreDeduction += 5;
+        scoreDeduction += 3;
       }
 
       // Rule: Density
@@ -200,9 +209,9 @@ export function useContentGuardian(
       }
 
       // Rule: Internal Links Early
-      if (internalLinksEarlyCount === 0 && wordCount > 100) {
+      if (internalLinksEarlyCount === 0 && wordCount > 200) {
         newIssues.push({ id: "links-early", level: "warn", message: "Adicione link interno no início do texto." });
-        scoreDeduction += 5;
+        scoreDeduction += 4;
       }
 
       // Rule: Amazon Sponsored

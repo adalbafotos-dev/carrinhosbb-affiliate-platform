@@ -160,7 +160,7 @@ export function QualityPanel() {
             hasAuthor,
             hasExpert,
             hasReviewer,
-            has Sources,
+            hasSources,
             hasDisclaimer,
             isSensitive,
             score: Math.max(0, score),

@@ -1,12 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useEditorContext } from "@/components/editor/EditorContext";
 import { useContentGuardian } from "@/hooks/useContentGuardian";
-import { AlertCircle, AlertTriangle, CheckCircle2, ShieldCheck, ShieldAlert } from "lucide-react";
+import { AlertCircle, AlertTriangle, CheckCircle2, ShieldCheck, ShieldAlert, Sparkles } from "lucide-react";
 
 export function GuardianPanel() {
     const { editor, meta, links } = useEditorContext();
     const { issues, metrics } = useContentGuardian(editor, meta, links);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiError, setAiError] = useState<string | null>(null);
+    const [aiResult, setAiResult] = useState<any | null>(null);
 
     const criticalIssues = issues.filter((i) => i.level === "critical");
     const warnIssues = issues.filter((i) => i.level === "warn");
@@ -15,6 +19,37 @@ export function GuardianPanel() {
         if (score >= 90) return "text-emerald-500";
         if (score >= 70) return "text-amber-500";
         return "text-red-500";
+    };
+
+    const runAiAssist = async () => {
+        if (!editor) return;
+        setAiLoading(true);
+        setAiError(null);
+        try {
+            const res = await fetch("/api/admin/guardian-ai", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    title: meta.title,
+                    metaDescription: meta.metaDescription,
+                    keyword: meta.targetKeyword,
+                    issues: issues.map((i) => i.message),
+                    text: editor.getText(),
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok || !data?.ok) {
+                setAiError(data?.error || "Falha ao consultar a IA.");
+                setAiResult(null);
+            } else {
+                setAiResult(data?.result ?? data);
+            }
+        } catch (error: any) {
+            setAiError(error?.message || "Falha ao consultar a IA.");
+            setAiResult(null);
+        } finally {
+            setAiLoading(false);
+        }
     };
 
     return (
@@ -65,6 +100,53 @@ export function GuardianPanel() {
                     <span>Tudo certo com o SEO!</span>
                 </div>
             )}
+
+            <div className="pt-2">
+                <button
+                    type="button"
+                    onClick={runAiAssist}
+                    disabled={aiLoading}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-xs font-semibold text-(--text) hover:bg-(--surface-muted) disabled:opacity-60"
+                >
+                    <Sparkles size={14} />
+                    {aiLoading ? "Analisando com IA..." : "IA: Ajustes sugeridos"}
+                </button>
+                {aiError ? (
+                    <p className="mt-2 text-[11px] text-red-500">{aiError}</p>
+                ) : null}
+                {aiResult ? (
+                    <div className="mt-3 space-y-2 rounded-lg border border-(--border) bg-(--surface) p-3 text-[11px] text-(--text)">
+                        {aiResult.analysis ? (
+                            <div>
+                                <p className="font-semibold uppercase text-(--muted)">Resumo</p>
+                                <p className="mt-1 text-(--muted)">{aiResult.analysis}</p>
+                            </div>
+                        ) : null}
+                        {Array.isArray(aiResult.quick_fixes) && aiResult.quick_fixes.length ? (
+                            <div>
+                                <p className="font-semibold uppercase text-(--muted)">Ajustes rápidos</p>
+                                <ul className="mt-1 list-disc pl-4 text-(--muted)">
+                                    {aiResult.quick_fixes.map((item: string, idx: number) => (
+                                        <li key={idx}>{item}</li>
+                                    ))}
+                                </ul>
+                            </div>
+                        ) : null}
+                        {aiResult.suggested_meta_description ? (
+                            <div>
+                                <p className="font-semibold uppercase text-(--muted)">Meta description sugerida</p>
+                                <p className="mt-1 text-(--muted)">{aiResult.suggested_meta_description}</p>
+                            </div>
+                        ) : null}
+                        {aiResult.suggested_first_paragraph ? (
+                            <div>
+                                <p className="font-semibold uppercase text-(--muted)">Primeiro parágrafo sugerido</p>
+                                <p className="mt-1 text-(--muted)">{aiResult.suggested_first_paragraph}</p>
+                            </div>
+                        ) : null}
+                    </div>
+                ) : null}
+            </div>
         </section>
     );
 }

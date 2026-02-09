@@ -1,9 +1,11 @@
-import { NextResponse } from "next/server";
+﻿import { NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/supabase/admin";
 import { authenticateWpRequest } from "@/lib/wp/auth";
 import { getOrCreateWpIdByUuid } from "@/lib/wp/id-map";
 import { slugify } from "@/lib/wp/slugify";
 import { wpError } from "@/lib/wp/response";
+import { importContentorHtml } from "@/lib/editor/contentorImport";
+import { extractContentorCtas, extractContentorMeta } from "@/lib/editor/contentorMeta";
 
 export const runtime = "nodejs";
 
@@ -28,7 +30,14 @@ function readHtml(value: unknown) {
 }
 
 function buildSlug(payload: any, title: string) {
-  const raw = typeof payload?.slug === "string" ? payload.slug : "";
+  const raw =
+    typeof payload?.slug_suggested === "string"
+      ? payload.slug_suggested
+      : typeof payload?.slugSuggested === "string"
+        ? payload.slugSuggested
+        : typeof payload?.slug === "string"
+          ? payload.slug
+          : "";
   const base = slugify(raw || title || "") || `post-${Date.now()}`;
   return base;
 }
@@ -140,20 +149,59 @@ export async function POST(req: Request) {
   const title = readText(payload?.title) || "Sem titulo";
   const content = readHtml(payload?.content);
   const excerpt = readText(payload?.excerpt);
-  const baseSlug = buildSlug(payload, title);
-  const targetKeyword = resolveTargetKeyword(payload, title, baseSlug);
   const metaDescription = readText(payload?.meta_description) || "";
   const now = new Date().toISOString();
 
+  const metaFromPayload = extractContentorMeta(payload);
+  const ctasFromPayload = extractContentorCtas(payload);
+  const importResult = importContentorHtml(content, { ctas: ctasFromPayload });
+  const finalTitle = importResult.title || title;
+  const baseSlug = buildSlug(
+    {
+      ...payload,
+      slug_suggested: metaFromPayload.slugSuggested ?? payload?.slug_suggested ?? payload?.slugSuggested,
+    },
+    finalTitle
+  );
+  let targetKeyword = resolveTargetKeyword(payload, finalTitle, baseSlug);
+  if (metaFromPayload.focusKeyword) targetKeyword = metaFromPayload.focusKeyword;
+  const normalizedHtml = importResult.html || content;
+  const resolvedMetaTitle = metaFromPayload.seoTitle || finalTitle;
+  const resolvedMetaDescription = metaFromPayload.metaDescription || metaDescription;
+  if (importResult.warnings.length) {
+    console.warn("[contentor] Import warnings", importResult.warnings);
+  }
+  if (process.env.DEBUG_CONTENTOR_IMPORT === "1") {
+    console.info("[contentor] Meta payload", {
+      seoTitle: metaFromPayload.seoTitle ? metaFromPayload.seoTitle.length : 0,
+      metaDescription: metaFromPayload.metaDescription ? metaFromPayload.metaDescription.length : 0,
+      slugSuggested: metaFromPayload.slugSuggested,
+      focusKeyword: metaFromPayload.focusKeyword,
+    });
+    console.info("[contentor] CTA stats", importResult.stats);
+    if (metaFromPayload.metaDescription && resolvedMetaDescription !== metaFromPayload.metaDescription) {
+      console.info("[contentor] meta_description ignorada (valor atual prevaleceu)");
+    }
+    if (metaFromPayload.seoTitle && resolvedMetaTitle !== metaFromPayload.seoTitle) {
+      console.info("[contentor] seo_title ignorado (valor atual prevaleceu)");
+    }
+  }
+
+  if (!importResult.doc.meta || typeof importResult.doc.meta !== "object") {
+    importResult.doc.meta = {};
+  }
+  (importResult.doc.meta as any).contentor = metaFromPayload;
+
   const insertPayload = {
     silo_id: null,
-    title,
+    title: finalTitle,
+    seo_title: resolvedMetaTitle,
     slug: baseSlug,
     target_keyword: targetKeyword,
-    content_html: content,
-    content_json: null,
-    meta_title: title,
-    meta_description: metaDescription || null,
+    content_html: normalizedHtml,
+    content_json: importResult.doc,
+    meta_title: resolvedMetaTitle,
+    meta_description: resolvedMetaDescription || null,
     excerpt: excerpt || null,
     status: "draft",
     published: false,
@@ -185,3 +233,4 @@ export async function POST(req: Request) {
     })
   );
 }
+

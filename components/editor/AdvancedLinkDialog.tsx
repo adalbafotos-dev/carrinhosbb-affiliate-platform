@@ -60,11 +60,14 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
   const [searching, setSearching] = useState(false);
 
   const selectedText = useMemo(() => currentSelection(editor), [editor, open]);
+  const isAmazon = useMemo(() => {
+    const lower = url.toLowerCase();
+    return lower.includes("amazon.") || lower.includes("amzn.to") || lower.includes("a.co");
+  }, [url]);
   const isInternal = linkType === "internal";
   const isInternalSilo = isInternal && internalScope === "silo" && Boolean(meta.siloId);
-  const showRelationshipPanel = !isInternalSilo && linkType !== "affiliate";
-  const isAffiliate = linkType === "affiliate";
-  const isAmazon = url.includes("amazon.") || url.includes("amzn.to");
+  const isAffiliate = linkType === "affiliate" || isAmazon;
+  const showRelationshipPanel = !isInternal && !isAffiliate;
 
   const filteredSiloPosts = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -83,6 +86,14 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
       item.title.toLowerCase().includes(term) || item.slug.toLowerCase().includes(term)
     );
   }, [siloPosts, search]);
+
+  const staticPages = useMemo(
+    () => [
+      { title: "Sobre", href: "/sobre" },
+      { title: "Contato", href: "/contato" },
+    ],
+    []
+  );
 
   useEffect(() => {
     if (!open || !editor) return;
@@ -117,6 +128,18 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
       setLinkType("external");
     }
   }, [editor, open, selectedText]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (isAmazon && linkType !== "affiliate") {
+      setLinkType("affiliate");
+      setSponsored(true);
+      setNofollow(true);
+      setOpenInNewTab(true);
+      setAboutEntity(false);
+      setMentionEntity(false);
+    }
+  }, [isAmazon, linkType, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -223,13 +246,15 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
       return;
     }
 
-    const forceInternalSilo = Boolean(options.forceInternalSilo);
-    const effectiveLinkType = options.nextLinkType;
-    const effectiveOpenInNewTab = forceInternalSilo ? false : effectiveLinkType === "affiliate" ? true : openInNewTab;
-    const effectiveNofollow = forceInternalSilo ? false : effectiveLinkType === "affiliate" ? true : nofollow;
-    const effectiveSponsored = forceInternalSilo ? false : effectiveLinkType === "affiliate" ? true : sponsored;
-    const effectiveAbout = forceInternalSilo ? false : aboutEntity || effectiveLinkType === "about";
-    const effectiveMention = forceInternalSilo ? false : mentionEntity || effectiveLinkType === "mention";
+    const forceInternal = options.nextLinkType === "internal" || Boolean(options.forceInternalSilo);
+    const isAmazonTarget = /amazon\.|amzn\.to|a\.co/i.test(href);
+    const effectiveLinkType = isAmazonTarget ? "affiliate" : options.nextLinkType;
+    const forceAffiliate = effectiveLinkType === "affiliate";
+    const effectiveOpenInNewTab = forceInternal ? false : forceAffiliate ? true : openInNewTab;
+    const effectiveNofollow = forceInternal ? false : forceAffiliate ? true : nofollow;
+    const effectiveSponsored = forceInternal ? false : forceAffiliate ? true : sponsored;
+    const effectiveAbout = forceInternal || forceAffiliate ? false : aboutEntity || effectiveLinkType === "about";
+    const effectiveMention = forceInternal || forceAffiliate ? false : mentionEntity || effectiveLinkType === "mention";
 
     const relTokens = new Set<string>();
     if (effectiveNofollow) relTokens.add("nofollow");
@@ -278,7 +303,7 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
       href: url,
       displayText: text,
       nextLinkType: linkType,
-      forceInternalSilo: isInternalSilo,
+      forceInternalSilo: isInternal,
       nextPostId: postId,
     });
   }
@@ -352,10 +377,9 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
                 <Toggle label="Nofollow (SEO)" checked={nofollow} onChange={setNofollow} />
                 <Toggle
                   label="Sponsored (Afiliado)"
-                  checked={sponsored || linkType === "affiliate"}
+                  checked={sponsored}
                   onChange={setSponsored}
                   tone="accent"
-                  disabled={linkType === "affiliate"}
                 />
                 <Toggle label="About (Entidade)" checked={aboutEntity} onChange={setAboutEntity} tone="purple" />
                 <Toggle label="Mention (Entidade)" checked={mentionEntity} onChange={setMentionEntity} tone="blue" />
@@ -363,15 +387,20 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
             </div>
           )}
 
-          {isInternalSilo && (
+          {isInternal && (
             <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700">
-              Links internos do silo sao sempre dofollow e indexaveis. Opcoes de relacionamento ficam ocultas.
+              Links internos sao sempre dofollow e indexaveis. Opcoes de relacionamento ficam ocultas.
             </div>
           )}
 
           {isAffiliate && (
             <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
               <p className="text-[11px] font-semibold uppercase text-amber-700">Link afiliado</p>
+              {isAmazon && (
+                <p className="mt-1 text-[10px] text-amber-700">
+                  Links Amazon sao sempre sponsored (padrão do projeto).
+                </p>
+              )}
               <div className="mt-2 flex flex-wrap gap-2">
                 <span className="rounded-full bg-amber-600 px-2 py-0.5 text-[10px] font-semibold uppercase text-white">Affiliate</span>
                 {isAmazon && (
@@ -405,6 +434,32 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
                   </button>
                 </div>
               </div>
+
+              {staticPages.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[10px] font-semibold uppercase text-(--muted-2)">Atalhos</p>
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {staticPages.map((page) => (
+                      <button
+                        key={page.href}
+                        type="button"
+                        onClick={() => {
+                          applyLinkDirect({
+                            href: page.href,
+                            displayText: selectedText || page.title,
+                            nextLinkType: "internal",
+                            forceInternalSilo: true,
+                          });
+                        }}
+                        className="rounded-md border border-(--border) px-3 py-2 text-left text-[11px] font-medium text-(--muted) hover:bg-(--surface-muted)"
+                      >
+                        <div className="font-semibold text-(--text)">{page.title}</div>
+                        <div className="text-[10px] text-(--muted-2)">{page.href}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="mt-3 flex items-center gap-2 rounded-md border border-(--border) bg-(--surface-muted) px-2 py-2">
                 <Search size={14} className="text-(--muted-2)" />

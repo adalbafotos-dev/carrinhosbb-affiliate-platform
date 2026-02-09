@@ -14,7 +14,7 @@ type SiloCannibalizationPanelProps = {
 };
 
 function getQuery(post: SiloPostSummary) {
-  return post.focusKeyword?.trim() || post.targetKeyword?.trim() || post.title.trim();
+  return post.focus_keyword?.trim() || post.targetKeyword?.trim() || post.title.trim();
 }
 
 export function SiloCannibalizationPanel({ posts, pairs, onViewSerp }: SiloCannibalizationPanelProps) {

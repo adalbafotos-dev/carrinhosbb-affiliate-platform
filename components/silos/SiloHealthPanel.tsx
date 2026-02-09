@@ -169,7 +169,7 @@ export function SiloHealthPanel({ health, actions, postTitles }: SiloHealthPanel
     );
 }
 
-function MetricCard({ label, value, color }: { label: string; value: number; color: string }) {
+function MetricCard({ label, value, color }: { label: string; value: number; color: "green" | "yellow" | "red" }) {
     const colorMap = {
         green: "bg-green-50 text-green-900 border-green-200",
         yellow: "bg-yellow-50 text-yellow-900 border-yellow-200",

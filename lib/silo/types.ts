@@ -17,6 +17,13 @@ export type LinkOccurrence = {
     is_blank?: boolean;
 };
 
+export type LinkOccurrenceEdge = {
+    id: string;
+    source_post_id: string;
+    target_post_id: string;
+    occurrence_ids: string[];
+};
+
 export type SiloAudit = {
     id: string;
     health_score: number;

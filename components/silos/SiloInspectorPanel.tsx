@@ -13,6 +13,7 @@ type SiloInspectorPanelProps = {
     metrics: SiloMetrics;
     linkOccurrences?: LinkOccurrence[];
     linkAudits?: LinkAudit[];
+    auditsByOccurrenceId?: Record<string, LinkAudit>;
     siloAudit?: SiloAudit | null;
     selectedNodeId: string | null;
     selectedEdgeId: string | null;
@@ -30,6 +31,7 @@ export function SiloInspectorPanel({
     metrics,
     linkOccurrences,
     linkAudits,
+    auditsByOccurrenceId,
     siloAudit,
     selectedNodeId,
     selectedEdgeId,
@@ -67,23 +69,33 @@ export function SiloInspectorPanel({
             }));
 
         const rawOutbound = linkOccurrences.filter((l) => l.source_post_id.toLowerCase() === selectedNodeId?.toLowerCase());
+        const normalizeType = (value?: string | null) => value ? String(value).toUpperCase() : null;
 
         const outboundInternal = rawOutbound
-            .filter(l => l.link_type === "INTERNAL" || !l.link_type)
+            .filter(l => {
+                const type = normalizeType(l.link_type);
+                return !type || type === "INTERNAL";
+            })
             .map(l => ({ ...l, otherPost: posts.find(p => p.id === (l.target_post_id ?? "")) }));
 
         const outboundExternal = rawOutbound
-            .filter(l => l.link_type === "EXTERNAL" || l.link_type === "AFFILIATE");
+            .filter(l => {
+                const type = normalizeType(l.link_type);
+                return type === "EXTERNAL" || type === "AFFILIATE";
+            });
 
         return { inbound, outboundInternal, outboundExternal };
     }, [selectedNodeId, linkOccurrences, posts]);
 
     const linkAuditMap = useMemo(() => {
+        if (auditsByOccurrenceId) {
+            return new Map(Object.entries(auditsByOccurrenceId));
+        }
         return new Map((linkAudits || []).map((audit: any) => {
             const key = String(audit.occurrence_id ?? audit.occurrenceId ?? "");
             return [key, audit];
         }));
-    }, [linkAudits]);
+    }, [auditsByOccurrenceId, linkAudits]);
 
     const passesFilter = (occurrenceId?: string | null) => {
         if (linkFilter === "ALL") return true;
@@ -113,8 +125,16 @@ export function SiloInspectorPanel({
 
     const selectedLinkAudit = useMemo(() => {
         if (!selectedLinkData) return null;
-        return linkAuditMap.get(selectedLinkData.id);
+        return linkAuditMap.get(String(selectedLinkData.id ?? ""));
     }, [selectedLinkData, linkAuditMap]);
+
+    useEffect(() => {
+        const occId = selectedOccurrenceId ?? selectedLinkData?.id ?? null;
+        if (!occId) return;
+        const key = String(occId);
+        const hasAudit = linkAuditMap.has(key);
+        console.log("[SILO-PANEL] select", { occurrenceId: key, hasAudit });
+    }, [selectedOccurrenceId, selectedLinkData, linkAuditMap]);
 
     const parsedIssues = useMemo(() => {
         if (!siloAudit?.issues) return [] as any[];
@@ -145,7 +165,7 @@ export function SiloInspectorPanel({
         };
     }, [linkAudits]);
 
-    const totalLinkCount = linkAudits?.length ?? linkOccurrences?.length ?? 0;
+    const totalLinkCount = linkOccurrences?.length ?? 0;
     const hasLinkAudits = linkAuditStats.total > 0;
     const siloSummary = useMemo(() => {
         const raw = (siloAudit as any)?.summary;
@@ -218,7 +238,7 @@ export function SiloInspectorPanel({
 
     const openEditorForOccurrence = (occurrenceId?: string | null) => {
         if (!occurrenceId || !linkOccurrences) return;
-        const occ = linkOccurrences.find((item) => item.id === occurrenceId);
+        const occ = linkOccurrences.find((item) => String(item.id ?? "") === String(occurrenceId ?? ""));
         if (!occ) return;
         window.open(`/admin/editor/${occ.source_post_id}?highlightOccurrenceId=${occurrenceId}&openLinkDialog=1`, "_blank");
     };

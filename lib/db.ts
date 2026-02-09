@@ -1,6 +1,7 @@
 import { getPublicSupabase } from "@/lib/supabase/public";
 import type { Post, PostLink, PostWithSilo, Silo, SiloBatch, SiloBatchPost } from "@/lib/types";
 import type { SiloPost } from "@/lib/types/silo";
+import { isUuid } from "@/lib/uuid";
 
 function hasPublicEnv() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -228,6 +229,7 @@ export async function adminListPosts(args: { published?: boolean | null; status?
 }
 
 export async function adminListPostsBySiloId(siloId: string): Promise<Post[]> {
+  if (!isUuid(siloId)) return [];
   const supabase = await getAdminSupabaseClient();
   const { data, error } = await supabase
     .from("posts")
@@ -240,6 +242,7 @@ export async function adminListPostsBySiloId(siloId: string): Promise<Post[]> {
 }
 
 export async function adminGetPostById(id: string): Promise<PostWithSilo | null> {
+  if (!isUuid(id)) return null;
   const supabase = await getAdminSupabaseClient();
 
   const { data, error } = await supabase
@@ -567,6 +570,7 @@ export async function adminGetSiloBySlug(slug: string): Promise<Silo | null> {
 }
 
 export async function adminGetSiloById(id: string): Promise<Silo | null> {
+  if (!isUuid(id)) return null;
   const supabase = await getAdminSupabaseClient();
   const { data, error } = await supabase.from("silos").select("*").eq("id", id).maybeSingle();
   if (error) throw error;
@@ -715,6 +719,7 @@ export async function adminAddPostToBatch(args: { batch_id: string; post_id: str
 }
 
 export async function adminListBatchPosts(batchId: string): Promise<Array<SiloBatchPost & { post: PostWithSilo }>> {
+  if (!isUuid(batchId)) return [];
   const supabase = await getAdminSupabaseClient();
   const { data, error } = await supabase
     .from("silo_batch_posts")
@@ -781,6 +786,7 @@ export async function adminReplacePostLinks(postId: string, links: Array<Omit<Po
 }
 
 export async function adminListPostLinksBySilo(siloId: string) {
+  if (!isUuid(siloId)) return [];
   const supabase = await getAdminSupabaseClient();
   const { data: posts, error: postError } = await supabase.from("posts").select("id").eq("silo_id", siloId);
   if (postError) throw postError;
@@ -796,6 +802,7 @@ export async function adminListPostLinksBySilo(siloId: string) {
 }
 
 export async function adminGetPostLinks(postId: string): Promise<PostLink[]> {
+  if (!isUuid(postId)) return [];
   const supabase = await getAdminSupabaseClient();
   const { data, error } = await supabase.from("post_links").select("*").eq("source_post_id", postId);
   if (error) throw error;
@@ -805,6 +812,7 @@ export async function adminGetPostLinks(postId: string): Promise<PostLink[]> {
 // --- Silo Posts (Hierarchy Management) ---
 
 export async function adminGetSiloPostsBySiloId(siloId: string): Promise<SiloPost[]> {
+  if (!isUuid(siloId)) return [];
   const supabase = await getAdminSupabaseClient();
   const { data, error } = await supabase
     .from("silo_posts")
@@ -823,6 +831,7 @@ export async function adminGetSiloPostsBySiloId(siloId: string): Promise<SiloPos
 }
 
 export async function adminGetSiloPost(siloId: string, postId: string): Promise<SiloPost | null> {
+  if (!isUuid(siloId) || !isUuid(postId)) return null;
   const supabase = await getAdminSupabaseClient();
   const { data, error } = await supabase
     .from("silo_posts")

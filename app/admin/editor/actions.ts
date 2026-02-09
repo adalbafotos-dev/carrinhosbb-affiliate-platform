@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import * as cheerio from "cheerio";
 import { revalidatePath } from "next/cache";
 import {
   adminFindTargetKeywordConflict,
@@ -74,6 +75,267 @@ export async function saveEditorPost(payload: unknown) {
   await requireAdminSession();
   const data = SaveSchema.parse(payload);
 
+  const parseResponsiveAttr = (raw?: string | null) => {
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === "object") return parsed;
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
+    const parseJsonArrayAttr = (raw?: string | null) => {
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const parseNumberArrayAttr = (raw?: string | null) => {
+      const parsed = parseJsonArrayAttr(raw);
+      if (!parsed) return null;
+      const normalized = parsed
+        .map((item) => Number(item))
+        .filter((item) => Number.isFinite(item) && item > 0)
+        .map((item) => Math.round(item * 100) / 100);
+      return normalized.length ? normalized : null;
+    };
+
+    const parseLayoutAttr = (raw?: string | null) => {
+      if (!raw) return null;
+      try {
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : null;
+      } catch {
+        return null;
+      }
+    };
+
+  const parseNumberAttr = (raw?: string | null) => {
+    if (!raw) return null;
+    const parsed = Number.parseInt(raw, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const parseBooleanAttr = (raw?: string | null) => {
+    if (raw === "true") return true;
+    if (raw === "false") return false;
+    return null;
+  };
+
+  const hydrateContentJsonFromHtml = (doc: any, html: string) => {
+    if (!doc || typeof doc !== "object" || !html) return doc;
+    const $ = cheerio.load(html);
+    const imageQueue = $("img")
+      .map((_idx, el) => ({
+        src: $(el).attr("src") || null,
+        alt: $(el).attr("alt") || null,
+        title: $(el).attr("title") || null,
+        width: $(el).attr("width") || null,
+        height: $(el).attr("height") || null,
+        "data-align": $(el).attr("data-align") || null,
+        "data-tablet-align": $(el).attr("data-tablet-align") || null,
+        "data-mobile-align": $(el).attr("data-mobile-align") || null,
+        widthMode: $(el).attr("data-width-mode") || null,
+        maxWidth: parseNumberAttr($(el).attr("data-max-width")),
+        wrap: $(el).attr("data-wrap") || null,
+        spacingY: $(el).attr("data-spacing-y") || null,
+        visibleDesktop: parseBooleanAttr($(el).attr("data-visible-desktop")),
+        visibleTablet: parseBooleanAttr($(el).attr("data-visible-tablet")),
+        visibleMobile: parseBooleanAttr($(el).attr("data-visible-mobile")),
+        responsive: parseResponsiveAttr($(el).attr("data-responsive")),
+      }))
+      .get();
+    const ctaQueue = $("div[data-type='cta-button']")
+      .map((_idx, el) => ({
+        label: $(el).attr("data-label") || null,
+        href: $(el).attr("data-href") || null,
+        variant: $(el).attr("data-variant") || null,
+        size: $(el).attr("data-size") || null,
+        align: $(el).attr("data-align") || null,
+        bgColor: $(el).attr("data-bg-color") || null,
+        textColor: $(el).attr("data-text-color") || null,
+        mobileAlign: $(el).attr("data-mobile-align") || null,
+        mobileSize: $(el).attr("data-mobile-size") || null,
+        mobileBgColor: $(el).attr("data-mobile-bg-color") || null,
+        mobileTextColor: $(el).attr("data-mobile-text-color") || null,
+        tabletAlign: $(el).attr("data-tablet-align") || null,
+        tabletSize: $(el).attr("data-tablet-size") || null,
+        tabletBgColor: $(el).attr("data-tablet-bg-color") || null,
+        tabletTextColor: $(el).attr("data-tablet-text-color") || null,
+        fullWidth: parseBooleanAttr($(el).attr("data-full-width")),
+        spacingY: $(el).attr("data-spacing-y") || null,
+        visibleDesktop: parseBooleanAttr($(el).attr("data-visible-desktop")),
+        visibleTablet: parseBooleanAttr($(el).attr("data-visible-tablet")),
+        visibleMobile: parseBooleanAttr($(el).attr("data-visible-mobile")),
+        responsive: parseResponsiveAttr($(el).attr("data-responsive")),
+        rel: $(el).attr("data-rel") || null,
+        target: $(el).attr("data-target") || null,
+        tracking: $(el).attr("data-tracking") || null,
+        note: $(el).attr("data-note") || null,
+      }))
+      .get();
+    const tableQueue = $("table")
+      .map((_idx, el) => ({
+        renderMode: $(el).attr("data-render-mode") || null,
+        renderModeTablet: $(el).attr("data-render-mode-tablet") || null,
+        renderModeMobile: $(el).attr("data-render-mode-mobile") || null,
+        wrapCells: parseBooleanAttr($(el).attr("data-wrap-cells")),
+        wrapCellsTablet: parseBooleanAttr($(el).attr("data-wrap-cells-tablet")),
+        wrapCellsMobile: parseBooleanAttr($(el).attr("data-wrap-cells-mobile")),
+        hiddenColumns: $(el).attr("data-hidden-columns") || null,
+        hiddenColumnsTablet: $(el).attr("data-hidden-columns-tablet") || null,
+        hiddenColumnsMobile: $(el).attr("data-hidden-columns-mobile") || null,
+        columnWidths: parseNumberArrayAttr($(el).attr("data-column-widths")),
+        columnWidthsTablet: parseNumberArrayAttr($(el).attr("data-column-widths-tablet")),
+        columnWidthsMobile: parseNumberArrayAttr($(el).attr("data-column-widths-mobile")),
+        visibleDesktop: parseBooleanAttr($(el).attr("data-visible-desktop")),
+        visibleTablet: parseBooleanAttr($(el).attr("data-visible-tablet")),
+        visibleMobile: parseBooleanAttr($(el).attr("data-visible-mobile")),
+        layout: parseLayoutAttr($(el).attr("data-layout")),
+        responsive: parseResponsiveAttr($(el).attr("data-responsive")),
+      }))
+      .get();
+    const faqQueue = $("div[data-type='faq-block']")
+      .map((_idx, el) => ({
+        renderMode: $(el).attr("data-render-mode") || null,
+        visibleDesktop: parseBooleanAttr($(el).attr("data-visible-desktop")),
+        visibleTablet: parseBooleanAttr($(el).attr("data-visible-tablet")),
+        visibleMobile: parseBooleanAttr($(el).attr("data-visible-mobile")),
+        responsive: parseResponsiveAttr($(el).attr("data-responsive")),
+        items: parseJsonArrayAttr($(el).attr("data-items")),
+      }))
+      .get();
+    let imageIndex = 0;
+    let ctaIndex = 0;
+    let tableIndex = 0;
+    let faqIndex = 0;
+
+    const walk = (node: any) => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      if (node.type === "image") {
+        const attrs = node.attrs ?? {};
+        let nextImage = imageQueue[imageIndex];
+
+        if (attrs.src && nextImage?.src && attrs.src !== nextImage.src) {
+          const matchedIndex = imageQueue.findIndex((item, idx) => idx >= imageIndex && item.src === attrs.src);
+          if (matchedIndex >= 0) {
+            imageIndex = matchedIndex;
+            nextImage = imageQueue[imageIndex];
+          }
+        }
+
+        if (nextImage && (!attrs.src || !nextImage.src || attrs.src === nextImage.src)) {
+          imageIndex += 1;
+          node.attrs = {
+            ...attrs,
+            src: attrs.src ?? nextImage.src ?? null,
+            alt: attrs.alt ?? nextImage.alt ?? null,
+            title: attrs.title ?? nextImage.title ?? null,
+            width: attrs.width ?? nextImage.width ?? null,
+            height: attrs.height ?? nextImage.height ?? null,
+            "data-align": attrs["data-align"] ?? nextImage["data-align"] ?? null,
+            "data-tablet-align": attrs["data-tablet-align"] ?? nextImage["data-tablet-align"] ?? null,
+            "data-mobile-align": attrs["data-mobile-align"] ?? nextImage["data-mobile-align"] ?? null,
+            widthMode: attrs.widthMode ?? nextImage.widthMode ?? null,
+            maxWidth: attrs.maxWidth ?? nextImage.maxWidth ?? null,
+            wrap: attrs.wrap ?? nextImage.wrap ?? null,
+            spacingY: attrs.spacingY ?? nextImage.spacingY ?? null,
+            visibleDesktop: attrs.visibleDesktop ?? nextImage.visibleDesktop ?? true,
+            visibleTablet: attrs.visibleTablet ?? nextImage.visibleTablet ?? true,
+            visibleMobile: attrs.visibleMobile ?? nextImage.visibleMobile ?? true,
+            responsive: attrs.responsive ?? nextImage.responsive ?? null,
+          };
+        }
+      }
+      if (node.type === "cta_button") {
+        const attrs = node.attrs ?? {};
+        const nextCta = ctaQueue[ctaIndex];
+        if ((!attrs.href && !attrs.label) && nextCta) {
+          ctaIndex += 1;
+          node.attrs = { ...attrs, ...nextCta };
+        } else if (nextCta) {
+          // Preenche apenas campos que estiverem vazios
+          node.attrs = {
+            ...attrs,
+            bgColor: attrs.bgColor ?? nextCta.bgColor ?? null,
+            textColor: attrs.textColor ?? nextCta.textColor ?? null,
+            mobileAlign: attrs.mobileAlign ?? nextCta.mobileAlign ?? null,
+            mobileSize: attrs.mobileSize ?? nextCta.mobileSize ?? null,
+            mobileBgColor: attrs.mobileBgColor ?? nextCta.mobileBgColor ?? null,
+            mobileTextColor: attrs.mobileTextColor ?? nextCta.mobileTextColor ?? null,
+            tabletAlign: attrs.tabletAlign ?? nextCta.tabletAlign ?? null,
+            tabletSize: attrs.tabletSize ?? nextCta.tabletSize ?? null,
+            tabletBgColor: attrs.tabletBgColor ?? nextCta.tabletBgColor ?? null,
+            tabletTextColor: attrs.tabletTextColor ?? nextCta.tabletTextColor ?? null,
+            fullWidth: attrs.fullWidth ?? nextCta.fullWidth ?? false,
+            spacingY: attrs.spacingY ?? nextCta.spacingY ?? "md",
+            visibleDesktop: attrs.visibleDesktop ?? nextCta.visibleDesktop ?? true,
+            visibleTablet: attrs.visibleTablet ?? nextCta.visibleTablet ?? true,
+            visibleMobile: attrs.visibleMobile ?? nextCta.visibleMobile ?? true,
+            responsive: attrs.responsive ?? nextCta.responsive ?? null,
+          };
+        }
+      }
+      if (node.type === "table") {
+        const attrs = node.attrs ?? {};
+        const nextTable = tableQueue[tableIndex];
+        if (nextTable) {
+          tableIndex += 1;
+          node.attrs = {
+            ...attrs,
+            renderMode: attrs.renderMode ?? nextTable.renderMode ?? "table",
+            renderModeTablet: attrs.renderModeTablet ?? nextTable.renderModeTablet ?? null,
+            renderModeMobile: attrs.renderModeMobile ?? nextTable.renderModeMobile ?? null,
+            wrapCells: attrs.wrapCells ?? nextTable.wrapCells ?? true,
+            wrapCellsTablet: attrs.wrapCellsTablet ?? nextTable.wrapCellsTablet ?? null,
+            wrapCellsMobile: attrs.wrapCellsMobile ?? nextTable.wrapCellsMobile ?? null,
+            hiddenColumns: attrs.hiddenColumns ?? nextTable.hiddenColumns ?? "",
+            hiddenColumnsTablet: attrs.hiddenColumnsTablet ?? nextTable.hiddenColumnsTablet ?? null,
+            hiddenColumnsMobile: attrs.hiddenColumnsMobile ?? nextTable.hiddenColumnsMobile ?? null,
+            columnWidths: attrs.columnWidths ?? nextTable.columnWidths ?? [],
+            columnWidthsTablet: attrs.columnWidthsTablet ?? nextTable.columnWidthsTablet ?? null,
+            columnWidthsMobile: attrs.columnWidthsMobile ?? nextTable.columnWidthsMobile ?? null,
+            visibleDesktop: attrs.visibleDesktop ?? nextTable.visibleDesktop ?? true,
+            visibleTablet: attrs.visibleTablet ?? nextTable.visibleTablet ?? true,
+            visibleMobile: attrs.visibleMobile ?? nextTable.visibleMobile ?? true,
+            layout: attrs.layout ?? nextTable.layout ?? null,
+            responsive: attrs.responsive ?? nextTable.responsive ?? null,
+          };
+        }
+      }
+      if (node.type === "faq_block") {
+        const attrs = node.attrs ?? {};
+        const nextFaq = faqQueue[faqIndex];
+        if (nextFaq) {
+          faqIndex += 1;
+          node.attrs = {
+            ...attrs,
+            items: attrs.items ?? nextFaq.items ?? [],
+            renderMode: attrs.renderMode ?? nextFaq.renderMode ?? "expanded",
+            visibleDesktop: attrs.visibleDesktop ?? nextFaq.visibleDesktop ?? true,
+            visibleTablet: attrs.visibleTablet ?? nextFaq.visibleTablet ?? true,
+            visibleMobile: attrs.visibleMobile ?? nextFaq.visibleMobile ?? true,
+            responsive: attrs.responsive ?? nextFaq.responsive ?? null,
+          };
+        }
+      }
+      if (node.content) walk(node.content);
+    };
+
+    walk(doc);
+    return doc;
+  };
+
   const post = await adminGetPostById(data.id);
   if (!post) {
     throw new Error("Post nao encontrado");
@@ -103,6 +365,35 @@ export async function saveEditorPost(payload: unknown) {
         ? new Date(data.reviewed_at).toISOString()
         : null
       : undefined;
+
+  const hydratedContentJson = hydrateContentJsonFromHtml(data.content_json, data.content_html);
+
+  if (process.env.DEBUG_EDITOR_RESPONSIVE === "1") {
+    const counts = {
+      nodesWithResponsive: 0,
+      nodesWithTabletOverrides: 0,
+      nodesWithMobileOverrides: 0,
+    };
+    const walkResponsive = (node: any) => {
+      if (!node || typeof node !== "object") return;
+      if (Array.isArray(node)) {
+        node.forEach(walkResponsive);
+        return;
+      }
+      const responsive = node?.attrs?.responsive;
+      if (responsive && typeof responsive === "object") {
+        counts.nodesWithResponsive += 1;
+        if (responsive.tablet && Object.keys(responsive.tablet).length > 0) counts.nodesWithTabletOverrides += 1;
+        if (responsive.mobile && Object.keys(responsive.mobile).length > 0) counts.nodesWithMobileOverrides += 1;
+      }
+      if (node.content) walkResponsive(node.content);
+    };
+    walkResponsive(hydratedContentJson);
+    console.info("[editor-responsive] save payload summary", {
+      postId: data.id,
+      ...counts,
+    });
+  }
 
   await adminUpdatePost({
     id: data.id,
@@ -135,14 +426,14 @@ export async function saveEditorPost(payload: unknown) {
     disclaimer: data.disclaimer?.trim() || null,
     scheduled_at: scheduledAt,
     status: data.status ?? undefined,
-    content_json: data.content_json,
+    content_json: hydratedContentJson,
     content_html: data.content_html,
     amazon_products: data.amazon_products ?? null,
   });
 
   let links: ExtractedLink[] = [];
   try {
-    links = extractLinksFromJson(data.content_json, {
+    links = extractLinksFromJson(hydratedContentJson, {
       siloSlug: post?.silo?.slug ?? null,
     });
   } catch (error) {
@@ -176,7 +467,10 @@ export async function saveEditorPost(payload: unknown) {
   if (finalSiloId && data.content_html) {
     try {
       const { syncLinkOccurrences } = await import("@/lib/silo/siloService");
-      await syncLinkOccurrences(finalSiloId, data.id, data.content_html);
+      await syncLinkOccurrences(finalSiloId, data.id, data.content_html, {
+        siloSlug: post.silo?.slug ?? null,
+        siteUrl: process.env.SITE_URL ?? "http://localhost:3000",
+      });
     } catch (error) {
       console.error("Erro ao sincronizar ocorrencias de links (V2):", error);
     }
@@ -279,6 +573,70 @@ function walkNode(node: any, activeMarks: any[], links: ExtractedLink[], ctx: { 
         link_type: "mention",
         rel_flags: [],
         is_blank: false,
+      });
+    } catch {
+      return;
+    }
+    return;
+  }
+
+  if (node.type === "affiliateCta") {
+    try {
+      const href = node.attrs?.url ?? node.attrs?.href;
+      if (typeof href !== "string" || !href) return;
+      const label = node.attrs?.label ?? "CTA";
+      links.push({
+        target_post_id: null,
+        target_url: href,
+        anchor_text: String(label),
+        link_type: "affiliate",
+        rel_flags: ["sponsored"],
+        is_blank: true,
+      });
+    } catch {
+      return;
+    }
+    return;
+  }
+
+  if (node.type === "affiliateProductCard" || node.type === "affiliateProduct") {
+    try {
+      const href = node.attrs?.url ?? node.attrs?.href;
+      if (typeof href !== "string" || !href) return;
+      const label = node.attrs?.title ?? "Produto";
+      links.push({
+        target_post_id: null,
+        target_url: href,
+        anchor_text: String(label),
+        link_type: "affiliate",
+        rel_flags: ["sponsored"],
+        is_blank: true,
+      });
+    } catch {
+      return;
+    }
+    return;
+  }
+
+  if (node.type === "cta_button") {
+    try {
+      const href = node.attrs?.href ?? node.attrs?.url;
+      if (typeof href !== "string" || !href) return;
+      const label = node.attrs?.label ?? "CTA";
+      const variant = node.attrs?.variant ?? "";
+      const isAffiliate = String(variant).startsWith("amazon");
+      const relRaw = String(node.attrs?.rel ?? "");
+      const relFlags = relRaw
+        .split(/\s+/)
+        .map((r) => r.trim())
+        .filter(Boolean);
+      links.push({
+        target_post_id: null,
+        target_url: href,
+        anchor_text: String(label),
+        link_type: isAffiliate ? "affiliate" : href.startsWith("/") ? "internal" : "external",
+        rel_flags: relFlags.length ? relFlags : isAffiliate ? ["sponsored"] : [],
+        is_blank: node.attrs?.target === "_blank",
       });
     } catch {
       return;
@@ -494,3 +852,4 @@ export async function validatePostForPublish(
 
   return { errors, warnings };
 }
+

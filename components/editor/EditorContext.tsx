@@ -19,8 +19,8 @@ export type EditorContextValue = {
   createSilo: (name: string) => Promise<Silo | null>;
   slugStatus: "idle" | "checking" | "ok" | "taken";
   saving: boolean;
-  previewMode: "desktop" | "mobile";
-  setPreviewMode: (mode: "desktop" | "mobile") => void;
+  previewMode: "desktop" | "tablet" | "mobile";
+  setPreviewMode: (mode: "desktop" | "tablet" | "mobile") => void;
   lastSavedAt: Date | null;
   onSave: (status?: EditorMeta["status"]) => Promise<void>;
   onHeroUpload: (file: File) => void;
@@ -33,11 +33,49 @@ export type EditorContextValue = {
   onInsertSection: () => void;
   onInsertCallout: () => void;
   onInsertFaq: () => void;
+  onInsertIconBlock: () => void;
+  onInsertCarouselBlock: () => void;
   onInsertHowTo: () => void;
   onInsertCtaBest: () => void;
   onInsertCtaValue: () => void;
   onInsertCtaTable: () => void;
   onAlignImage: (align: "left" | "center" | "right") => void;
+  onUpdateImageResponsive: (patch: {
+    align?: "left" | "center" | "right";
+    widthMode?: "full" | "content" | "px";
+    maxWidth?: number | null;
+    wrap?: "none" | "wrap-left" | "wrap-right";
+    spacingY?: "none" | "sm" | "md" | "lg";
+  }) => void;
+  onUpdateImageVisibility: (patch: {
+    desktop?: boolean;
+    tablet?: boolean;
+    mobile?: boolean;
+  }) => void;
+  onResetImageResponsive: (fields?: Array<"align" | "widthMode" | "maxWidth" | "wrap" | "spacingY">) => void;
+  onClearImageResponsive: (fields?: Array<"align" | "widthMode" | "maxWidth" | "wrap" | "spacingY">) => void;
+  onSetTableRenderMode: (mode: "table" | "scroll" | "stack") => void;
+  onResetTableRenderMode: () => void;
+  onUpdateTableResponsive: (patch: {
+    renderMode?: "table" | "scroll" | "stack";
+    wrapCells?: boolean;
+    hiddenColumns?: string;
+    columnWidths?: string | number[];
+    stackKeyColumn?: number | null;
+  }) => void;
+  onUpdateTableVisibility: (patch: {
+    desktop?: boolean;
+    tablet?: boolean;
+    mobile?: boolean;
+  }) => void;
+  onResetTableResponsive: (
+    fields?: Array<"renderMode" | "wrapCells" | "hiddenColumns" | "columnWidths" | "stackKeyColumn">
+  ) => void;
+  onClearTableResponsive: (
+    fields?: Array<"renderMode" | "wrapCells" | "hiddenColumns" | "columnWidths" | "stackKeyColumn">
+  ) => void;
+  onMoveBlockUp: () => void;
+  onMoveBlockDown: () => void;
   onSelectLink: (link: LinkItem) => void;
   onInsertImage: (asset: ImageAsset) => void;
   onUpdateImageAlt: (url: string, alt: string) => void;

@@ -250,7 +250,7 @@ export function LinkHygienePanel() {
             // Só atualiza se realmente mudou o link (ou se ficou null)
             // Para evitar re-renders desnecessários, mas garantindo que pegue mudanças de POSIÇÃO
             // Comparar IDs é bom.
-            setCurrentSelectedLink(prev => {
+            setCurrentSelectedLink((prev: any) => {
                 if (prev?.id === link?.id) return prev; // Mantém o objeto anterior se for o mesmo link (evita flicker?)
                 // Mas espere! Se os atributos mudaram, o ID (que contem o href) pode ter mudado, ou não.
                 // Se o ID for baseado em posição+href, e só o target mudou, o ID é o mesmo.

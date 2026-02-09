@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin/auth";
 import { getAdminSupabase } from "@/lib/supabase/admin";
+import { isUuid } from "@/lib/uuid";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const postId = searchParams.get("postId");
 
-  if (!postId) {
+  if (!postId || !isUuid(postId)) {
     return NextResponse.json({ items: [] }, { status: 400 });
   }
 

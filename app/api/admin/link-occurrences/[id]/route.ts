@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireAdminSession } from "@/lib/admin/auth";
 import { getAdminSupabase } from "@/lib/supabase/admin";
+import { isUuid } from "@/lib/uuid";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,9 @@ type Params = {
 export async function GET(_req: Request, { params }: Params) {
   await requireAdminSession();
   const { id } = await params;
+  if (!isUuid(id)) {
+    return NextResponse.json({ error: "Invalid occurrence id" }, { status: 400 });
+  }
 
   const supabase = getAdminSupabase();
   const { data, error } = await supabase

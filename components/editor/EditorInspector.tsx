@@ -42,8 +42,8 @@ export function EditorInspector() {
     const diff = Date.now() - lastSavedAt.getTime();
     const minutes = Math.floor(diff / 60000);
     if (minutes <= 0) return "Salvo agora";
-    if (minutes === 1) return "Salvo hÃ¡ 1 min";
-    return `Salvo hÃ¡ ${minutes} min`;
+    if (minutes === 1) return "Salvo há 1 min";
+    return `Salvo há ${minutes} min`;
   }, [lastSavedAt]);
 
   const handleCreateSilo = async () => {
@@ -77,6 +77,7 @@ export function EditorInspector() {
       ? [{ url: meta.heroImageUrl, alt: meta.heroImageAlt }]
       : [];
   const displayImages = [...images, ...fallbackHero];
+
 
   return (
     <aside className="flex h-full w-[400px] flex-col border-l border-(--border) bg-(--surface)">
@@ -216,7 +217,7 @@ export function EditorInspector() {
             <Field
               label="Slug"
               helper={
-                slugStatus === "checking" ? "Checando..." : slugStatus === "taken" ? "Em uso" : slugStatus === "ok" ? "DisponÃ­vel" : ""
+                slugStatus === "checking" ? "Checando..." : slugStatus === "taken" ? "Em uso" : slugStatus === "ok" ? "Disponível" : ""
               }
             >
               <input
@@ -279,7 +280,7 @@ export function EditorInspector() {
                 <Globe2 size={12} /> Preview
               </p>
               <p className="mt-2 text-[11px] text-emerald-600">/{meta.slug || "slug"}</p>
-              <p className="truncate text-sm font-semibold text-emerald-700">{meta.metaTitle || meta.title || "TÃ­tulo"}</p>
+              <p className="truncate text-sm font-semibold text-emerald-700">{meta.metaTitle || meta.title || "Título"}</p>
               <p className="text-[12px] text-(--muted) line-clamp-2">{meta.metaDescription || "Resumo do post"}</p>
             </div>
           </div>
@@ -320,7 +321,7 @@ export function EditorInspector() {
                   className="w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm outline-none"
                 />
               </Field>
-              <Field label="Data da revisÃ£o">
+              <Field label="Data da revisão">
                 <input
                   type="datetime-local"
                   value={meta.reviewedAt}
@@ -345,7 +346,7 @@ export function EditorInspector() {
               </p>
               <Check label="Autor preenchido" ok={Boolean(meta.authorName)} />
               <Check label="Links sameAs" ok={meta.authorLinks.length > 0} />
-              <Check label="RevisÃ£o preenchida" ok={Boolean(meta.reviewedAt)} />
+              <Check label="Revisão preenchida" ok={Boolean(meta.reviewedAt)} />
               <Check label="Disclaimer" ok={Boolean(meta.disclaimer)} />
             </div>
           </div>
@@ -360,7 +361,7 @@ export function EditorInspector() {
                 className="w-full rounded-md border border-(--border) bg-(--surface) px-3 py-2 text-sm outline-none"
               >
                 <option value="draft">Rascunho</option>
-                <option value="review">RevisÃ£o</option>
+                <option value="review">Revisão</option>
                 <option value="published">Publicado</option>
               </select>
             </Field>
@@ -528,5 +529,3 @@ function Check({ label, ok }: { label: string; ok: boolean }) {
     </div>
   );
 }
-
-

@@ -110,7 +110,7 @@ export const EntityLink = Link.extend({
 
 
   // Validate robustly: External, Internal, Mailto, Tel
-  validate: (href) => /^(\/|https?:\/\/|mailto:|tel:)/.test(href),
+  validate: (href: string) => /^(\/|https?:\/\/|mailto:|tel:)/.test(href),
 
   // Ensure it renders as an <a> tag
   renderHTML({ HTMLAttributes }) {

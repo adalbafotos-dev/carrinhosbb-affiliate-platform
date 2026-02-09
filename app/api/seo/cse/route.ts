@@ -20,7 +20,8 @@ const RATE_LIMIT = {
 
 function getClientKey(request: NextRequest) {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
-  const ip = forwarded || request.ip || "unknown";
+  const realIp = request.headers.get("x-real-ip")?.trim();
+  const ip = forwarded || realIp || "unknown";
   return `cse:${ip}`;
 }
 

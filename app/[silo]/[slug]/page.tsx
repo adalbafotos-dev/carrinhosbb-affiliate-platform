@@ -5,6 +5,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { PostToc } from "@/components/site/PostToc";
 import type { PostWithSilo } from "@/lib/types";
 import { isAdminSession } from "@/lib/admin/auth";
+import { renderEditorDocToHtml } from "@/lib/editor/docRenderer";
 
 export const revalidate = 0;
 export const dynamic = "force-dynamic";
@@ -323,11 +324,19 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
   const reviewLd = post.schema_type === "review" ? buildReviewJsonLd(post, canonical) : null;
   const faqItems = Array.isArray(post.faq_json) ? post.faq_json : [];
   const howToItems = Array.isArray(post.howto_json) ? post.howto_json : [];
-  const detectedFaq = faqItems.length ? faqItems : extractFaqFromHtml(post.content_html ?? "");
+  const contentHtmlFromJson = post.content_json ? renderEditorDocToHtml(post.content_json) : "";
+  const storedHtml = post.content_html || "";
+  const jsonHasImg = /<img\b/i.test(contentHtmlFromJson);
+  const storedHasImg = /<img\b/i.test(storedHtml);
+  const jsonHasCtaColor = /data-bg-color="[^"]+"/i.test(contentHtmlFromJson);
+  const storedHasCtaColor = /data-bg-color="[^"]+"/i.test(storedHtml);
+  const shouldFallbackToStored = (!jsonHasImg && storedHasImg) || (!jsonHasCtaColor && storedHasCtaColor);
+  const contentHtml = shouldFallbackToStored ? storedHtml : contentHtmlFromJson || storedHtml;
+  const detectedFaq = faqItems.length ? faqItems : extractFaqFromHtml(contentHtml);
   const faqLd = detectedFaq.length ? buildFaqJsonLd(detectedFaq, canonical, post) : null;
   const howToLd = post.schema_type === "howto" ? buildHowToJsonLd(howToItems, post, canonical) : null;
-  const itemListLd = shouldRenderTopList(post) ? buildItemListJsonLd(post, canonical) : null;
-  const videoLd = buildVideoObjectJsonLd(post, canonical);
+  const itemListLd = shouldRenderTopList(post) ? buildItemListJsonLd({ ...post, content_html: contentHtml }, canonical) : null;
+  const videoLd = buildVideoObjectJsonLd({ ...post, content_html: contentHtml }, canonical);
   const breadcrumbLd = buildBreadcrumbJsonLd(post, siteUrl, silo, canonical);
 
   const schemaBlocks = [
@@ -406,11 +415,11 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
             ) : null}
 
             <div className="content">
-              {post.content_html ? (
-                <div dangerouslySetInnerHTML={{ __html: post.content_html }} />
+              {contentHtml ? (
+                <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
               ) : (
                 <p className="text-sm text-(--muted)">
-                  Este artigo ainda nao tem conteudo. Abra no <a href={`/admin/editor/${post.id}`} className="underline">editor</a>.
+                  Este artigo ainda não tem conteúdo. Abra no <a href={`/admin/editor/${post.id}`} className="underline">editor</a>.
                 </p>
               )}
             </div>

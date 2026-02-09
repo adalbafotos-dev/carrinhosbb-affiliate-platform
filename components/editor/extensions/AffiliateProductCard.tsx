@@ -1,14 +1,72 @@
 import { Node, mergeAttributes, nodePasteRule } from '@tiptap/core'
 import { ReactNodeViewRenderer, NodeViewWrapper } from '@tiptap/react'
-import { ShoppingCart, Star, Edit2 } from 'lucide-react'
+import { ShoppingCart, Star, Edit2, GripVertical } from 'lucide-react'
+import { useEditorContext } from '@/components/editor/EditorContext'
+import { resolveDeviceVisibility, setDeviceVisibility, visibilityDataAttrs } from '@/lib/editor/responsive'
 
 // Componente Visual (React)
-const ProductComponent = ({ node, updateAttributes }: any) => {
+const ProductComponent = ({ node, updateAttributes, selected }: any) => {
+  const { previewMode } = useEditorContext()
   const { title, image, price, rating, url, features } = node.attrs
+  const visibility = resolveDeviceVisibility(node.attrs)
+  const visibleInCurrentMode = visibility[previewMode]
+
+  const updateVisibility = (mode: 'desktop' | 'tablet' | 'mobile', isVisible: boolean) => {
+    updateAttributes(setDeviceVisibility(node.attrs, { [mode]: isVisible }))
+  }
 
   return (
-    <NodeViewWrapper className="my-8 not-prose">
+    <NodeViewWrapper
+      className="my-8 not-prose"
+      draggable="true"
+      data-visible-desktop={visibility.desktop ? 'true' : 'false'}
+      data-visible-tablet={visibility.tablet ? 'true' : 'false'}
+      data-visible-mobile={visibility.mobile ? 'true' : 'false'}
+    >
       <div className="flex flex-col md:flex-row bg-white border border-zinc-200 rounded-xl shadow-sm overflow-hidden hover:shadow-md transition-shadow relative group">
+        {selected ? (
+          <span
+            contentEditable={false}
+            draggable="true"
+            data-drag-handle
+            className="absolute top-2 left-2 inline-flex cursor-grab items-center gap-1 rounded-full border border-zinc-200 bg-white px-2 py-0.5 text-[10px] uppercase tracking-wide text-zinc-500 z-10"
+          >
+            <GripVertical size={11} />
+            mover bloco
+          </span>
+        ) : null}
+        {!visibleInCurrentMode ? (
+          <div className="absolute left-12 top-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 z-10">
+            Oculto em {previewMode}
+          </div>
+        ) : null}
+        <div className="absolute left-2 bottom-2 z-10 flex items-center gap-2 rounded-md border border-zinc-200 bg-white/90 px-2 py-1 text-[10px] text-zinc-600">
+          <span className="font-semibold uppercase tracking-wide">Visivel</span>
+          <label className="inline-flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={visibility.desktop}
+              onChange={(event) => updateVisibility('desktop', event.target.checked)}
+            />
+            D
+          </label>
+          <label className="inline-flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={visibility.tablet}
+              onChange={(event) => updateVisibility('tablet', event.target.checked)}
+            />
+            T
+          </label>
+          <label className="inline-flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={visibility.mobile}
+              onChange={(event) => updateVisibility('mobile', event.target.checked)}
+            />
+            M
+          </label>
+        </div>
 
         {/* Botão de Editar (Só aparece no hover) */}
         <button
@@ -82,6 +140,7 @@ export default Node.create({
   name: 'affiliateProductCard',
   group: 'block',
   atom: true, // Importante: Trata o bloco como uma unidade única
+  draggable: true,
 
   addAttributes() {
     return {
@@ -104,6 +163,18 @@ export default Node.create({
       url: {
         default: '',
         parseHTML: element => element.getAttribute('data-url'),
+      },
+      visibleDesktop: {
+        default: true,
+        parseHTML: element => element.getAttribute('data-visible-desktop') !== 'false',
+      },
+      visibleTablet: {
+        default: true,
+        parseHTML: element => element.getAttribute('data-visible-tablet') !== 'false',
+      },
+      visibleMobile: {
+        default: true,
+        parseHTML: element => element.getAttribute('data-visible-mobile') !== 'false',
       },
     }
   },
@@ -132,6 +203,7 @@ export default Node.create({
         'data-price': price,
         'data-rating': rating,
         'data-url': url,
+        ...visibilityDataAttrs(HTMLAttributes as any),
         'class': 'my-8',
         'style': 'margin: 2rem 0;'
       },
