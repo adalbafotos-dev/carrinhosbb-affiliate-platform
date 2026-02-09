@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Fraunces, Manrope } from "next/font/google";
 import "./globals.css";
 import { SiteChrome } from "@/components/site/SiteChrome";
-import { getPublicSilos } from "@/lib/db";
 
 const display = Fraunces({
   subsets: ["latin"],
@@ -16,18 +15,32 @@ const body = Manrope({
   weight: ["400", "500", "600", "700"],
 });
 
+const defaultSiteUrl = process.env.SITE_URL ?? "https://lindisse.com.br";
+
 export const metadata: Metadata = {
-  title: "Estética da Verdade",
-  description: "CMS neutro para silos, pilares e posts otimizados.",
-  metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:3000"),
+  title: {
+    default: "Lindisse | Guia definitivo para nail designers",
+    template: "%s | Lindisse",
+  },
+  description:
+    "Guias, reviews e comparativos para nail designers comprarem melhor, com metodologia transparente e foco em E-E-A-T.",
+  metadataBase: new URL(defaultSiteUrl),
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "Lindisse",
+    title: "Lindisse | Guia definitivo para nail designers",
+    description:
+      "Analises tecnicas, testes reais e recomendacoes para manicure, gel e equipamentos.",
+    url: defaultSiteUrl,
+  },
 };
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const silos = await getPublicSilos();
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
       <body className={`${body.variable} ${display.variable} min-h-screen`}>
-        <SiteChrome silos={silos}>{children}</SiteChrome>
+        <SiteChrome>{children}</SiteChrome>
       </body>
     </html>
   );

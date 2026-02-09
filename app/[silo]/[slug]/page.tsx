@@ -52,7 +52,7 @@ function buildAuthor(post: PostWithSilo) {
     if (post.expert_credentials) author.honorificSuffix = post.expert_credentials;
     return author;
   }
-  return { "@type": "Organization", name: "Estetica da Verdade" };
+  return { "@type": "Organization", name: "Lindisse" };
 }
 
 function buildReviewedBy(post: PostWithSilo) {
@@ -77,7 +77,7 @@ function buildArticleJsonLd(post: PostWithSilo, canonical: string) {
     reviewedBy: buildReviewedBy(post),
     publisher: {
       "@type": "Organization",
-      name: "Estetica da Verdade",
+      name: "Lindisse",
     },
   };
 }

@@ -12,6 +12,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const base: MetadataRoute.Sitemap = [
     { url: `${siteUrl}/`, lastModified: now },
+    { url: `${siteUrl}/contato`, lastModified: now },
     { url: `${siteUrl}/sobre`, lastModified: now },
     { url: `${siteUrl}/politica-de-afiliados`, lastModified: now },
   ];
