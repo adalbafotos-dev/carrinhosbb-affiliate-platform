@@ -4,6 +4,8 @@ import { useEditorContext } from "@/components/editor/EditorContext";
 import { GuardianPanel } from "@/components/editor/GuardianPanel";
 import { TermsPanel } from "@/components/editor/TermsPanel";
 import { LinkHygienePanel } from "@/components/editor/LinkHygienePanel";
+import { InternalLinksPanel } from "@/components/editor/InternalLinksPanel";
+import { PlagiarismInspectorPanel } from "@/components/editor/PlagiarismInspectorPanel";
 import { FileText } from "lucide-react";
 import { SerpAnalysisPanel } from "@/components/serp/SerpAnalysisPanel";
 
@@ -47,11 +49,15 @@ export function ContentIntelligence() {
 
         <TermsPanel />
 
+        <InternalLinksPanel />
+
         <SerpAnalysisPanel
           defaultQuery={meta.targetKeyword || meta.title}
           intentSource={meta.title || meta.targetKeyword}
           title="Analise SERP (Post)"
         />
+
+        <PlagiarismInspectorPanel />
 
         <LinkHygienePanel />
       </div>
