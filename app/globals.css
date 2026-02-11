@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Eagle Lake";
+  src: url("/EagleLake-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Grey Qo";
+  src: url("/GreyQo-Regular.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 :root {
   color-scheme: light;
   --brand-primary: #F1BC99;
@@ -31,9 +47,53 @@ body {
   color: var(--text);
 }
 
-h1, h2, h3, h4, h5, h6, .display {
-  font-family: var(--font-display), "Georgia", serif;
+h1, h3, .display {
+  font-family: "Eagle Lake", var(--font-body), "Segoe UI", sans-serif;
   letter-spacing: -0.01em;
+}
+
+h2, h4 {
+  font-family: var(--font-body), "Segoe UI", sans-serif;
+  letter-spacing: -0.01em;
+}
+
+h5, h6 {
+  font-family: var(--font-body), "Segoe UI", sans-serif;
+}
+
+.session-indicator {
+  font-family: "Grey Qo", var(--font-body), "Segoe UI", sans-serif;
+  font-size: clamp(1.45rem, 1.1rem + 1.4vw, 2.15rem);
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  font-weight: 400;
+  text-transform: none;
+}
+
+.toc-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(43, 44, 48, 0.22) transparent;
+}
+
+.toc-scroll::-webkit-scrollbar {
+  width: 2px;
+}
+
+.toc-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.toc-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(43, 44, 48, 0.14);
+}
+
+.toc-scroll:hover::-webkit-scrollbar {
+  width: 6px;
+}
+
+.toc-scroll:hover::-webkit-scrollbar-thumb {
+  background: rgba(43, 44, 48, 0.34);
 }
 
 a {
@@ -1141,10 +1201,38 @@ a {
 .stagger-grid > *:nth-child(7) { animation-delay: 440ms; }
 .stagger-grid > *:nth-child(8) { animation-delay: 500ms; }
 
+.home-hero-shell {
+  --home-header-height: 176px;
+  position: relative;
+  isolation: isolate;
+  overflow-x: clip;
+}
+
+.home-hero-shell::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  left: 50%;
+  width: 100vw;
+  height: 100dvh;
+  top: 0;
+  transform: translateX(-50%);
+  background-image: url("/background-hero-lindisse.webp");
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+}
+
+@media (min-width: 768px) {
+  .home-hero-shell {
+    --home-header-height: 136px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .page-in,
   .stagger-grid > * {
     animation: none;
   }
 }
-

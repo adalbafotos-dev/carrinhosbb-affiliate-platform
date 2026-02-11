@@ -7,7 +7,7 @@ export default function ContatoPage() {
         <p className="text-xs uppercase tracking-wide text-(--muted-2)">Lindisse</p>
         <h1 className="mt-2 text-3xl font-semibold">Contato</h1>
         <p className="mt-3 max-w-2xl text-sm text-(--muted)">
-          Fale com a equipe para parcerias, duvidas sobre reviews ou sugestoes de novos conteudos.
+          Fale com a equipe para parcerias, dúvidas sobre reviews ou sugestões de novos conteúdos.
         </p>
       </header>
 
@@ -18,7 +18,7 @@ export default function ContatoPage() {
             contato@lindisse.com.br
           </a>
         </p>
-        <p className="mt-3">Horario de resposta: segunda a sexta, das 9h as 18h (BRT).</p>
+        <p className="mt-3">Horário de resposta: segunda a sexta, das 9h às 18h (BRT).</p>
       </section>
     </div>
   );

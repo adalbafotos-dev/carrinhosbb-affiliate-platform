@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { List, X, ChevronRight } from "lucide-react";
 
@@ -42,6 +42,8 @@ export function PostToc({ contentSelector = ".content", title = "Índice" }: Pos
   const [activeId, setActiveId] = useState<string>("");
   const [isOpen, setIsOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isFooterVisible, setIsFooterVisible] = useState(false);
+  const desktopListRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -82,8 +84,72 @@ export function PostToc({ contentSelector = ".content", title = "Índice" }: Pos
     return () => observer.disconnect();
   }, [contentSelector]);
 
+  useEffect(() => {
+    if (!mounted) return;
+    const footer = document.querySelector("footer");
+    if (!footer) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsFooterVisible(entry.isIntersecting);
+      },
+      {
+        root: null,
+        threshold: 0,
+        rootMargin: "0px 0px 80px 0px",
+      }
+    );
+
+    observer.observe(footer);
+    return () => observer.disconnect();
+  }, [mounted]);
+
+  useEffect(() => {
+    if (isFooterVisible && isOpen) {
+      setIsOpen(false);
+    }
+  }, [isFooterVisible, isOpen]);
+
   const hasItems = items.length > 0;
   const desktopItems = useMemo(() => items, [items]);
+
+  useEffect(() => {
+    const content = document.querySelector(contentSelector) as HTMLElement | null;
+    if (!content) return;
+
+    let rafId = 0;
+
+    const syncScroll = () => {
+      rafId = 0;
+      const list = desktopListRef.current;
+      if (!list) return;
+
+      const listMax = list.scrollHeight - list.clientHeight;
+      if (listMax <= 0) return;
+
+      const contentTop = content.getBoundingClientRect().top + window.scrollY;
+      const start = Math.max(0, contentTop - 24);
+      const end = Math.max(start + 1, contentTop + content.scrollHeight - window.innerHeight);
+      const progress = Math.min(1, Math.max(0, (window.scrollY - start) / (end - start)));
+
+      list.scrollTop = listMax * progress;
+    };
+
+    const onScrollOrResize = () => {
+      if (rafId) return;
+      rafId = window.requestAnimationFrame(syncScroll);
+    };
+
+    syncScroll();
+    window.addEventListener("scroll", onScrollOrResize, { passive: true });
+    window.addEventListener("resize", onScrollOrResize);
+
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+      window.removeEventListener("scroll", onScrollOrResize);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [contentSelector, items.length]);
 
   if (!hasItems) return null;
 
@@ -95,17 +161,17 @@ export function PostToc({ contentSelector = ".content", title = "Índice" }: Pos
           {/* Trigger Button - Always visible fixed tab */}
           <button
             onClick={() => setIsOpen(true)}
-            className={`fixed left-0 top-1/2 z-[100] flex -translate-y-1/2 flex-col items-center gap-2 rounded-r-xl border border-l-0 border-(--border) bg-white/95 py-5 pl-1.5 pr-2 shadow-[2px_0_8px_rgba(0,0,0,0.08)] backdrop-blur-sm transition-transform duration-300 ${isOpen ? "-translate-x-full" : "translate-x-0"}`}
+            className={`fixed left-0 top-1/2 z-[100] flex -translate-y-1/2 flex-col items-center gap-1.5 rounded-r-lg border border-l-0 border-(--border) bg-white/95 py-3.5 pl-1 pr-1.5 shadow-[2px_0_8px_rgba(0,0,0,0.08)] backdrop-blur-sm transition-all duration-300 ${isFooterVisible ? "pointer-events-none -translate-x-full opacity-0" : isOpen ? "-translate-x-full opacity-100" : "translate-x-0 opacity-100"}`}
             aria-label="Abrir Índice"
           >
-            <ChevronRight size={20} className="text-(--brand-accent)" />
-            <span className="text-[10px] font-extrabold uppercase tracking-widest text-(--muted-2)" style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>
+            <ChevronRight size={16} className="text-(--brand-accent)" />
+            <span className="text-[9px] font-extrabold uppercase tracking-[0.22em] text-(--muted-2)" style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>
               Índice
             </span>
           </button>
 
           {/* Backdrop */}
-          {isOpen && (
+          {isOpen && !isFooterVisible && (
             <div
               className="fixed inset-0 z-[100] bg-black/20 backdrop-blur-[2px] transition-opacity"
               onClick={() => setIsOpen(false)}
@@ -114,7 +180,7 @@ export function PostToc({ contentSelector = ".content", title = "Índice" }: Pos
 
           {/* Drawer Panel - Compact & Vertically Centered */}
           <aside
-            className={`fixed left-0 top-1/2 z-[101] flex max-h-[85vh] w-[300px] -translate-y-1/2 flex-col rounded-r-2xl border-y border-r border-(--border) bg-white shadow-2xl transition-transform duration-300 ${isOpen ? "translate-x-0" : "-translate-x-full"}`}
+            className={`fixed left-0 top-1/2 z-[101] flex max-h-[85vh] w-[286px] -translate-y-1/2 flex-col rounded-r-2xl border-y border-r border-(--border) bg-white shadow-2xl transition-transform duration-300 ${isOpen && !isFooterVisible ? "translate-x-0" : "-translate-x-full"}`}
           >
             <div className="flex shrink-0 items-center justify-between border-b border-(--border) px-5 py-4">
               <div className="flex items-center gap-2">
@@ -153,28 +219,34 @@ export function PostToc({ contentSelector = ".content", title = "Índice" }: Pos
       )}
 
       {/* Desktop: Sticky Sidebar */}
-      <aside className="sticky top-24 hidden h-fit md:block w-full max-w-[260px]">
-        <div className="rounded-2xl border border-(--border) bg-transparent p-5">
-          <div className="mb-4 flex items-center gap-2 pb-3 border-b border-(--border)">
+      <aside className="sticky top-3 hidden h-fit w-full max-w-[232px] self-start md:block">
+        <div className="max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-2xl border border-(--border) bg-transparent px-4 py-4">
+          <div className="mb-3 flex items-center gap-2 border-b border-(--border) pb-2.5">
             <List size={16} className="text-(--brand-accent)" />
             <span className="text-xs font-bold uppercase tracking-wide text-(--muted-2)">{title}</span>
           </div>
-          <ul className="space-y-3 text-[13px] leading-snug text-(--muted)">
-            {desktopItems.map((item) => (
-              <li key={item.id} className={`transition-colors duration-200 ${item.level === 3 ? "pl-3 border-l-2 border-(--border-strong)" : ""}`}>
-                <a
-                  href={`#${item.id}`}
-                  className={`block py-0.5 ${activeId === item.id
-                    ? "font-semibold text-(--brand-hot) pl-1 -ml-1 border-l-2 border-(--brand-hot)"
-                    : "hover:text-(--brand-hot) hover:translate-x-1 transition-transform"}`}
-                >
-                  {item.text}
-                </a>
-              </li>
-            ))}
-          </ul>
+          <nav
+            ref={desktopListRef}
+            className="toc-scroll max-h-[calc(100dvh-8rem)] overflow-y-auto pr-0"
+          >
+            <ul className="space-y-3 text-[13px] leading-snug text-(--muted)">
+              {desktopItems.map((item) => (
+                <li key={item.id} className={`transition-colors duration-200 ${item.level === 3 ? "pl-2 border-l-2 border-(--border-strong)" : ""}`}>
+                  <a
+                    href={`#${item.id}`}
+                    className={`block break-words py-0.5 ${activeId === item.id
+                      ? "font-semibold text-(--brand-hot) pl-0.5 -ml-0.5 border-l-2 border-(--brand-hot)"
+                      : "hover:text-(--brand-hot) hover:translate-x-1 transition-transform"}`}
+                  >
+                    {item.text}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
         </div>
       </aside>
     </>
   );
 }
+

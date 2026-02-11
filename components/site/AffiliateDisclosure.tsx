@@ -9,4 +9,3 @@ export function AffiliateDisclosure() {
     </div>
   );
 }
-

@@ -146,7 +146,7 @@ export function LinkDialog({ editor, open, onClose }: Props) {
       setOpenInNewTab(false);
     }
     if (next === "about") {
-      setUrl("/sobre");
+      setUrl("/#sobre-lindisse");
       setAboutEntity(true);
       setMentionEntity(false);
     }

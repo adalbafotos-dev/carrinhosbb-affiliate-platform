@@ -89,7 +89,7 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
 
   const staticPages = useMemo(
     () => [
-      { title: "Sobre", href: "/sobre" },
+      { title: "Sobre", href: "/#sobre-lindisse" },
       { title: "Contato", href: "/contato" },
     ],
     []
@@ -219,7 +219,7 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
       setInternalScope("silo");
     }
     if (next === "about") {
-      setUrl("/sobre");
+      setUrl("/#sobre-lindisse");
       setAboutEntity(true);
       setMentionEntity(false);
     }

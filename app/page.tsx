@@ -1,19 +1,11 @@
 import Link from "next/link";
-import { getPublicSilos, listLatestPublicPosts } from "@/lib/db";
+import Image from "next/image";
+import { listLatestPublicPosts } from "@/lib/db";
 import { JsonLd } from "@/components/seo/JsonLd";
-import type { PostWithSilo, Silo } from "@/lib/types";
+import { SiloNarrativeCarousel } from "@/components/site/SiloNarrativeCarousel";
+import type { PostWithSilo } from "@/lib/types";
 
 export const revalidate = 3600;
-
-function sortSilos(silos: Silo[]) {
-  return [...silos]
-    .filter((silo) => silo.is_active ?? true)
-    .sort((a, b) => {
-      const byOrder = (a.menu_order ?? 999) - (b.menu_order ?? 999);
-      if (byOrder !== 0) return byOrder;
-      return a.name.localeCompare(b.name, "pt-BR");
-    });
-}
 
 function normalize(text: string | null | undefined) {
   return (text ?? "").toLocaleLowerCase("pt-BR");
@@ -51,17 +43,6 @@ function buildMoneyPicks(posts: PostWithSilo[]) {
   return Array.from(unique.values()).slice(0, 4);
 }
 
-function siloGradient(index: number) {
-  const gradients = [
-    "linear-gradient(145deg, rgba(241,188,153,0.45), rgba(255,255,255,0.96))",
-    "linear-gradient(145deg, rgba(229,209,195,0.72), rgba(255,255,255,0.96))",
-    "linear-gradient(145deg, rgba(243,97,65,0.16), rgba(255,255,255,0.96))",
-    "linear-gradient(145deg, rgba(166,119,100,0.18), rgba(255,255,255,0.96))",
-  ];
-
-  return gradients[index % gradients.length];
-}
-
 export default async function HomePage({
   searchParams,
 }: {
@@ -70,14 +51,10 @@ export default async function HomePage({
   const { q } = await searchParams;
   const query = (q ?? "").trim();
 
-  const [rawSilos, rawPosts] = await Promise.all([getPublicSilos(), listLatestPublicPosts(48)]);
-
-  const silos = sortSilos(rawSilos);
+  const rawPosts = await listLatestPublicPosts(48);
   const searchResults = query ? rawPosts.filter((post) => matchesQuery(post, query)).slice(0, 10) : [];
   const moneyPicks = buildMoneyPicks(rawPosts);
-  const latestGuides = rawPosts
-    .filter((post) => !moneyPicks.some((item) => item.id === post.id))
-    .slice(0, 6);
+  const recentPosts = rawPosts.slice(0, 8);
 
   const siteUrl = (process.env.SITE_URL ?? "https://lindisse.com.br").replace(/\/$/, "");
   const organizationLd = {
@@ -102,58 +79,37 @@ export default async function HomePage({
 
   return (
     <div className="space-y-12 page-in">
-      <section className="relative overflow-hidden rounded-[2rem] border border-(--border) bg-[linear-gradient(130deg,rgba(241,188,153,0.7),#FFF_52%,#F4ECE7)] p-7 md:p-10">
-        <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/2 bg-[radial-gradient(circle_at_20%_20%,rgba(243,97,65,0.16),transparent_50%)] md:block" />
-        <p className="text-xs uppercase tracking-[0.16em] text-(--muted-2)">lindisse.com.br</p>
-        <h1 className="mt-3 max-w-3xl text-3xl font-semibold leading-tight md:text-5xl">
-          O guia definitivo para nail designers comprarem melhor e evoluirem mais rapido.
-        </h1>
-        <p className="mt-4 max-w-2xl text-sm text-(--muted) md:text-base">
-          Reviews tecnicos, testes reais e comparativos claros para voce escolher com mais seguranca e menos tentativa e erro.
-        </p>
+      <section className="relative flex min-h-[calc(100dvh-var(--home-header-height,136px))] items-center pt-6 pb-8 md:pt-10 md:pb-16">
+        <div className="relative z-10 mx-auto grid w-full max-w-6xl items-start gap-6 px-4 md:grid-cols-2 md:items-center">
+          <article className="relative rounded-3xl border border-[rgba(165,119,100,0.28)] bg-[linear-gradient(148deg,rgba(255,255,255,0.95)_0%,rgba(255,247,230,0.96)_52%,rgba(241,188,153,0.52)_100%)] p-6 shadow-[0_20px_44px_rgba(165,119,100,0.18)] md:p-8">
+            <h1 className="text-3xl font-semibold leading-tight md:text-5xl">
+              As Melhores Escolhas em Materiais para Unhas de Gel, Fibra e Nail Design
+            </h1>
+            <p className="mt-4 max-w-2xl text-base font-medium leading-relaxed text-(--muted) md:text-lg">
+              Análises técnicas, comparativos honestos e recomendações de quem entende, para você investir no
+              equipamento certo e evitar prejuízos.
+            </p>
+          </article>
 
-        <div className="mt-7 flex flex-wrap gap-3">
-          <a
-            href="#silos"
-            className="rounded-xl border border-(--ink) bg-(--ink) px-4 py-2 text-sm font-semibold text-white transition hover:opacity-92"
-          >
-            Explorar silos
-          </a>
-          <a
-            href="#melhores"
-            className="rounded-xl border border-(--border-strong) bg-white px-4 py-2 text-sm font-semibold text-(--ink) transition hover:border-(--brand-hot) hover:text-(--brand-hot)"
-          >
-            Ver melhores do ano
-          </a>
+          <div className="relative m-0 p-0">
+            <Image
+              src="/unhas-francesinhas-criativas-e-coloridas.webp"
+              alt="Unhas francesinhas criativas e coloridas"
+              width={1024}
+              height={683}
+              priority
+              sizes="(min-width: 768px) 46vw, 92vw"
+              className="m-0 h-auto w-full p-0 object-contain object-bottom align-bottom"
+            />
+          </div>
         </div>
-
-        <dl className="mt-8 grid max-w-2xl grid-cols-2 gap-3 md:grid-cols-4">
-          <div className="rounded-2xl border border-(--border) bg-white/85 p-3">
-            <dt className="text-[11px] uppercase tracking-wide text-(--muted-2)">Silos ativos</dt>
-            <dd className="mt-1 text-xl font-semibold text-(--ink)">{silos.length}</dd>
-          </div>
-          <div className="rounded-2xl border border-(--border) bg-white/85 p-3">
-            <dt className="text-[11px] uppercase tracking-wide text-(--muted-2)">Guias publicados</dt>
-            <dd className="mt-1 text-xl font-semibold text-(--ink)">{rawPosts.length}</dd>
-          </div>
-          <div className="rounded-2xl border border-(--border) bg-white/85 p-3">
-            <dt className="text-[11px] uppercase tracking-wide text-(--muted-2)">Atualizacao</dt>
-            <dd className="mt-1 text-xl font-semibold text-(--ink)">Semanal</dd>
-          </div>
-          <div className="rounded-2xl border border-(--border) bg-white/85 p-3">
-            <dt className="text-[11px] uppercase tracking-wide text-(--muted-2)">Foco</dt>
-            <dd className="mt-1 text-xl font-semibold text-(--ink)">E-E-A-T</dd>
-          </div>
-        </dl>
       </section>
 
       {query ? (
         <section className="space-y-4">
           <div className="rounded-3xl border border-(--border) bg-(--paper) p-6">
             <p className="text-xs uppercase tracking-wide text-(--muted-2)">Busca</p>
-            <h2 className="mt-2 text-2xl font-semibold text-(--ink)">
-              Resultados para &quot;{query}&quot;
-            </h2>
+            <h2 className="mt-2 text-2xl font-semibold text-(--ink)">Resultados para &quot;{query}&quot;</h2>
             <p className="mt-2 text-sm text-(--muted)">
               {searchResults.length} resultado(s) encontrado(s) nos guias mais recentes.
             </p>
@@ -172,9 +128,7 @@ export default async function HomePage({
                   href={post.silo ? `/${post.silo.slug}/${post.slug}` : "#"}
                   className="flex h-full flex-col rounded-2xl border border-(--border) bg-(--paper) p-5 transition hover:-translate-y-0.5 hover:shadow-sm"
                 >
-                  <p className="text-xs uppercase tracking-wide text-(--muted-2)">
-                    {post.silo?.name ?? "Conteudo"}
-                  </p>
+                  <p className="text-xs uppercase tracking-wide text-(--muted-2)">{post.silo?.name ?? "Conteúdo"}</p>
                   <h3 className="mt-2 line-clamp-2 text-lg font-semibold text-(--ink)">{post.title}</h3>
                   <p className="mt-2 line-clamp-3 text-sm text-(--muted)">
                     {post.meta_description || "Abrir artigo para ver detalhes e comparativos."}
@@ -187,54 +141,22 @@ export default async function HomePage({
         </section>
       ) : null}
 
-      <section id="silos" className="space-y-4">
-        <div className="flex flex-col gap-1">
-          <p className="text-xs uppercase tracking-wide text-(--muted-2)">Navegacao visual de silos</p>
-          <h2 className="text-2xl font-semibold text-(--ink)">Escolha o tema certo para sua fase</h2>
-          <p className="text-sm text-(--muted)">
-            Entre direto no assunto que voce precisa e acesse os pilares com guias organizados por hierarquia.
-          </p>
-        </div>
-
-        {silos.length === 0 ? (
-          <div className="rounded-2xl border border-(--border) bg-(--paper) p-6 text-sm text-(--muted)">
-            Nenhum silo ativo foi encontrado. Publique um pilar para iniciar a navegacao da home.
-          </div>
-        ) : (
-          <div className="stagger-grid grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {silos.map((silo, index) => (
-              <Link
-                key={silo.id}
-                href={`/${silo.slug}`}
-                className="group rounded-3xl border border-(--border) p-5 transition hover:-translate-y-0.5 hover:border-(--border-strong) hover:shadow-sm"
-                style={{ background: siloGradient(index) }}
-              >
-                <div className="inline-flex rounded-full border border-(--border-strong) bg-white px-2.5 py-1 text-[11px] font-semibold tracking-wide text-(--muted-2)">
-                  SILO {String(index + 1).padStart(2, "0")}
-                </div>
-                <h3 className="mt-4 text-xl font-semibold text-(--ink)">{silo.name}</h3>
-                <p className="mt-2 line-clamp-3 text-sm text-(--muted)">
-                  {silo.description || "Pilar com guias tecnicos, reviews e atualizacoes para decisoes de compra."}
-                </p>
-                <span className="mt-4 inline-flex text-sm font-semibold text-(--brand-hot)">Abrir pilar</span>
-              </Link>
-            ))}
-          </div>
-        )}
+      <section id="silos">
+        <SiloNarrativeCarousel />
       </section>
 
       <section id="melhores" className="space-y-4">
         <div className="flex flex-col gap-1">
-          <p className="text-xs uppercase tracking-wide text-(--muted-2)">Money content</p>
+          <p className="text-xs uppercase tracking-wide text-(--muted-2)">Conteúdo de monetização</p>
           <h2 className="text-2xl font-semibold text-(--ink)">Melhores do ano para converter</h2>
           <p className="text-sm text-(--muted)">
-            Selecao dos guias mais orientados a compra, priorizando intencao comercial e ranking interno.
+            Seleção dos guias mais orientados à compra, priorizando intenção comercial e ranking interno.
           </p>
         </div>
 
         {moneyPicks.length === 0 ? (
           <div className="rounded-2xl border border-(--border) bg-(--paper) p-6 text-sm text-(--muted)">
-            Ainda nao ha guias com foco comercial publicados para exibir nesta area.
+            Ainda não há guias com foco comercial publicados para exibir nesta área.
           </div>
         ) : (
           <div className="stagger-grid grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -244,15 +166,13 @@ export default async function HomePage({
                 href={post.silo ? `/${post.silo.slug}/${post.slug}` : "#"}
                 className="flex h-full flex-col rounded-2xl border border-(--border) bg-(--paper) p-5 transition hover:-translate-y-0.5 hover:shadow-sm"
               >
-                <p className="text-xs uppercase tracking-wide text-(--muted-2)">
-                  {post.silo?.name ?? "Guia"}
-                </p>
+                <p className="text-xs uppercase tracking-wide text-(--muted-2)">{post.silo?.name ?? "Guia"}</p>
                 <h3 className="mt-2 line-clamp-2 text-base font-semibold text-(--ink)">{post.title}</h3>
                 <p className="mt-2 line-clamp-3 text-sm text-(--muted)">
                   {post.meta_description || "Veja comparativos, prós e contras antes de comprar."}
                 </p>
                 <span className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-(--brand-hot) px-3 py-2 text-sm font-semibold text-white">
-                  Ver preco na Amazon
+                  Ver preço na Amazon
                 </span>
               </Link>
             ))}
@@ -260,54 +180,151 @@ export default async function HomePage({
         )}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-        <div className="rounded-3xl border border-(--border) bg-(--paper) p-6">
-          <p className="text-xs uppercase tracking-wide text-(--muted-2)">Recentes</p>
-          <h2 className="mt-2 text-2xl font-semibold text-(--ink)">Guias atualizados recentemente</h2>
-          {latestGuides.length === 0 ? (
-            <p className="mt-4 text-sm text-(--muted)">Publique posts para alimentar este bloco automaticamente.</p>
-          ) : (
-            <div className="mt-4 grid gap-3">
-              {latestGuides.map((post) => (
-                <Link
-                  key={post.id}
-                  href={post.silo ? `/${post.silo.slug}/${post.slug}` : "#"}
-                  className="rounded-2xl border border-(--border) bg-(--surface-muted) px-4 py-3 text-sm transition hover:border-(--border-strong) hover:bg-white"
-                >
-                  <p className="text-[11px] uppercase tracking-wide text-(--muted-2)">{post.silo?.name ?? "Guia"}</p>
-                  <p className="mt-1 line-clamp-2 font-semibold text-(--ink)">{post.title}</p>
-                </Link>
-              ))}
-            </div>
-          )}
+      <section id="manifesto" className="space-y-5 border-t border-(--border) pt-10">
+        <p className="session-indicator text-(--muted-2)">Sessão 3 · Missão e visão</p>
+        <h2 className="max-w-4xl text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
+          Elevando o Padrão da Nail Designer Brasileira: Onde a Técnica Encontra a Química
+        </h2>
+
+        <div className="grid gap-8 lg:grid-cols-[1.3fr_1fr]">
+          <article className="space-y-4 text-[17px] leading-relaxed text-(--muted)">
+            <p>
+              No Lindisse, nós não enxergamos unhas apenas como estética; nós enxergamos como uma ciência de precisão.
+              A nossa visão é clara: combater a desinformação que causa descolamentos precoces, alergias severas e
+              prejuízos na mesa de atendimento.
+            </p>
+            <p>
+              Acreditamos que uma Nail Designer de Elite não é apenas aquela que faz uma arte bonita, mas aquela que
+              domina a biossegurança, entende a polimerização dos polímeros e sabe escolher ferramentas que protegem a
+              saúde da lâmina ungueal da cliente.
+            </p>
+            <p>
+              Nossa missão é ser o seu laboratório de confiança. Nós dissecamos rótulos, testamos a potência real de
+              cabines UV/LED e analisamos a viscosidade de géis construtores para que você não precise gastar seu lucro
+              testando produtos ruins. Queremos que você tenha segurança para cobrar mais, sabendo que entrega um
+              alongamento com durabilidade, curvatura C simétrica e resistência mecânica superior.
+            </p>
+          </article>
+
+          <aside className="space-y-3 border-l border-(--border) pl-5 text-sm leading-relaxed text-(--muted) md:text-base">
+            <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">Vocábulos de domínio técnico</p>
+            <p>
+              Biossegurança · Polimerização · Polímeros · Potência UV/LED · Viscosidade · Curvatura C · Resistência
+              mecânica · Integridade da lâmina ungueal
+            </p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">Resultado esperado na mesa</p>
+            <p>Menos retrabalho, menos risco químico e mais previsibilidade no acabamento e na durabilidade.</p>
+          </aside>
+        </div>
+      </section>
+
+      <section id="sobre-lindisse" className="space-y-5 border-t border-(--border) pt-10">
+        <p className="session-indicator text-(--muted-2)">Sessão 4 · Sobre o Lindisse (autoridade e segurança)</p>
+        <h2 className="max-w-3xl text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
+          A Curadoria Técnica que a Sua Mesa Exige
+        </h2>
+        <p className="max-w-4xl text-base leading-relaxed text-(--muted) md:text-lg">
+          A internet está cheia de "dicas rápidas", mas a sua profissão exige protocolos seguros. O Lindisse nasceu da
+          necessidade de filtrar o ruído do mercado e entregar análises fundamentadas em critérios técnicos, não em
+          "achismos" ou publicidade vazia.
+        </p>
+        <p className="max-w-4xl text-base leading-relaxed text-(--muted) md:text-lg">
+          Nós atuamos como um filtro de qualidade entre os milhares de produtos da Amazon e a sua bancada de trabalho.
+          Nossos guias e reviews são construídos com foco em três pilares inegociáveis:
+        </p>
+
+        <div className="grid gap-6 md:grid-cols-3">
+          <article className="space-y-2">
+            <h3 className="text-lg font-semibold text-(--ink)">Clareza Técnica</h3>
+            <p className="text-sm leading-relaxed text-(--muted) md:text-base">
+              Traduzimos termos químicos complexos (como reações exotérmicas e fotoiniciadores) para a linguagem do
+              seu dia a dia, ajudando você a evitar géis que queimam excessivamente ou top coats que amarelam.
+            </p>
+          </article>
+
+          <article className="space-y-2">
+            <h3 className="text-lg font-semibold text-(--ink)">Semântica Forte e Educativa</h3>
+            <p className="text-sm leading-relaxed text-(--muted) md:text-base">
+              Não dizemos apenas "compre isso". Explicamos o porquê. Analisamos o torque de micromotores, a granulação
+              de lixas e a ergonomia de cabines para que você entenda o investimento.
+            </p>
+          </article>
+
+          <article className="space-y-2">
+            <h3 className="text-lg font-semibold text-(--ink)">Recomendações Seguras</h3>
+            <p className="text-sm leading-relaxed text-(--muted) md:text-base">
+              Só indicamos produtos que passaram no teste de eficiência e segurança. Se um prep não equilibra o pH
+              corretamente ou se um primer ácido é agressivo demais, nós alertamos.
+            </p>
+          </article>
         </div>
 
-        <aside className="rounded-3xl border border-(--border) bg-[linear-gradient(165deg,#FFFFFF_0%,rgba(241,188,153,0.25)_100%)] p-6">
-          <p className="text-xs uppercase tracking-wide text-(--muted-2)">Prova social / E-E-A-T</p>
-          <h2 className="mt-2 text-2xl font-semibold text-(--ink)">Quem somos</h2>
-          <div className="mt-4 flex items-start gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl border border-(--border-strong) bg-white text-xl font-semibold text-(--brand-accent)">
-              LD
-            </div>
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-(--ink)">Equipe Lindisse</p>
-              <p className="text-sm text-(--muted)">
-                Especialistas em unhas de gel e manicure tecnica, com metodologia de analise focada em uso real.
-              </p>
-            </div>
+        <p className="max-w-4xl text-base leading-relaxed text-(--muted) md:text-lg">
+          O foco é a integridade da unha natural e a longevidade do seu serviço. Aqui, você toma decisões baseadas em
+          dados, garantindo que cada centavo investido retorne em forma de clientes fiéis e agenda cheia.
+        </p>
+      </section>
+
+      <section id="analises-recentes" className="space-y-5 border-t border-(--border) pt-10">
+        <p className="session-indicator text-(--muted-2)">Sessão 5 · Posts mais novos</p>
+        <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
+          Análises Recentes e Atualizações do Mercado
+        </h2>
+
+        {recentPosts.length === 0 ? (
+          <p className="text-sm text-(--muted)">Publique posts para alimentar o componente automático da home.</p>
+        ) : (
+          <ol className="divide-y divide-(--border)">
+            {recentPosts.map((post, index) => (
+              <li key={post.id} className="py-4">
+                <Link
+                  href={post.silo ? `/${post.silo.slug}/${post.slug}` : "#"}
+                  className="group grid gap-3 md:grid-cols-[auto_1fr_auto] md:items-center"
+                >
+                  <p className="text-xs font-semibold tracking-wide text-(--muted-2)">
+                    {String(index + 1).padStart(2, "0")}
+                  </p>
+                  <div>
+                    <p className="text-[11px] uppercase tracking-wide text-(--muted-2)">{post.silo?.name ?? "Guia"}</p>
+                    <p className="mt-1 text-lg font-semibold text-(--ink)">{post.title}</p>
+                    <p className="mt-1 line-clamp-2 text-sm text-(--muted)">
+                      {post.meta_description || "Abrir análise para ver critérios, comparativos e recomendações."}
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold text-(--brand-hot) transition group-hover:translate-x-0.5">
+                    Ler análise
+                  </p>
+                </Link>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+
+      <section id="cta-recomendacoes" className="space-y-5 border-t border-(--border) pt-10">
+        <p className="session-indicator text-(--muted-2)">Sessão 6 · CTA</p>
+        <div className="grid gap-6 md:grid-cols-[1.2fr_auto] md:items-end">
+          <div className="space-y-3 rounded-3xl border border-[rgba(165,119,100,0.28)] bg-[linear-gradient(148deg,rgba(255,255,255,0.95)_0%,rgba(255,247,230,0.98)_52%,rgba(241,188,153,0.5)_100%)] p-6 shadow-[0_16px_36px_rgba(165,119,100,0.16)] md:p-8">
+            <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
+              Travada em alguma escolha técnica?
+            </h2>
+            <p className="text-base leading-relaxed text-(--muted) md:text-lg">
+              Não compre no escuro. Se você está em dúvida entre qual Cabine de 48W ou 72W escolher, ou qual Kit de
+              Fibra oferece o melhor custo-benefício para iniciantes, nós podemos te direcionar.
+            </p>
+            <p className="text-sm leading-relaxed text-(--muted)">
+              Diga-nos qual o seu nível (Iniciante ou Master) e o que você busca resolver hoje (redução de tempo de
+              mesa, acabamento ou durabilidade). Nossos guias te levam direto ao produto certo na Amazon.
+            </p>
           </div>
-          <ul className="mt-4 space-y-2 text-sm text-(--muted)">
-            <li>Reviews com criterios tecnicos e contexto de uso.</li>
-            <li>Atualizacoes com foco em performance, seguranca e custo-beneficio.</li>
-            <li>Links de compra sempre sinalizados como afiliados.</li>
-          </ul>
+
           <Link
-            href="/sobre"
-            className="mt-5 inline-flex rounded-xl border border-(--border-strong) bg-white px-4 py-2 text-sm font-semibold text-(--ink) transition hover:border-(--brand-hot) hover:text-(--brand-hot)"
+            href="#melhores"
+            className="inline-flex h-fit items-center justify-center rounded-xl bg-(--brand-hot) px-6 py-3 text-sm font-semibold text-white transition hover:brightness-95"
           >
-            Conheca nossa metodologia
+            Ver Melhores Recomendações
           </Link>
-        </aside>
+        </div>
       </section>
 
       <JsonLd data={[organizationLd, websiteLd]} />

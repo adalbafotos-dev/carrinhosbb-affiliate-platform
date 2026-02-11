@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { ADMIN_COOKIE_NAME } from "@/lib/admin/constants";
 import { isAdminAuthDisabled } from "@/lib/admin/settings";
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (!pathname.startsWith("/admin")) {
