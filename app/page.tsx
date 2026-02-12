@@ -43,6 +43,44 @@ function buildMoneyPicks(posts: PostWithSilo[]) {
   return Array.from(unique.values()).slice(0, 4);
 }
 
+const fallbackAffiliateShowcase = [
+  {
+    id: "sun5-48w",
+    title: "Cabine Led/uv Sun5 Digital 48w Unhas Gel Acrigel, Branca Bivolt 110v - 220v",
+    image: "/Cabine Led uv Sun5 Digital 48w Unhas Gel Acrigel, Branca Bivolt 110v - 220v.webp",
+    href: "https://amzn.to/462V1GM",
+  },
+  {
+    id: "kit-gel-acrigel",
+    title: "Kit Unhas Gel Acrigel Alongamento Cabine Completo",
+    image: "/Kit Unhas Gel Acrigel Alongamento Cabine Completo.webp",
+    href: "https://amzn.to/4ktOivm",
+  },
+  {
+    id: "kit-completo-manicure",
+    title: "Kit Completo Manicure Unhas de Gel com Cabine Sun LED UV 48W e Lixadeira Elétrica Caneta Bivolt (Branco)",
+    image: "/Kit Completo Manicure Unhas de Gel com Cabine Sun LED UV 48W e Lixadeira Elétrica Caneta Bivolt.webp",
+    href: "https://amzn.to/3MisTJ5",
+  },
+] as const;
+
+function HomeSectionIndicator({ iconSrc, label }: { iconSrc: string; label: string }) {
+  return (
+    <p className="session-indicator text-(--muted-2)">
+      <Image
+        src={iconSrc}
+        alt=""
+        aria-hidden
+        width={96}
+        height={96}
+        sizes="(min-width: 768px) 96px, 72px"
+        className="session-indicator-icon"
+      />
+      <span>{label}</span>
+    </p>
+  );
+}
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -147,16 +185,47 @@ export default async function HomePage({
 
       <section id="melhores" className="space-y-4">
         <div className="flex flex-col gap-1">
-          <p className="text-xs uppercase tracking-wide text-(--muted-2)">Conteúdo de monetização</p>
-          <h2 className="text-2xl font-semibold text-(--ink)">Melhores do ano para converter</h2>
+          <HomeSectionIndicator iconSrc="/maos-e-dedos01.webp" label="Conteúdo de monetização" />
+          <h2 className="text-2xl font-semibold text-(--ink)">Melhores escolhas do ano</h2>
           <p className="text-sm text-(--muted)">
-            Seleção dos guias mais orientados à compra, priorizando intenção comercial e ranking interno.
+            Guias comparativos de cabine UV/LED, géis e kits para você comprar com segurança e melhor custo-benefício.
           </p>
         </div>
 
         {moneyPicks.length === 0 ? (
-          <div className="rounded-2xl border border-(--border) bg-(--paper) p-6 text-sm text-(--muted)">
-            Ainda não há guias com foco comercial publicados para exibir nesta área.
+          <div className="rounded-2xl border border-(--border) bg-(--paper)">
+            <ul className="divide-y divide-(--border)">
+              {fallbackAffiliateShowcase.map((offer) => (
+                <li key={offer.id} className="grid grid-cols-[56px_1fr_auto] items-center gap-3 p-3">
+                  <a
+                    href={offer.href}
+                    target="_blank"
+                    rel="sponsored nofollow noopener noreferrer"
+                    className="block overflow-hidden rounded-lg border border-(--border) bg-white p-1"
+                  >
+                    <Image
+                      src={offer.image}
+                      alt={offer.title}
+                      width={160}
+                      height={160}
+                      sizes="56px"
+                      className="h-12 w-12 object-contain"
+                    />
+                  </a>
+
+                  <h4 className="line-clamp-2 text-sm font-semibold leading-snug text-(--ink)">{offer.title}</h4>
+
+                  <a
+                    href={offer.href}
+                    target="_blank"
+                    rel="sponsored nofollow noopener noreferrer"
+                    className="inline-flex whitespace-nowrap rounded-lg bg-(--brand-hot) px-2.5 py-1.5 text-xs font-semibold text-white transition hover:brightness-95"
+                  >
+                    Veja os preços
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : (
           <div className="stagger-grid grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -181,7 +250,7 @@ export default async function HomePage({
       </section>
 
       <section id="manifesto" className="space-y-5 border-t border-(--border) pt-10">
-        <p className="session-indicator text-(--muted-2)">Sessão 3 · Missão e visão</p>
+        <HomeSectionIndicator iconSrc="/maos-e-dedos02.webp" label="Missão e Visão" />
         <h2 className="max-w-4xl text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
           Elevando o Padrão da Nail Designer Brasileira: Onde a Técnica Encontra a Química
         </h2>
@@ -207,19 +276,23 @@ export default async function HomePage({
           </article>
 
           <aside className="space-y-3 border-l border-(--border) pl-5 text-sm leading-relaxed text-(--muted) md:text-base">
-            <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">Vocábulos de domínio técnico</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">O que você vai dominar</p>
             <p>
-              Biossegurança · Polimerização · Polímeros · Potência UV/LED · Viscosidade · Curvatura C · Resistência
-              mecânica · Integridade da lâmina ungueal
+              Biossegurança no atendimento · Polimerização correta · Escolha da cabine UV/LED · Viscosidade ideal do
+              gel · Curvatura C com resistência
             </p>
-            <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">Resultado esperado na mesa</p>
-            <p>Menos retrabalho, menos risco químico e mais previsibilidade no acabamento e na durabilidade.</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">
+              O que muda no seu resultado
+            </p>
+            <p>
+              Menos manutenção precoce, mais durabilidade no alongamento e mais segurança para atender e cobrar melhor.
+            </p>
           </aside>
         </div>
       </section>
 
       <section id="sobre-lindisse" className="space-y-5 border-t border-(--border) pt-10">
-        <p className="session-indicator text-(--muted-2)">Sessão 4 · Sobre o Lindisse (autoridade e segurança)</p>
+        <HomeSectionIndicator iconSrc="/maos-e-dedos03.webp" label="Sobre" />
         <h2 className="max-w-3xl text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
           A Curadoria Técnica que a Sua Mesa Exige
         </h2>
@@ -243,10 +316,10 @@ export default async function HomePage({
           </article>
 
           <article className="space-y-2">
-            <h3 className="text-lg font-semibold text-(--ink)">Semântica Forte e Educativa</h3>
+            <h3 className="text-lg font-semibold text-(--ink)">Conteúdo claro e prático</h3>
             <p className="text-sm leading-relaxed text-(--muted) md:text-base">
-              Não dizemos apenas "compre isso". Explicamos o porquê. Analisamos o torque de micromotores, a granulação
-              de lixas e a ergonomia de cabines para que você entenda o investimento.
+              Nada de recomendação vaga. Você entende o motivo de cada escolha com comparativos de torque de
+              micromotor, granulação de lixas e ergonomia de cabines para investir com confiança.
             </p>
           </article>
 
@@ -266,13 +339,16 @@ export default async function HomePage({
       </section>
 
       <section id="analises-recentes" className="space-y-5 border-t border-(--border) pt-10">
-        <p className="session-indicator text-(--muted-2)">Sessão 5 · Posts mais novos</p>
+        <HomeSectionIndicator iconSrc="/maos-e-dedos04.webp" label="Posts mais Novos" />
         <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
           Análises Recentes e Atualizações do Mercado
         </h2>
 
         {recentPosts.length === 0 ? (
-          <p className="text-sm text-(--muted)">Publique posts para alimentar o componente automático da home.</p>
+          <p className="text-sm text-(--muted)">
+            Novas análises estão a caminho. Em breve você verá aqui os conteúdos mais recentes sobre produtos,
+            técnicas e tendências do mercado.
+          </p>
         ) : (
           <ol className="divide-y divide-(--border)">
             {recentPosts.map((post, index) => (
@@ -302,7 +378,7 @@ export default async function HomePage({
       </section>
 
       <section id="cta-recomendacoes" className="space-y-5 border-t border-(--border) pt-10">
-        <p className="session-indicator text-(--muted-2)">Sessão 6 · CTA</p>
+        <HomeSectionIndicator iconSrc="/maos-e-dedos05.webp" label="Saiba Mais" />
         <div className="grid gap-6 md:grid-cols-[1.2fr_auto] md:items-end">
           <div className="space-y-3 rounded-3xl border border-[rgba(165,119,100,0.28)] bg-[linear-gradient(148deg,rgba(255,255,255,0.95)_0%,rgba(255,247,230,0.98)_52%,rgba(241,188,153,0.5)_100%)] p-6 shadow-[0_16px_36px_rgba(165,119,100,0.16)] md:p-8">
             <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">

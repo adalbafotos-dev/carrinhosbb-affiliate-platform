@@ -63,11 +63,21 @@ h5, h6 {
 
 .session-indicator {
   font-family: "Grey Qo", var(--font-body), "Segoe UI", sans-serif;
-  font-size: clamp(1.45rem, 1.1rem + 1.4vw, 2.15rem);
-  line-height: 1.2;
+  font-size: clamp(2.25rem, 1.7rem + 2.6vw, 4rem);
+  line-height: 1;
   letter-spacing: 0.01em;
   font-weight: 400;
   text-transform: none;
+  display: inline-flex;
+  align-items: center;
+  gap: clamp(0.5rem, 0.35rem + 0.7vw, 0.9rem);
+}
+
+.session-indicator-icon {
+  width: clamp(2.35rem, 1.8rem + 2.5vw, 4.1rem);
+  height: clamp(2.35rem, 1.8rem + 2.5vw, 4.1rem);
+  object-fit: contain;
+  flex-shrink: 0;
 }
 
 .toc-scroll {
@@ -1201,6 +1211,39 @@ a {
 .stagger-grid > *:nth-child(7) { animation-delay: 440ms; }
 .stagger-grid > *:nth-child(8) { animation-delay: 500ms; }
 
+@keyframes menuPanelPop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.menu-panel-pop {
+  transform-origin: top right;
+  animation: menuPanelPop 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.home-scroll-ready .home-scroll-section {
+  opacity: 0.5;
+  transform: translateY(20px) scale(0.988);
+  filter: saturate(0.92);
+  transition:
+    opacity 360ms ease-out,
+    transform 420ms cubic-bezier(0.22, 1, 0.36, 1),
+    filter 360ms ease-out;
+  will-change: opacity, transform;
+}
+
+.home-scroll-ready .home-scroll-section.is-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  filter: none;
+}
+
 .home-hero-shell {
   --home-header-height: 176px;
   position: relative;
@@ -1224,15 +1267,91 @@ a {
   background-repeat: no-repeat;
 }
 
+.home-hero-shell::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  left: 50%;
+  width: 100vw;
+  height: 100dvh;
+  top: 0;
+  transform: translateX(-50%);
+  background-image: url("/carnaval-sparkles.svg");
+  background-size: 92% auto;
+  background-position: center top;
+  background-repeat: no-repeat;
+  opacity: 0.62;
+  animation:
+    heroSparklesDrift 4.2s linear infinite,
+    heroSparklesBlink 950ms steps(2, end) infinite;
+}
+
+@keyframes heroSparklesDrift {
+  0% {
+    background-position: 50% 0%;
+  }
+  25% {
+    background-position: 51.4% 10%;
+  }
+  50% {
+    background-position: 49.1% -6%;
+  }
+  75% {
+    background-position: 50.9% 12%;
+  }
+  100% {
+    background-position: 50% 0%;
+  }
+}
+
+@keyframes heroSparklesBlink {
+  0%, 100% {
+    opacity: 0.68;
+  }
+  20% {
+    opacity: 0.32;
+  }
+  40% {
+    opacity: 0.76;
+  }
+  60% {
+    opacity: 0.38;
+  }
+  80% {
+    opacity: 0.78;
+  }
+}
+
 @media (min-width: 768px) {
   .home-hero-shell {
     --home-header-height: 136px;
+  }
+
+  .home-hero-shell::after {
+    background-size: 90% auto;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .page-in,
   .stagger-grid > * {
+    animation: none;
+  }
+
+  .menu-panel-pop {
+    animation: none;
+  }
+
+  .home-scroll-ready .home-scroll-section,
+  .home-scroll-ready .home-scroll-section.is-visible {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
+  }
+
+  .home-hero-shell::after {
     animation: none;
   }
 }

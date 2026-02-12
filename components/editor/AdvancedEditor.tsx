@@ -31,6 +31,7 @@ import { LinkBubbleMenu } from "@/components/editor/LinkBubbleMenu";
 import { InternalLinkCandidateMenu } from "@/components/editor/InternalLinkCandidateMenu";
 import { saveEditorPost } from "@/app/admin/editor/actions";
 import type { EditorMeta, ImageAsset, LinkItem, OutlineItem } from "@/components/editor/types";
+import { resolveDefaultEeat } from "@/lib/editor/defaultEeat";
 import type { PostWithSilo, Silo } from "@/lib/types";
 import { EditorProvider } from "@/components/editor/EditorContext";
 import {
@@ -625,6 +626,16 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
   const highlightOccurrenceId = searchParams.get("highlightOccurrenceId");
   const openLinkDialogParam = searchParams.get("openLinkDialog");
   const metaFromJson = (post.content_json as any)?.meta ?? {};
+  const eeatDefaults = resolveDefaultEeat({
+    authorName: post.author_name ?? "",
+    expertName: post.expert_name ?? "",
+    expertRole: post.expert_role ?? "",
+    expertBio: post.expert_bio ?? "",
+    expertCredentials: post.expert_credentials ?? "",
+    reviewedBy: post.reviewed_by ?? "",
+    disclaimer: post.disclaimer ?? "",
+    authorLinks: Array.isArray(metaFromJson.authorLinks) ? metaFromJson.authorLinks : [],
+  });
   const [meta, updateMeta] = useReducer(
     (state: EditorMeta, patch: MetaPatch) => ({ ...state, ...patch }),
     {
@@ -643,16 +654,16 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       heroImageAlt: post.hero_image_alt ?? "",
       ogImageUrl: post.og_image_url ?? "",
       images: Array.isArray(post.images) ? (post.images as ImageAsset[]) : [],
-      authorName: post.author_name ?? "",
-      expertName: post.expert_name ?? "",
-      expertRole: post.expert_role ?? "",
-      expertBio: post.expert_bio ?? "",
-      expertCredentials: post.expert_credentials ?? "",
-      reviewedBy: post.reviewed_by ?? "",
+      authorName: eeatDefaults.authorName,
+      expertName: eeatDefaults.expertName,
+      expertRole: eeatDefaults.expertRole,
+      expertBio: eeatDefaults.expertBio,
+      expertCredentials: eeatDefaults.expertCredentials,
+      reviewedBy: eeatDefaults.reviewedBy,
       reviewedAt: toLocalInput(post.reviewed_at),
-      authorLinks: Array.isArray(metaFromJson.authorLinks) ? metaFromJson.authorLinks : [],
+      authorLinks: eeatDefaults.authorLinks,
       sources: Array.isArray(post.sources) ? post.sources : [],
-      disclaimer: post.disclaimer ?? "",
+      disclaimer: eeatDefaults.disclaimer,
       faq: Array.isArray(post.faq_json) ? post.faq_json : [],
       howto: Array.isArray(post.howto_json) ? post.howto_json : [],
       amazonProducts: Array.isArray(post.amazon_products) ? post.amazon_products : [],
@@ -720,6 +731,16 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
 
     // Parse meta from json if needed
     const metaFromJson = (post.content_json as any)?.meta ?? {};
+    const nextEeatDefaults = resolveDefaultEeat({
+      authorName: post.author_name ?? "",
+      expertName: post.expert_name ?? "",
+      expertRole: post.expert_role ?? "",
+      expertBio: post.expert_bio ?? "",
+      expertCredentials: post.expert_credentials ?? "",
+      reviewedBy: post.reviewed_by ?? "",
+      disclaimer: post.disclaimer ?? "",
+      authorLinks: Array.isArray(metaFromJson.authorLinks) ? metaFromJson.authorLinks : [],
+    });
 
     updateMeta({
       title: post.title ?? "",
@@ -737,17 +758,17 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       heroImageAlt: post.hero_image_alt ?? "",
       ogImageUrl: post.og_image_url ?? "",
       images: Array.isArray(post.images) ? (post.images as ImageAsset[]) : [],
-      authorName: post.author_name ?? "",
-      expertName: post.expert_name ?? "",
-      expertRole: post.expert_role ?? "",
-      expertBio: post.expert_bio ?? "",
+      authorName: nextEeatDefaults.authorName,
+      expertName: nextEeatDefaults.expertName,
+      expertRole: nextEeatDefaults.expertRole,
+      expertBio: nextEeatDefaults.expertBio,
       amazonProducts: Array.isArray(post.amazon_products) ? post.amazon_products : [],
-      expertCredentials: post.expert_credentials ?? "",
-      reviewedBy: post.reviewed_by ?? "",
+      expertCredentials: nextEeatDefaults.expertCredentials,
+      reviewedBy: nextEeatDefaults.reviewedBy,
       reviewedAt: toLocalInput(post.reviewed_at),
-      authorLinks: Array.isArray(metaFromJson.authorLinks) ? metaFromJson.authorLinks : [],
+      authorLinks: nextEeatDefaults.authorLinks,
       sources: Array.isArray(post.sources) ? post.sources : [],
-      disclaimer: post.disclaimer ?? "",
+      disclaimer: nextEeatDefaults.disclaimer,
       faq: Array.isArray(post.faq_json) ? post.faq_json : [],
       howto: Array.isArray(post.howto_json) ? post.howto_json : [],
       siloId: post.silo_id ?? "",

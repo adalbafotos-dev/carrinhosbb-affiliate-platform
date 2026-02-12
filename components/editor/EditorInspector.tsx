@@ -6,7 +6,7 @@ import { useEditorContext } from "@/components/editor/EditorContext";
 
 type Tab = "post" | "seo" | "eeat" | "publish";
 
-const AUTHORS = ["Equipe", "Ana Ferreira", "Lucas Prado", "Marina Ramos"];
+const AUTHORS = ["Ana Linda Ferreira", "Equipe", "Lucas Prado", "Marina Ramos"];
 
 function counterTone(count: number, min: number, max: number) {
   if (count === 0) return "text-(--muted-2)";

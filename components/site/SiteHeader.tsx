@@ -125,6 +125,12 @@ export function SiteHeader() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isCompact) {
+      setIsMenuOpen(false);
+    }
+  }, [isCompact]);
+
   const scrollSiloMenu = (direction: "left" | "right") => {
     const next = direction === "left" ? -220 : 220;
     siloScrollerRef.current?.scrollBy({ left: next, behavior: "smooth" });
@@ -163,14 +169,86 @@ export function SiteHeader() {
             </button>
           </div>
 
-          {isMenuOpen ? <MenuPanel className="mt-2" onNavigate={handleNavigate} /> : null}
+          {isMenuOpen ? <MenuPanel className="menu-panel-pop mt-2" onNavigate={handleNavigate} /> : null}
         </div>
       </header>
 
-      {isCompact ? (
-        <header className="sticky top-0 z-50 hidden pointer-events-none md:block">
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-end px-4 py-3">
-            <div className="pointer-events-auto">
+      <header className="sticky top-0 z-50 hidden md:block">
+        <div className="mx-auto w-full max-w-6xl px-4 py-3">
+          <div className="relative h-[var(--home-header-height,136px)]">
+            <div
+              className={`absolute inset-x-0 top-0 transition-all duration-[320ms] ease-out ${
+                isCompact ? "pointer-events-none -translate-y-2 opacity-0" : "pointer-events-auto translate-y-0 opacity-100"
+              }`}
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Link href="/" className="inline-flex items-center">
+                  <Image src={logoLindisse} alt="Lindisse" priority className="h-12 w-auto md:h-14" />
+                </Link>
+                <SearchBar className="w-full md:w-[460px]" />
+              </div>
+
+              <nav
+                aria-label="Silos principais"
+                className="mt-4 flex items-center gap-2 rounded-2xl border border-(--border) bg-(--paper) p-2 shadow-[0_8px_22px_rgba(43,44,48,0.06)]"
+              >
+                <Link
+                  href="/"
+                  className="shrink-0 rounded-xl border border-(--border) bg-(--surface-muted) px-3 py-2 text-sm font-semibold text-(--ink) hover:border-(--brand-hot)"
+                >
+                  Início
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => scrollSiloMenu("left")}
+                  className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-(--border) text-(--muted-2) hover:text-(--ink) md:inline-flex"
+                  aria-label="Deslizar silos para a esquerda"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+
+                <div
+                  ref={siloScrollerRef}
+                  className="flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+                >
+                  <div className="flex w-max items-center gap-2 px-1">
+                    {ACTIVE_SILO_MENU.map((silo) => (
+                      <Link
+                        key={silo.slug}
+                        href={silo.slug}
+                        title={silo.categoryH1}
+                        className="shrink-0 rounded-xl border border-(--border) bg-white px-3 py-2 text-sm font-medium text-(--muted-2) hover:border-(--brand-hot) hover:text-(--brand-hot)"
+                      >
+                        {silo.name}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => scrollSiloMenu("right")}
+                  className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-(--border) text-(--muted-2) hover:text-(--ink) md:inline-flex"
+                  aria-label="Deslizar silos para a direita"
+                >
+                  <ChevronRight size={16} />
+                </button>
+
+                <Link
+                  href="/contato"
+                  className="shrink-0 rounded-xl border border-(--brand-hot) bg-(--brand-hot) px-3 py-2 text-sm font-semibold text-white hover:brightness-95"
+                >
+                  Contato
+                </Link>
+              </nav>
+            </div>
+
+            <div
+              className={`absolute right-0 top-0 transition-all duration-[280ms] ease-out ${
+                isCompact ? "pointer-events-auto translate-y-0 opacity-100" : "pointer-events-none -translate-y-1 opacity-0"
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => setIsMenuOpen((value) => !value)}
@@ -182,83 +260,12 @@ export function SiteHeader() {
               </button>
 
               {isMenuOpen ? (
-                <MenuPanel className="mt-2 w-[min(92vw,420px)]" onNavigate={handleNavigate} />
+                <MenuPanel className="menu-panel-pop mt-2 w-[min(92vw,420px)]" onNavigate={handleNavigate} />
               ) : null}
             </div>
           </div>
-        </header>
-      ) : (
-        <header className="sticky top-0 z-40 hidden md:block">
-          <div className="relative z-10 mx-auto w-full max-w-6xl px-4 py-3">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <Link href="/" className="inline-flex items-center">
-                <Image
-                  src={logoLindisse}
-                  alt="Lindisse"
-                  priority
-                  className="h-12 w-auto md:h-14"
-                />
-              </Link>
-              <SearchBar className="w-full md:w-[460px]" />
-            </div>
-
-            <nav
-              aria-label="Silos principais"
-              className="mt-4 flex items-center gap-2 rounded-2xl border border-(--border) bg-(--paper) p-2 shadow-[0_8px_22px_rgba(43,44,48,0.06)]"
-            >
-              <Link
-                href="/"
-                className="shrink-0 rounded-xl border border-(--border) bg-(--surface-muted) px-3 py-2 text-sm font-semibold text-(--ink) hover:border-(--brand-hot)"
-              >
-                Início
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => scrollSiloMenu("left")}
-                className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-(--border) text-(--muted-2) hover:text-(--ink) md:inline-flex"
-                aria-label="Deslizar silos para a esquerda"
-              >
-                <ChevronLeft size={16} />
-              </button>
-
-              <div
-                ref={siloScrollerRef}
-                className="flex-1 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
-              >
-                <div className="flex w-max items-center gap-2 px-1">
-                  {ACTIVE_SILO_MENU.map((silo) => (
-                    <Link
-                      key={silo.slug}
-                      href={silo.slug}
-                      title={silo.categoryH1}
-                      className="shrink-0 rounded-xl border border-(--border) bg-white px-3 py-2 text-sm font-medium text-(--muted-2) hover:border-(--brand-hot) hover:text-(--brand-hot)"
-                    >
-                      {silo.name}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => scrollSiloMenu("right")}
-                className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-(--border) text-(--muted-2) hover:text-(--ink) md:inline-flex"
-                aria-label="Deslizar silos para a direita"
-              >
-                <ChevronRight size={16} />
-              </button>
-
-              <Link
-                href="/contato"
-                className="shrink-0 rounded-xl border border-(--brand-hot) bg-(--brand-hot) px-3 py-2 text-sm font-semibold text-white hover:brightness-95"
-              >
-                Contato
-              </Link>
-            </nav>
-          </div>
-        </header>
-      )}
+        </div>
+      </header>
     </>
   );
 }

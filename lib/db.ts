@@ -1,6 +1,7 @@
 import { getPublicSupabase } from "@/lib/supabase/public";
 import type { Post, PostLink, PostWithSilo, Silo, SiloBatch, SiloBatchPost } from "@/lib/types";
 import type { SiloPost } from "@/lib/types/silo";
+import { resolveDefaultEeat } from "@/lib/editor/defaultEeat";
 import { isUuid } from "@/lib/uuid";
 
 function hasPublicEnv() {
@@ -312,6 +313,7 @@ export async function adminCreatePost(args: {
   reviewed_at?: string | null;
   sources?: any[] | null;
   disclaimer?: string | null;
+  author_links?: string[] | null;
   scheduled_at?: string | null;
   status?: "draft" | "review" | "scheduled" | "published" | null;
   published_at?: string | null;
@@ -327,6 +329,9 @@ export async function adminCreatePost(args: {
   const published = status === "published";
   const defaultDoc = {
     type: "doc",
+    meta: {
+      authorLinks: Array.isArray(args.author_links) ? args.author_links : [],
+    },
     content: [
       {
         type: "paragraph",
@@ -420,9 +425,36 @@ export async function adminCreateDraftPost(args: {
   supporting_keywords?: string[] | null;
   meta_description?: string | null;
   entities?: string[] | null;
+  author_name?: string | null;
+  expert_name?: string | null;
+  expert_role?: string | null;
+  expert_bio?: string | null;
+  expert_credentials?: string | null;
+  reviewed_by?: string | null;
+  disclaimer?: string | null;
+  author_links?: string[] | null;
 }): Promise<PostWithSilo> {
+  const eeat = resolveDefaultEeat({
+    authorName: args.author_name ?? null,
+    expertName: args.expert_name ?? null,
+    expertRole: args.expert_role ?? null,
+    expertBio: args.expert_bio ?? null,
+    expertCredentials: args.expert_credentials ?? null,
+    reviewedBy: args.reviewed_by ?? null,
+    disclaimer: args.disclaimer ?? null,
+    authorLinks: args.author_links ?? null,
+  });
+
   return adminCreatePost({
     ...args,
+    author_name: eeat.authorName,
+    expert_name: eeat.expertName,
+    expert_role: eeat.expertRole,
+    expert_bio: eeat.expertBio,
+    expert_credentials: eeat.expertCredentials,
+    reviewed_by: eeat.reviewedBy,
+    disclaimer: eeat.disclaimer,
+    author_links: eeat.authorLinks,
     status: "draft",
     published_at: null,
   });
