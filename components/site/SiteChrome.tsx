@@ -17,7 +17,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
     const main = document.querySelector("main");
     if (!main) return;
 
-    const sections = Array.from(main.querySelectorAll<HTMLElement>("div.page-in > section"));
+    const sections = Array.from(main.querySelectorAll<HTMLElement>("div.page-in > section[data-home-scroll]"));
     if (!sections.length) return;
 
     main.classList.add("home-scroll-ready");

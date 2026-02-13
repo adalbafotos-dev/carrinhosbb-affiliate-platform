@@ -82,7 +82,6 @@ function HomeSectionIndicator({ iconSrc, label }: { iconSrc: string; label: stri
     </p>
   );
 }
-
 export default async function HomePage() {
   const rawPosts = await listLatestPublicPosts(48);
   const recentPosts = rawPosts.slice(0, 8);
@@ -109,7 +108,7 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-12 page-in">
-      <section className="relative flex min-h-[calc(100dvh-var(--home-header-height,136px))] items-center pt-6 pb-8 md:pt-10 md:pb-16">
+      <section data-home-scroll className="relative flex min-h-[calc(100dvh-var(--home-header-height,136px))] items-center pt-6 pb-8 md:pt-10 md:pb-16">
         <div className="relative z-10 mx-auto grid w-full max-w-6xl items-start gap-6 px-4 md:grid-cols-2 md:items-center">
           <article className="relative rounded-3xl border border-[rgba(165,119,100,0.28)] bg-[linear-gradient(148deg,rgba(255,255,255,0.95)_0%,rgba(255,247,230,0.96)_52%,rgba(241,188,153,0.52)_100%)] p-6 shadow-[0_20px_44px_rgba(165,119,100,0.18)] md:p-8">
             <h1 className="text-3xl font-semibold leading-tight md:text-5xl">
@@ -139,11 +138,11 @@ export default async function HomePage() {
         <HomeSearchResults posts={rawPosts} />
       </Suspense>
 
-      <section id="silos">
+      <section data-home-scroll id="silos">
         <SiloNarrativeCarousel />
       </section>
 
-      <section id="melhores" className="space-y-4">
+      <section data-home-scroll id="melhores" className="space-y-4">
         <div className="flex flex-col gap-1">
           <HomeSectionIndicator iconSrc="/maos-e-dedos01.webp" label="Conteúdo de monetização" />
           <h2 className="text-2xl font-semibold text-(--ink)">Melhores escolhas do ano</h2>
@@ -195,7 +194,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section id="manifesto" className="space-y-5 border-t border-(--border) pt-10">
+      <section data-home-scroll id="manifesto" className="space-y-5 border-t border-(--border) pt-10">
         <HomeSectionIndicator iconSrc="/maos-e-dedos02.webp" label="Missão e Visão" />
         <h2 className="max-w-4xl text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
           Elevando o Padrão da Nail Designer Brasileira: Onde a Técnica Encontra a Química
@@ -237,7 +236,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section id="sobre-lindisse" className="space-y-5 border-t border-(--border) pt-10">
+      <section data-home-scroll id="sobre-lindisse" className="space-y-5 border-t border-(--border) pt-10">
         <HomeSectionIndicator iconSrc="/maos-e-dedos03.webp" label="Sobre" />
         <h2 className="max-w-3xl text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
           A Curadoria Técnica que a Sua Mesa Exige
@@ -284,7 +283,7 @@ export default async function HomePage() {
         </p>
       </section>
 
-      <section id="analises-recentes" className="space-y-5 border-t border-(--border) pt-10">
+      <section data-home-scroll id="analises-recentes" className="space-y-5 border-t border-(--border) pt-10">
         <HomeSectionIndicator iconSrc="/maos-e-dedos04.webp" label="Posts mais Novos" />
         <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
           Análises Recentes e Atualizações do Mercado
@@ -320,7 +319,7 @@ export default async function HomePage() {
         )}
       </section>
 
-      <section id="cta-recomendacoes" className="space-y-5 border-t border-(--border) pt-10">
+      <section data-home-scroll id="cta-recomendacoes" className="space-y-5 border-t border-(--border) pt-10">
         <HomeSectionIndicator iconSrc="/maos-e-dedos05.webp" label="Saiba Mais" />
         <div className="grid gap-6 md:grid-cols-[1.2fr_auto] md:items-end">
           <div className="space-y-3 rounded-3xl border border-[rgba(165,119,100,0.28)] bg-[linear-gradient(148deg,rgba(255,255,255,0.95)_0%,rgba(255,247,230,0.98)_52%,rgba(241,188,153,0.5)_100%)] p-6 shadow-[0_16px_36px_rgba(165,119,100,0.16)] md:p-8">
@@ -350,4 +349,5 @@ export default async function HomePage() {
     </div>
   );
 }
+
 
