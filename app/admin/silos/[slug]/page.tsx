@@ -12,90 +12,94 @@ export const revalidate = 0;
 export default async function EditSiloPage({ params }: { params: Promise<{ slug: string }> }) {
   await requireAdminSession();
   const { slug } = await params;
-  const silo = await adminGetSiloBySlug(slug);
+  let silo: Awaited<ReturnType<typeof adminGetSiloBySlug>> = null;
+  try {
+    silo = await adminGetSiloBySlug(slug);
+  } catch (error) {
+    console.error("[SILO-PANEL] falha ao carregar silo", error);
+    silo = null;
+  }
   if (!silo) return notFound();
   const serpQuery = [silo.name, silo.meta_title].filter(Boolean).join(" ").trim();
-  const posts = await adminListPostsBySiloId(silo.id);
+  let posts: Awaited<ReturnType<typeof adminListPostsBySiloId>> = [];
+  try {
+    posts = await adminListPostsBySiloId(silo.id);
+  } catch (error) {
+    console.error("[SILO-PANEL] falha ao carregar posts do silo", error);
+    posts = [];
+  }
   const { getAdminSupabase } = await import("@/lib/supabase/admin"); // Importar supabase
   const siteUrl = process.env.SITE_URL ?? "http://localhost:3000";
 
-  const metrics = buildSiloMetrics({ silo, posts, siteUrl });
-  const cannibalization = buildInternalSimilarity(posts);
+  let metrics: ReturnType<typeof buildSiloMetrics>;
+  let cannibalization: ReturnType<typeof buildInternalSimilarity>;
+  try {
+    metrics = buildSiloMetrics({ silo, posts, siteUrl });
+    cannibalization = buildInternalSimilarity(posts);
+  } catch (error) {
+    console.error("[SILO-PANEL] falha ao montar metricas/canibalizacao", error);
+    metrics = buildSiloMetrics({ silo, posts: [], siteUrl });
+    cannibalization = [];
+  }
 
-  // Buscar hierarquia (silo_posts)
   const supabase = getAdminSupabase();
+  const postIds = posts.map((post) => post.id);
 
-  // Refresh leve das ocorrencias para garantir join correto
-  if (posts.length) {
+  // Sempre sincroniza as ocorrencias antes de montar o mapa para manter os dados em tempo real.
+  if (postIds.length > 0) {
     try {
-      const { count: occTotalCount } = await supabase
-        .from("post_link_occurrences")
-        .select("id", { count: "exact", head: true })
-        .eq("silo_id", silo.id);
-
-      const { data: latestPost } = await supabase
-        .from("posts")
-        .select("updated_at")
-        .eq("silo_id", silo.id)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const { data: latestOccurrence } = await supabase
-        .from("post_link_occurrences")
-        .select("updated_at")
-        .eq("silo_id", silo.id)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const postUpdatedAt = latestPost?.updated_at ? new Date(latestPost.updated_at).getTime() : null;
-      const occurrenceUpdatedAt = latestOccurrence?.updated_at ? new Date(latestOccurrence.updated_at).getTime() : null;
-
-      const shouldRefresh =
-        (occTotalCount ?? 0) === 0 ||
-        (postUpdatedAt !== null && (occurrenceUpdatedAt === null || postUpdatedAt > occurrenceUpdatedAt));
-
-      if (shouldRefresh) {
-        const { syncLinkOccurrences } = await import("@/lib/silo/siloService");
-        await Promise.allSettled(
-          posts.map((post) =>
-            syncLinkOccurrences(silo.id, post.id, post.content_html ?? "", {
-              posts,
-              siloSlug: silo.slug,
-              siteUrl,
-            })
-          )
-        );
-
-        const { count: occTotalAfter } = await supabase
-          .from("post_link_occurrences")
-          .select("id", { count: "exact", head: true })
-          .eq("silo_id", silo.id);
-
-        console.log("[SILO-PANEL] refresh ocorrencias", {
-          shouldRefresh,
-          occTotalBefore: occTotalCount ?? 0,
-          occTotalAfter: occTotalAfter ?? 0,
-        });
+      const { syncLinkOccurrences } = await import("@/lib/silo/siloService");
+      const syncContextPosts = posts.map((post) => ({
+        id: post.id,
+        slug: post.slug ?? null,
+        canonical_path: post.canonical_path ?? null,
+      }));
+      let failed = 0;
+      for (const post of posts) {
+        try {
+          await syncLinkOccurrences(silo.id, post.id, post.content_html ?? "", {
+            posts: syncContextPosts,
+            siloSlug: silo.slug,
+            siteUrl,
+          });
+        } catch (error) {
+          failed += 1;
+          console.error("[SILO-PANEL] falha ao sincronizar ocorrencias do post", {
+            postId: post.id,
+            error,
+          });
+        }
       }
+      console.log("[SILO-PANEL] sync ocorrencias", {
+        siloId: silo.id,
+        posts: posts.length,
+        failed,
+      });
     } catch (error) {
-      console.error("[SILO-PANEL] refresh ocorrencias falhou", error);
+      console.error("[SILO-PANEL] sync ocorrencias falhou", error);
     }
   }
+
+  // Buscar hierarquia (silo_posts)
   const { data: siloPosts } = await supabase
     .from("silo_posts")
     .select("post_id, role, position")
     .eq("silo_id", silo.id);
 
-  // Buscar links reais (post_links) para fallback
-  const postIds = posts.map(p => p.id);
-
   // Buscar Ocorrências detalhadas (Silo V2)
-  const { data: occurrences } = await supabase
-    .from("post_link_occurrences")
-    .select("*")
-    .eq("silo_id", silo.id);
+  let occurrences: any[] = [];
+  if (postIds.length > 0) {
+    const { data, error } = await supabase
+      .from("post_link_occurrences")
+      .select("*")
+      .eq("silo_id", silo.id)
+      .in("source_post_id", postIds);
+    if (error) {
+      console.error("[SILO-PANEL] falha ao buscar ocorrencias", error);
+    } else {
+      occurrences = data ?? [];
+    }
+  }
 
   // Buscar Auditoria de Links (Cores)
   const { data: linkAudits } = await supabase
@@ -139,9 +143,10 @@ export default async function EditSiloPage({ params }: { params: Promise<{ slug:
     normalizedOccurrences = occurrences.map((occ, index) => normalizeOccurrence(occ, `occ-${index}`));
   }
 
+  const occurrenceIdSet = new Set(normalizedOccurrences.map((occ) => String(occ.id ?? "")));
   const auditsByOccurrenceId = (linkAudits || []).reduce<Record<string, LinkAudit>>((acc, audit: any) => {
     const key = String(audit.occurrence_id ?? audit.occurrenceId ?? audit.id ?? "");
-    if (!key) return acc;
+    if (!key || !occurrenceIdSet.has(key)) return acc;
     acc[key] = {
       ...audit,
       occurrence_id: String(audit.occurrence_id ?? audit.occurrenceId ?? key),

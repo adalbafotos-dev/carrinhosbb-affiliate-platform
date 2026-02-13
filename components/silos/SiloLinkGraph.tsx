@@ -43,6 +43,7 @@ type PostCardData = {
   outbound: number;
   isPillar: boolean;
   role?: string | null;
+  position?: number | null;
   layer: number;
   isSelected?: boolean;
   isDimmed?: boolean; // Novo controle de opacidade
@@ -58,7 +59,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Rascunho",
-  review: "Revisão",
+  review: "Revisao",
   scheduled: "Agendado",
   published: "Publicado",
 };
@@ -119,8 +120,8 @@ function OrthogonalMultiEdge({
   let path = "";
 
   // Ajuste de margem vertical para layout mais compacto (160px layer height)
-  // Se layerHeight = 160, a distância entre bottom e top é ~60-80px.
-  // 40 de margem safe é ok.
+  // Se layerHeight = 160, a distancia entre bottom e top e ~60-80px.
+  // 40 de margem safe e ok.
   if (sourceY < targetY - 20) {
     // DESCENDO
     const midY = (sourceY + targetY) / 2;
@@ -190,9 +191,17 @@ function PostCard({ data }: NodeProps<PostCardData>) {
       />
 
       {data.isPillar && <div className="absolute -top-2 left-3 rounded-full bg-[#F36141] px-2 py-0.5 text-[9px] font-bold uppercase text-white shadow-sm">Pilar</div>}
-      {data.role === "SUPPORT" && <div className="absolute -top-2 left-3 rounded-full bg-[#F59E0B] px-2 py-0.5 text-[9px] font-bold uppercase text-white shadow-sm">Suporte</div>}
-      {isOrphan && <div className="absolute -top-2 right-3 rounded-full bg-[#EF4444] px-2 py-0.5 text-[9px] font-bold uppercase text-white shadow-sm">Órfão</div>}
-
+      {!data.isPillar && data.role === "SUPPORT" && (
+        <div className="absolute -top-2 left-3 rounded-full bg-[#F59E0B] px-2 py-0.5 text-[9px] font-bold uppercase text-white shadow-sm">
+          {`Suporte ${data.position ?? ""}`.trim()}
+        </div>
+      )}
+      {!data.isPillar && data.role === "AUX" && (
+        <div className="absolute -top-2 left-3 rounded-full bg-[#3B82F6] px-2 py-0.5 text-[9px] font-bold uppercase text-white shadow-sm">
+          {`Aux ${data.position ?? ""}`.trim()}
+        </div>
+      )}
+      {isOrphan && <div className="absolute -top-2 right-3 rounded-full bg-[#EF4444] px-2 py-0.5 text-[9px] font-bold uppercase text-white shadow-sm">Orfao</div>}
       <div className="mb-2 flex items-start justify-between gap-2 pt-2">
         <h3 className="line-clamp-2 text-sm font-semibold leading-tight text-(--ink)">{data.title}</h3>
         <div className="shrink-0 rounded px-1.5 py-0.5 text-[9px] font-medium uppercase text-white" style={{ backgroundColor: statusColor }}>
@@ -208,43 +217,107 @@ function PostCard({ data }: NodeProps<PostCardData>) {
   );
 }
 
-// ... helper calculateHierarchicalLayout mantido ...
 type LayerMap = Map<string, number>;
-function calculateHierarchicalLayout(
+type ResolvedPost = SiloPostSummary & {
+  role: "PILLAR" | "SUPPORT" | "AUX";
+  position: number;
+  isPillar: boolean;
+};
+
+function resolveHierarchyForGraph(
   posts: SiloPostSummary[],
-  adjacency: SiloMetrics["adjacency"],
-  metricsMap: Map<string, any>
-): { layers: LayerMap; pillarId: string | null } {
+  metricsMap: Map<string, SiloMetrics["perPostMetrics"][number]>
+): { layers: LayerMap; pillarId: string | null; resolvedPosts: ResolvedPost[] } {
   const layers: LayerMap = new Map();
-  let pillarId: string | null = null;
-  const hasDefinedHierarchy = posts.some((p) => p.role);
-  if (hasDefinedHierarchy) {
-    posts.forEach((post) => {
-      if (post.role === "PILLAR") { layers.set(post.id, 0); pillarId = post.id; }
-      else if (post.role === "SUPPORT") { layers.set(post.id, 1); }
-      else if (post.role === "AUX") { layers.set(post.id, 2); }
-      else { layers.set(post.id, 3); }
-    });
-    return { layers, pillarId };
+  if (!posts.length) {
+    return { layers, pillarId: null, resolvedPosts: [] };
   }
-  const pillarCandidate = posts.find((p) => p.isPillar);
-  pillarId = pillarCandidate?.id || null;
+
+  const rankPosition = (position?: number | null) =>
+    typeof position === "number" && Number.isFinite(position) && position > 0
+      ? position
+      : Number.MAX_SAFE_INTEGER;
+
+  const sortByPositionThenTitle = (a: SiloPostSummary, b: SiloPostSummary) => {
+    const pa = rankPosition(a.position);
+    const pb = rankPosition(b.position);
+    if (pa !== pb) return pa - pb;
+    return (a.title || "").localeCompare(b.title || "", "pt-BR");
+  };
+
+  const explicitPillars = posts.filter((post) => post.role === "PILLAR").sort(sortByPositionThenTitle);
+  let pillarId: string | null = explicitPillars[0]?.id ?? null;
+
   if (!pillarId) {
-    let maxInbound = -1;
+    const inferredPillar = posts.filter((post) => post.isPillar).sort(sortByPositionThenTitle)[0];
+    pillarId = inferredPillar?.id ?? null;
+  }
+
+  if (!pillarId) {
+    let bestInbound = -1;
     posts.forEach((post) => {
-      const metric = metricsMap.get(post.id);
-      if ((metric?.inboundWithinSilo ?? 0) > maxInbound) {
-        maxInbound = metric?.inboundWithinSilo ?? 0;
+      const inbound = metricsMap.get(post.id)?.inboundWithinSilo ?? 0;
+      if (inbound > bestInbound) {
+        bestInbound = inbound;
         pillarId = post.id;
       }
     });
   }
-  if (pillarId) layers.set(pillarId, 0);
-  const maxLayer = Math.max(...Array.from(layers.values()), 0);
+
+  if (!pillarId) {
+    pillarId = posts[0]?.id ?? null;
+  }
+
+  const roleById = new Map<string, "PILLAR" | "SUPPORT" | "AUX">();
   posts.forEach((post) => {
-    if (!layers.has(post.id)) layers.set(post.id, maxLayer + 1);
+    if (post.id === pillarId) {
+      roleById.set(post.id, "PILLAR");
+      return;
+    }
+    if (post.role === "AUX") {
+      roleById.set(post.id, "AUX");
+      return;
+    }
+    // Todos os nao-pilares viram SUPPORT por padrao para manter a hierarquia.
+    roleById.set(post.id, "SUPPORT");
   });
-  return { layers, pillarId };
+
+  const positionById = new Map<string, number>();
+  if (pillarId) {
+    positionById.set(pillarId, 1);
+  }
+
+  const supportPosts = posts
+    .filter((post) => roleById.get(post.id) === "SUPPORT")
+    .sort(sortByPositionThenTitle);
+  supportPosts.forEach((post, index) => {
+    positionById.set(post.id, index + 1);
+  });
+
+  const auxPosts = posts
+    .filter((post) => roleById.get(post.id) === "AUX")
+    .sort(sortByPositionThenTitle);
+  auxPosts.forEach((post, index) => {
+    positionById.set(post.id, index + 1);
+  });
+
+  const resolvedPosts: ResolvedPost[] = posts.map((post) => {
+    const resolvedRole = roleById.get(post.id) ?? "SUPPORT";
+    return {
+      ...post,
+      role: resolvedRole,
+      position: positionById.get(post.id) ?? 1,
+      isPillar: resolvedRole === "PILLAR",
+    };
+  });
+
+  resolvedPosts.forEach((post) => {
+    if (post.role === "PILLAR") layers.set(post.id, 0);
+    else if (post.role === "SUPPORT") layers.set(post.id, 1);
+    else layers.set(post.id, 2);
+  });
+
+  return { layers, pillarId, resolvedPosts };
 }
 
 export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges, auditsByOccurrenceId, linkAudits, siloAudit }: SiloLinkGraphProps) {
@@ -266,7 +339,8 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
   const edgeTypes = useMemo(() => ({ orthogonal: OrthogonalMultiEdge }), []);
 
   const metricsMap = useMemo(() => new Map(metrics.perPostMetrics.map((metric) => [metric.postId, metric])), [metrics]);
-  const { layers, pillarId } = useMemo(() => calculateHierarchicalLayout(posts, metrics.adjacency, metricsMap), [posts, metrics.adjacency, metricsMap]);
+  const { layers, pillarId, resolvedPosts } = useMemo(() => resolveHierarchyForGraph(posts, metricsMap), [posts, metricsMap]);
+  const postsById = useMemo(() => new Map(resolvedPosts.map((post) => [post.id, post])), [resolvedPosts]);
   const linkAuditsState = useMemo(() => Object.values(auditsByOccurrenceIdState), [auditsByOccurrenceIdState]);
   const auditsMap = useMemo(() => new Map(Object.entries(auditsByOccurrenceIdState)), [auditsByOccurrenceIdState]);
 
@@ -283,7 +357,7 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
   }, [siloAudit]);
 
   const filteredPosts = useMemo(() => {
-    let result = posts;
+    let result = [...resolvedPosts];
     if (filterOrphans) {
       result = result.filter((post) => {
         const metric = metricsMap.get(post.id);
@@ -294,8 +368,17 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
       const term = searchTerm.toLowerCase();
       result = result.filter(p => p.title.toLowerCase().includes(term) || p.slug.toLowerCase().includes(term));
     }
+    result.sort((a, b) => {
+      const layerA = layers.get(a.id) ?? 0;
+      const layerB = layers.get(b.id) ?? 0;
+      if (layerA !== layerB) return layerA - layerB;
+      const positionA = typeof a.position === "number" ? a.position : Number.MAX_SAFE_INTEGER;
+      const positionB = typeof b.position === "number" ? b.position : Number.MAX_SAFE_INTEGER;
+      if (positionA !== positionB) return positionA - positionB;
+      return (a.title || "").localeCompare(b.title || "", "pt-BR");
+    });
     return result;
-  }, [posts, filterOrphans, searchTerm, metricsMap]);
+  }, [resolvedPosts, filterOrphans, searchTerm, metricsMap, layers]);
 
   const normalizedLinkEdges = useMemo<LinkOccurrenceEdge[]>(() => {
     if (linkEdges && linkEdges.length > 0) {
@@ -338,32 +421,39 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
     });
 
     const nodesList: Node<PostCardData>[] = [];
-    const layerHeight = 110;
     const topOffset = 40;
     const nodeWidth = 300;
+    const pillarToSupportGap = 210;
+    const supportToNextGap = 130;
+
+    const getLayerY = (layer: number) => {
+      if (layer <= 0) return topOffset;
+      // Keep the pillar visually isolated from the support row.
+      return topOffset + pillarToSupportGap + (layer - 1) * supportToNextGap;
+    };
 
     layerGroups.forEach((postIds, layer) => {
       const count = postIds.length;
       postIds.forEach((postId, index) => {
-        const post = posts.find((p) => p.id === postId);
+        const post = postsById.get(postId);
         if (!post) return;
         const metric = metricsMap.get(postId);
         const x = (index - (count - 1) / 2) * nodeWidth;
-        const y = topOffset + layer * layerHeight;
+        const y = getLayerY(layer);
 
-        // Lógica de Opacidade
+        // Logica de opacidade
         const isSelected = selectedNodeId === postId;
         let isDimmed = false;
 
         if (selectedNodeId || selectedEdgeId) {
-          // Se algo está selecionado, nodes não relacionados ficam dimmed
+          // Se algo esta selecionado, nodes nao relacionados ficam dimmed
           if (isSelected) isDimmed = false; // O selecionado brilha
-          else if (selectedEdgeId) isDimmed = true; // Se tem edge selecionada, nodes não conectados poderiam brilhar se fossem source/target da edge
-          // mas vamos simplificar: nodes dimmed se não forem o selecionado.
+          else if (selectedEdgeId) isDimmed = true; // Se tem edge selecionada, nodes nao conectados poderiam brilhar se fossem source/target da edge
+          // mas vamos simplificar: nodes dimmed se nao forem o selecionado.
           else isDimmed = true;
 
           // Re-habilitar se conectado ao selecionado? (Focus Mode mais rico)
-          // Mas o user pediu "opacity 1" por default. A lógica aqui é: dimmed=true => opacity 0.2.
+          // Mas o user pediu "opacity 1" por default. A logica aqui e: dimmed=true => opacity 0.2.
         }
 
         nodesList.push({
@@ -377,9 +467,10 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
             focusKeyword: post.focus_keyword,
             inbound: metric?.inboundWithinSilo ?? 0,
             outbound: metric?.outboundWithinSilo ?? 0,
-            isPillar: postId === pillarId,
+            isPillar: post.role === "PILLAR" || postId === pillarId,
             layer,
             role: post.role,
+            position: post.position,
             isSelected,
             isDimmed,
           },
@@ -390,7 +481,7 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
       });
     });
     return nodesList;
-  }, [filteredPosts, layers, pillarId, posts, metricsMap, selectedNodeId, selectedEdgeId]);
+  }, [filteredPosts, layers, pillarId, postsById, metricsMap, selectedNodeId, selectedEdgeId]);
 
   const { edges, hiddenEdgeCounts, occurrenceToEdgeId } = useMemo(() => {
     const postIdSet = new Set(filteredPosts.map((p) => p.id));
@@ -596,12 +687,12 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
 
       if (res?.aiStatus === 'failed') {
         // Toast nativo simples
-        alert("Auditoria completa, mas a IA estava indisponível. Resultados baseados em regras padrão.");
+        alert("Auditoria completa, mas a IA estava indisponivel. Resultados baseados em regras padrao.");
       }
     });
   };
 
-  const orphanCount = posts.filter(p => !metricsMap.get(p.id)?.inboundWithinSilo && !metricsMap.get(p.id)?.outboundWithinSilo).length;
+  const orphanCount = resolvedPosts.filter(p => !metricsMap.get(p.id)?.inboundWithinSilo && !metricsMap.get(p.id)?.outboundWithinSilo).length;
   const siloSummary = useMemo(() => {
     const raw = siloAuditState?.summary;
     if (!raw) return null;
@@ -627,14 +718,14 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
       <div className="flex flex-wrap items-center gap-4 rounded-xl border border-(--border) bg-white p-4">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={filterOrphans} onChange={(e) => setFilterOrphans(e.target.checked)} className="h-4 w-4 rounded" />
-          <span>Ocultar órfãos ({orphanCount})</span>
+          <span>Ocultar orfaos ({orphanCount})</span>
         </label>
 
         <div className="ml-auto flex items-center gap-2">
           {siloAuditState ? (
             <div className="flex items-center gap-2">
               <span className={`text-sm font-bold ${siloAuditState.health_score > 75 ? 'text-green-600' : siloAuditState.health_score > 50 ? 'text-yellow-600' : 'text-red-500'}`}>
-                Saúde: {siloAuditState.health_score}%
+                Saude: {siloAuditState.health_score}%
               </span>
               <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${readyForPublish ? "bg-green-100 text-green-700 border-green-200" : "bg-amber-100 text-amber-700 border-amber-200"}`}>
                 {readyForPublish ? "Pronto para publicar" : "Pendencias"}
@@ -677,7 +768,7 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
         {showPanel && (
           <SiloInspectorPanel
             siloName={silo.name}
-            posts={posts}
+            posts={resolvedPosts}
             metrics={metrics}
             linkOccurrences={linkOccurrences}
             linkAudits={linkAuditsState}

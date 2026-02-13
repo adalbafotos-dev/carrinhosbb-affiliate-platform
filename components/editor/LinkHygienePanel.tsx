@@ -1,7 +1,7 @@
 "use client";
 
 import { useEditorContext } from "@/components/editor/EditorContext";
-import { ExternalLink, Link2, Shield, MapPinned, AlertCircle, ChevronDown, ChevronUp, Maximize2, Minimize2, Edit } from "lucide-react";
+import { ExternalLink, Link2, Shield, MapPinned, AlertCircle, ChevronDown, ChevronUp, Maximize2, Minimize2, Unlink2 } from "lucide-react";
 import { useMemo, useState, useEffect, useRef } from "react";
 
 export function LinkHygienePanel() {
@@ -142,6 +142,55 @@ export function LinkHygienePanel() {
                 "data-link-type": nextEntity,
             });
         }
+    };
+
+    const removeLink = (link: any) => {
+        if (!editor) return;
+
+        const linkId = String(link?.id ?? "");
+        const from = Number(link?.from ?? 0);
+        const to = Number(link?.to ?? 0);
+        if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return;
+
+        const isMentionNode = linkId.endsWith("-mention");
+        const isCtaNode = linkId.endsWith("-cta");
+        const isProductNode = linkId.endsWith("-product");
+        const willDeleteBlock = isMentionNode || isCtaNode || isProductNode;
+
+        const confirmed = window.confirm(
+            willDeleteBlock
+                ? "Esse bloco de link sera removido do conteudo. Deseja continuar?"
+                : "Remover este link e manter o texto visivel?"
+        );
+        if (!confirmed) return;
+
+        const scrollContainer = document.getElementById("intelligence-scroll-container");
+        savedScrollPositionRef.current = scrollContainer?.scrollTop || 0;
+        savedListScrollPositionRef.current = listScrollRef.current?.scrollTop || 0;
+        shouldIgnoreNextScrollRef.current = true;
+
+        if (isMentionNode) {
+            const replacementText = String(link?.text ?? "").trim();
+            if (replacementText) {
+                editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, replacementText).run();
+            } else {
+                editor.chain().focus().deleteRange({ from, to }).run();
+            }
+            return;
+        }
+
+        if (isCtaNode || isProductNode) {
+            editor.chain().focus().deleteRange({ from, to }).run();
+            return;
+        }
+
+        editor
+            .chain()
+            .focus()
+            .setTextSelection({ from, to })
+            .extendMarkRange("link")
+            .unsetLink()
+            .run();
     };
 
     useEffect(() => {
@@ -466,11 +515,37 @@ export function LinkHygienePanel() {
                         >
                             mention
                         </button>
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                removeLink(link);
+                            }}
+                            className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md bg-red-600 text-white border-2 border-red-700"
+                            title="Remover link"
+                        >
+                            <Unlink2 size={12} />
+                            remover
+                        </button>
                     </div>
                 ) : (
-                    <div className="pt-2 mt-2 border-t border-(--border) text-[10px] text-(--muted-2)">
-                        {isInternal && "Interno: sem _blank, nofollow, sponsored, about ou mention."}
-                        {!isInternal && (isAmazon || isAffiliate) && "Affiliate/Amazon: atributos fixos (_blank, nofollow, sponsored)."}
+                    <div className="pt-2 mt-2 border-t border-(--border) space-y-2">
+                        <div className="text-[10px] text-(--muted-2)">
+                            {isInternal && "Interno: sem _blank, nofollow, sponsored, about ou mention."}
+                            {!isInternal && (isAmazon || isAffiliate) && "Affiliate/Amazon: atributos fixos (_blank, nofollow, sponsored)."}
+                        </div>
+                        <button
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                removeLink(link);
+                            }}
+                            className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-md font-semibold transition-all shadow-sm hover:shadow-md bg-red-600 text-white border-2 border-red-700"
+                            title="Remover link"
+                        >
+                            <Unlink2 size={12} />
+                            remover
+                        </button>
                     </div>
                 )}
             </div>

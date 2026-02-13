@@ -6,6 +6,7 @@ import { TermsPanel } from "@/components/editor/TermsPanel";
 import { LinkHygienePanel } from "@/components/editor/LinkHygienePanel";
 import { InternalLinksPanel } from "@/components/editor/InternalLinksPanel";
 import { PlagiarismInspectorPanel } from "@/components/editor/PlagiarismInspectorPanel";
+import { TextSearchPanel } from "@/components/editor/TextSearchPanel";
 import { FileText } from "lucide-react";
 import { SerpAnalysisPanel } from "@/components/serp/SerpAnalysisPanel";
 
@@ -46,6 +47,8 @@ export function ContentIntelligence() {
             )}
           </div>
         </section>
+
+        <TextSearchPanel />
 
         <TermsPanel />
 

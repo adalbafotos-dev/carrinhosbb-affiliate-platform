@@ -17,6 +17,7 @@ type PostInput = Pick<Post, "id" | "title" | "content_html" | "content_json" | "
 };
 
 const DEFAULT_SNIPPET_WORDS = 600;
+const DEFAULT_INTENT_WORDS = 220;
 
 function stripHtml(html: string) {
   return html.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, " ").replace(/<style[^>]*>[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ");
@@ -82,6 +83,59 @@ function tokenizeFingerprint(fingerprint: string) {
   return fingerprint.split(" ").filter((token) => token.length > 2);
 }
 
+function sliceWords(text: string, limit: number) {
+  return normalizeText(text)
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, limit)
+    .join(" ");
+}
+
+function extractPostSignals(post: PostInput) {
+  const title = normalizeText(post.title ?? "");
+  const keyword = normalizeText(getPostQuery(post));
+  const headings =
+    typeof post.content_html === "string"
+      ? extractHeadingsFromHtml(post.content_html)
+      : extractHeadingsFromJson(post.content_json);
+  const headingsText = normalizeText(headings.join(" "));
+  const plainText = extractPlainText(post.content_html || post.content_json || "");
+  const snippet = sliceWords(plainText, DEFAULT_INTENT_WORDS);
+  const fingerprint = buildFingerprint(post);
+
+  return {
+    titleTokens: tokenizeFingerprint(title),
+    keywordTokens: tokenizeFingerprint(keyword),
+    headingsTokens: tokenizeFingerprint(headingsText),
+    snippetTokens: tokenizeFingerprint(snippet),
+    fingerprintTokens: tokenizeFingerprint(fingerprint),
+  };
+}
+
+function computeIntentSimilarity(
+  a: ReturnType<typeof extractPostSignals>,
+  b: ReturnType<typeof extractPostSignals>
+) {
+  const titleScore = jaccard(a.titleTokens, b.titleTokens);
+  const keywordScore = jaccard(a.keywordTokens, b.keywordTokens);
+  const headingsScore = jaccard(a.headingsTokens, b.headingsTokens);
+  const snippetScore = jaccard(a.snippetTokens, b.snippetTokens);
+  const fingerprintScore = jaccard(a.fingerprintTokens, b.fingerprintTokens);
+
+  let score =
+    keywordScore * 0.34 +
+    titleScore * 0.22 +
+    headingsScore * 0.18 +
+    snippetScore * 0.14 +
+    fingerprintScore * 0.12;
+
+  if (keywordScore >= 0.7) score += 0.12;
+  if (titleScore >= 0.7) score += 0.08;
+  if (headingsScore >= 0.5 && keywordScore >= 0.45) score += 0.06;
+
+  return Math.min(1, score);
+}
+
 function jaccard(tokensA: string[], tokensB: string[]) {
   const setA = new Set(tokensA);
   const setB = new Set(tokensB);
@@ -105,12 +159,12 @@ export function getPostQuery(post: PostInput) {
 
 export function deriveRiskLevel(similarityScore: number, serpOverlapScore?: number | null): "low" | "medium" | "high" {
   if (typeof serpOverlapScore === "number") {
-    if (similarityScore >= 0.6 && serpOverlapScore >= 0.35) return "high";
-    if (similarityScore >= 0.45 || serpOverlapScore >= 0.3) return "medium";
+    if ((similarityScore >= 0.58 && serpOverlapScore >= 0.35) || (similarityScore >= 0.72 && serpOverlapScore >= 0.2)) return "high";
+    if (similarityScore >= 0.42 || serpOverlapScore >= 0.3) return "medium";
     return "low";
   }
-  if (similarityScore >= 0.55) return "high";
-  if (similarityScore >= 0.35) return "medium";
+  if (similarityScore >= 0.62) return "high";
+  if (similarityScore >= 0.4) return "medium";
   return "low";
 }
 
@@ -126,10 +180,9 @@ export function buildRecommendation(similarityScore: number, serpOverlapScore?: 
 }
 
 export function buildInternalSimilarity(posts: PostInput[]): CannibalizationPair[] {
-  const fingerprints = new Map<string, string[]>();
+  const signalsByPost = new Map<string, ReturnType<typeof extractPostSignals>>();
   posts.forEach((post) => {
-    const fingerprint = buildFingerprint(post);
-    fingerprints.set(post.id, tokenizeFingerprint(fingerprint));
+    signalsByPost.set(post.id, extractPostSignals(post));
   });
 
   const pairs: CannibalizationPair[] = [];
@@ -137,7 +190,7 @@ export function buildInternalSimilarity(posts: PostInput[]): CannibalizationPair
     for (let j = i + 1; j < posts.length; j += 1) {
       const a = posts[i];
       const b = posts[j];
-      const score = jaccard(fingerprints.get(a.id) ?? [], fingerprints.get(b.id) ?? []);
+      const score = computeIntentSimilarity(signalsByPost.get(a.id)!, signalsByPost.get(b.id)!);
       const risk = deriveRiskLevel(score, null);
       pairs.push({
         postAId: a.id,

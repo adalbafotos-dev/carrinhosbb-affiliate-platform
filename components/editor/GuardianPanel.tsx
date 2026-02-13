@@ -11,6 +11,7 @@ export function GuardianPanel() {
     const [aiLoading, setAiLoading] = useState(false);
     const [aiError, setAiError] = useState<string | null>(null);
     const [aiResult, setAiResult] = useState<any | null>(null);
+    const [aiDiagnostics, setAiDiagnostics] = useState<any | null>(null);
 
     const criticalIssues = issues.filter((i) => i.level === "critical");
     const warnIssues = issues.filter((i) => i.level === "warn");
@@ -41,12 +42,15 @@ export function GuardianPanel() {
             if (!res.ok || !data?.ok) {
                 setAiError(data?.error || "Falha ao consultar a IA.");
                 setAiResult(null);
+                setAiDiagnostics(null);
             } else {
                 setAiResult(data?.result ?? data);
+                setAiDiagnostics(data?.diagnostics ?? null);
             }
         } catch (error: any) {
             setAiError(error?.message || "Falha ao consultar a IA.");
             setAiResult(null);
+            setAiDiagnostics(null);
         } finally {
             setAiLoading(false);
         }
@@ -116,6 +120,20 @@ export function GuardianPanel() {
                 ) : null}
                 {aiResult ? (
                     <div className="mt-3 space-y-2 rounded-lg border border-(--border) bg-(--surface) p-3 text-[11px] text-(--text)">
+                        {aiDiagnostics ? (
+                            <div className="rounded border border-(--border) bg-(--surface-muted) p-2 text-[10px] text-(--muted)">
+                                <p className="font-semibold uppercase text-(--text)">Diagnostico LSI/PNL</p>
+                                <p className="mt-1">
+                                    Cobertura LSI: <span className="font-semibold text-(--text)">{Math.round(aiDiagnostics?.coverage?.lsiCoverageScore ?? 0)}%</span>
+                                </p>
+                                <p>
+                                    Estrutura PNL: <span className="font-semibold text-(--text)">{Math.round(aiDiagnostics?.structure?.coverageScore ?? 0)}%</span>
+                                </p>
+                                {Array.isArray(aiDiagnostics?.structure?.missingSections) && aiDiagnostics.structure.missingSections.length ? (
+                                    <p>Faltando: {aiDiagnostics.structure.missingSections.slice(0, 4).join(", ")}</p>
+                                ) : null}
+                            </div>
+                        ) : null}
                         {aiResult.analysis ? (
                             <div>
                                 <p className="font-semibold uppercase text-(--muted)">Resumo</p>

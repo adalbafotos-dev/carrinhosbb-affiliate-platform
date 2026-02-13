@@ -122,6 +122,7 @@ const CRITICAL_REASONS = new Set([
     "ANCHOR_GENERIC",
     "ANCHOR_TOO_SHORT",
     "MISMATCH_TOPIC",
+    "HIERARCHY_VIOLATION",
     "OVER_OPTIMIZED_ANCHOR",
     "LINK_CHAINING",
     "SUPPORT_NOT_LINKING_PILLAR",
@@ -172,6 +173,7 @@ function buildDeterministicAudit(input: {
     contextSnippet?: string | null;
     sourceRole?: string | null;
     targetRole?: string | null;
+    hierarchyViolationReason?: string | null;
     targetTitle?: string;
     targetKeyword?: string | null;
     targetEntities?: string[];
@@ -212,6 +214,11 @@ function buildDeterministicAudit(input: {
     if (mismatch) {
         score -= 35;
         reasons.push("MISMATCH_TOPIC");
+    }
+
+    if (input.hierarchyViolationReason) {
+        score -= 35;
+        reasons.push("HIERARCHY_VIOLATION");
     }
 
     const anchorVague = !generic && anchorWords.length <= 3 && overlapAnchor === 0;
@@ -385,6 +392,9 @@ function mergeAudit(
 }
 
 function pickAction(reasons: string[]) {
+    if (reasons.includes("HIERARCHY_VIOLATION")) {
+        return "CHANGE_TARGET";
+    }
     if (reasons.includes("HIDDEN_LINK_PATTERN") || reasons.includes("LINK_CHAINING") || reasons.includes("OVER_OPTIMIZED_ANCHOR")) {
         return "REMOVE_LINK";
     }
@@ -433,17 +443,150 @@ async function generateFingerprint(data: any): Promise<string> {
     }
 }
 
+type NormalizedHierarchyEntry = {
+    role: "PILLAR" | "SUPPORT" | "AUX";
+    supportIndex: number | null;
+};
+
+function rankPosition(value: number | null | undefined) {
+    return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : Number.MAX_SAFE_INTEGER;
+}
+
+function normalizeSiloHierarchy(args: {
+    posts: Array<{ id: string; title?: string | null }>;
+    siloPosts: Array<{ post_id: string; role: string | null; position: number | null }>;
+}) {
+    const byPost = new Map(args.siloPosts.map((row) => [row.post_id, row]));
+    const sortByPositionThenTitle = (a: { id: string; title?: string | null }, b: { id: string; title?: string | null }) => {
+        const aPos = rankPosition(byPost.get(a.id)?.position);
+        const bPos = rankPosition(byPost.get(b.id)?.position);
+        if (aPos !== bPos) return aPos - bPos;
+        return String(a.title ?? "").localeCompare(String(b.title ?? ""), "pt-BR");
+    };
+
+    const explicitPillar = args.posts
+        .filter((post) => String(byPost.get(post.id)?.role ?? "").toUpperCase() === "PILLAR")
+        .sort(sortByPositionThenTitle)[0];
+    const fallbackPillar = [...args.posts].sort(sortByPositionThenTitle)[0];
+    const pillarId = explicitPillar?.id ?? fallbackPillar?.id ?? null;
+
+    const map = new Map<string, NormalizedHierarchyEntry>();
+    if (!pillarId) return { map, pillarId: null as string | null };
+
+    map.set(pillarId, { role: "PILLAR", supportIndex: null });
+
+    const supports = args.posts
+        .filter((post) => post.id !== pillarId && String(byPost.get(post.id)?.role ?? "").toUpperCase() !== "AUX")
+        .sort(sortByPositionThenTitle);
+    supports.forEach((post, index) => {
+        map.set(post.id, { role: "SUPPORT", supportIndex: index + 1 });
+    });
+
+    const aux = args.posts
+        .filter((post) => post.id !== pillarId && String(byPost.get(post.id)?.role ?? "").toUpperCase() === "AUX")
+        .sort(sortByPositionThenTitle);
+    aux.forEach((post) => {
+        map.set(post.id, { role: "AUX", supportIndex: null });
+    });
+
+    return { map, pillarId };
+}
+
+function getHierarchyViolationReason(args: {
+    sourceId: string;
+    targetId: string;
+    hierarchyMap: Map<string, NormalizedHierarchyEntry>;
+}) {
+    const source = args.hierarchyMap.get(args.sourceId);
+    const target = args.hierarchyMap.get(args.targetId);
+    if (!source || !target) return null;
+
+    if (source.role === "PILLAR") {
+        return target.role === "SUPPORT" ? null : "Pilar so pode linkar para suportes.";
+    }
+
+    if (source.role === "SUPPORT") {
+        if (target.role === "PILLAR") return null;
+        if (
+            target.role === "SUPPORT" &&
+            typeof source.supportIndex === "number" &&
+            typeof target.supportIndex === "number" &&
+            Math.abs(source.supportIndex - target.supportIndex) === 1
+        ) {
+            return null;
+        }
+        return "Suporte so pode linkar para o Pilar ou suportes vizinhos (N-1/N+1).";
+    }
+
+    if (source.role === "AUX") {
+        return target.role === "PILLAR" ? null : "Auxiliar so pode linkar para o Pilar.";
+    }
+
+    return null;
+}
+
 export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
     const supabase = getAdminSupabase();
     const { siloId, siloSlug, force } = payload;
     let aiStatus: "skipped" | "success" | "failed" = "skipped";
 
     try {
-        const { data: occurrences } = await supabase
-            .from("post_link_occurrences")
-            .select("id, source_post_id, target_post_id, anchor_text, context_snippet, position_bucket, link_type, updated_at")
-            .eq("silo_id", siloId)
-            .order("id");
+        const siteUrl = process.env.SITE_URL ?? "http://localhost:3000";
+        const { data: postsForSync, error: postsForSyncError } = await supabase
+            .from("posts")
+            .select("id, slug, canonical_path, content_html")
+            .eq("silo_id", siloId);
+        if (postsForSyncError) {
+            logDbError("[SILO-AUDIT] posts sync preload error", postsForSyncError);
+        }
+
+        const syncPostIds = (postsForSync ?? []).map((post) => String(post.id));
+        if ((postsForSync ?? []).length > 0) {
+            try {
+                const { syncLinkOccurrences } = await import("@/lib/silo/siloService");
+                const syncContextPosts = (postsForSync ?? []).map((post) => ({
+                    id: String(post.id),
+                    slug: post.slug ?? null,
+                    canonical_path: post.canonical_path ?? null,
+                }));
+                const syncResults = await Promise.allSettled(
+                    (postsForSync ?? []).map((post) =>
+                        syncLinkOccurrences(siloId, String(post.id), post.content_html ?? "", {
+                            posts: syncContextPosts,
+                            siloSlug,
+                            siteUrl,
+                        })
+                    )
+                );
+                const syncFailed = syncResults.filter((item) => item.status === "rejected").length;
+                if (syncFailed > 0) {
+                    console.warn("[SILO-AUDIT] sync parcial", {
+                        siloId,
+                        posts: postsForSync?.length ?? 0,
+                        syncFailed,
+                    });
+                }
+            } catch (syncError) {
+                console.error("[SILO-AUDIT] falha ao sincronizar ocorrencias antes da auditoria", syncError);
+            }
+        }
+
+        let occurrences: any[] = [];
+        {
+            let occurrenceQuery = supabase
+                .from("post_link_occurrences")
+                .select("id, source_post_id, target_post_id, anchor_text, context_snippet, position_bucket, link_type, updated_at")
+                .eq("silo_id", siloId);
+            if (syncPostIds.length > 0) {
+                occurrenceQuery = occurrenceQuery.in("source_post_id", syncPostIds);
+            }
+            const { data, error } = await occurrenceQuery.order("id");
+            if (error) {
+                logDbError("[SILO-AUDIT] occurrences query error", error);
+            } else {
+                occurrences = data ?? [];
+            }
+        }
 
         const { data: siloPosts } = await supabase
             .from("silo_posts")
@@ -538,18 +681,47 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
         }
 
         const postIds = siloPosts?.map((p) => p.post_id) || [];
-        const postsData = postIds.length
-            ? (
-                await supabase
-                    .from("posts")
-                    .select("id, title, slug, focus_keyword, entities, content_html")
-                    .in("id", postIds)
-            ).data
-            : [];
+        let postsData: any[] = [];
+        let postsError: any = null;
+        if (postIds.length) {
+            const loadPosts = async (select: string) => {
+                return supabase.from("posts").select(select).in("id", postIds);
+            };
 
-        const postsMap = new Map(postsData?.map((p) => [p.id, p]));
-        const pillarId = siloPosts?.find((p) => p.role === "PILLAR")?.post_id ?? null;
-        const supports = siloPosts?.filter((p) => p.role === "SUPPORT").map((p) => p.post_id) || [];
+            {
+                const { data, error } = await loadPosts("id, title, slug, focus_keyword, entities, content_html");
+                postsData = data ?? [];
+                postsError = error;
+            }
+
+            if (postsError) {
+                const missing = getMissingColumnFromError(postsError);
+                if (missing === "focus_keyword") {
+                    const { data, error } = await loadPosts("id, title, slug, entities, content_html");
+                    postsData = (data ?? []).map((row: any) => ({ ...row, focus_keyword: null }));
+                    postsError = error;
+                }
+            }
+        }
+
+        if (postsError) {
+            logDbError("[SILO-AUDIT] posts query error", postsError);
+            return { success: false, message: "Falha ao carregar posts do silo para auditoria." };
+        }
+
+        const postsMap = new Map(postsData.map((p) => [p.id, p]));
+        const normalizedHierarchy = normalizeSiloHierarchy({
+            posts: postsData.map((post) => ({ id: String(post.id), title: post.title ?? "" })),
+            siloPosts: (siloPosts ?? []).map((row) => ({
+                post_id: String(row.post_id),
+                role: row.role ?? null,
+                position: typeof row.position === "number" ? row.position : null,
+            })),
+        });
+        const pillarId = normalizedHierarchy.pillarId;
+        const supports = Array.from(normalizedHierarchy.map.entries())
+            .filter(([, entry]) => entry.role === "SUPPORT")
+            .map(([postId]) => postId);
 
         const issues: SiloIssue[] = [];
         let healthScore = 100;
@@ -622,6 +794,33 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             });
         }
 
+        const hierarchyViolationByOccurrenceId = new Map<string, string>();
+        internalOccurrences.forEach((occ) => {
+            const targetId = occ.target_post_id ? String(occ.target_post_id) : null;
+            if (!targetId) return;
+            const reason = getHierarchyViolationReason({
+                sourceId: String(occ.source_post_id),
+                targetId,
+                hierarchyMap: normalizedHierarchy.map,
+            });
+            if (!reason) return;
+            hierarchyViolationByOccurrenceId.set(String(occ.id), reason);
+        });
+
+        if (hierarchyViolationByOccurrenceId.size > 0) {
+            healthScore -= Math.min(35, hierarchyViolationByOccurrenceId.size * 6);
+            Array.from(hierarchyViolationByOccurrenceId.entries())
+                .slice(0, 12)
+                .forEach(([occurrenceId, reason]) => {
+                    issues.push({
+                        severity: "high",
+                        message: "Link interno viola a hierarquia do silo.",
+                        action: reason,
+                        occurrenceId,
+                    });
+                });
+        }
+
         const anchorCounts = new Map<string, number>();
         const anchorSourceCounts = new Map<string, number>();
         const targetCounts = new Map<string, number>();
@@ -670,6 +869,8 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
 
         const linkAuditsBase = internalOccurrences.map((occ) => {
             const targetPost = postsMap.get(occ.target_post_id!);
+            const sourceHierarchy = normalizedHierarchy.map.get(String(occ.source_post_id));
+            const targetHierarchy = normalizedHierarchy.map.get(String(occ.target_post_id!));
             const internalCount = internalCountsBySource.get(occ.source_post_id) ?? 0;
             const genericCount = genericCountsBySource.get(occ.source_post_id) ?? 0;
             const wordCount = wordCountByPost.get(occ.source_post_id) ?? 0;
@@ -677,8 +878,9 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             const baseAudit = buildDeterministicAudit({
                 anchorText: occ.anchor_text,
                 contextSnippet: occ.context_snippet,
-                sourceRole: roleMap.get(occ.source_post_id) ?? null,
-                targetRole: roleMap.get(occ.target_post_id!) ?? null,
+                sourceRole: sourceHierarchy?.role ?? roleMap.get(occ.source_post_id) ?? null,
+                targetRole: targetHierarchy?.role ?? roleMap.get(occ.target_post_id!) ?? null,
+                hierarchyViolationReason: hierarchyViolationByOccurrenceId.get(String(occ.id)) ?? null,
                 targetTitle: targetPost?.title,
                 targetKeyword: targetPost?.focus_keyword ?? null,
                 targetEntities: Array.isArray(targetPost?.entities) ? targetPost?.entities.filter(Boolean).slice(0, 10) : [],
@@ -832,6 +1034,8 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
         if (genericAnchorCount >= 5) maxScore = Math.min(maxScore, 70);
         if (supportsWithoutPillar.length) maxScore = Math.min(maxScore, 60);
         if (pillarMissingSupports.length) maxScore = Math.min(maxScore, 70);
+        if (hierarchyViolationByOccurrenceId.size > 0) maxScore = Math.min(maxScore, 65);
+        if (hierarchyViolationByOccurrenceId.size >= 3) maxScore = Math.min(maxScore, 55);
 
         healthScore = Math.min(healthScore, maxScore);
         healthScore = Math.max(0, healthScore);
@@ -896,6 +1100,7 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
                 spam_risk_high_count: spamRiskHighCount,
                 supports_without_pillar_count: supportsWithoutPillar.length,
                 pillar_missing_supports_count: pillarMissingSupports.length,
+                hierarchy_violations_count: hierarchyViolationByOccurrenceId.size,
                 ai_status: aiStatus,
             },
         };

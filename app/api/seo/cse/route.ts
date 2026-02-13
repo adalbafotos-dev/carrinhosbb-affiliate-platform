@@ -18,6 +18,62 @@ const RATE_LIMIT = {
   windowMs: 10 * 60 * 1000,
 };
 
+function mapGoogleCseError(error: GoogleCseError) {
+  const rawMessage = (error.message || "").toLowerCase();
+  const rawCode = (error.code || "").toLowerCase();
+
+  if (error.status === 401) {
+    return {
+      status: 401,
+      error: "invalid_credentials",
+      message: "API key do Google invalida ou com restricao incorreta.",
+    };
+  }
+
+  if (error.status === 403) {
+    const apiNotEnabled =
+      rawMessage.includes("custom search json api") &&
+      (rawMessage.includes("does not have the access") || rawCode === "forbidden");
+
+    if (apiNotEnabled) {
+      return {
+        status: 403,
+        error: "api_not_enabled",
+        message:
+          "Projeto sem acesso a Custom Search JSON API. Ative a API no Google Cloud e habilite faturamento.",
+      };
+    }
+
+    return {
+      status: 403,
+      error: "forbidden",
+      message: "Google bloqueou a requisicao. Revise API key, restricoes e Search Engine ID (cx).",
+    };
+  }
+
+  if (error.status === 429) {
+    return {
+      status: 429,
+      error: "quota_exceeded",
+      message: "Quota da API do Google excedida.",
+    };
+  }
+
+  if (error.status === 504) {
+    return {
+      status: 504,
+      error: "timeout",
+      message: "Timeout ao consultar o Google.",
+    };
+  }
+
+  return {
+    status: error.status || 500,
+    error: "google_error",
+    message: "Erro ao consultar o Google.",
+  };
+}
+
 function getClientKey(request: NextRequest) {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const realIp = request.headers.get("x-real-ip")?.trim();
@@ -76,18 +132,10 @@ export async function POST(request: NextRequest) {
       );
     }
     if (error instanceof GoogleCseError) {
-      if (error.status === 401 || error.status === 403) {
-        return NextResponse.json({ error: "invalid_credentials", message: "Credenciais Google invalidas." }, { status: error.status });
-      }
-      if (error.status === 429) {
-        return NextResponse.json({ error: "quota_exceeded", message: "Quota da API do Google excedida." }, { status: 429 });
-      }
-      if (error.status === 504) {
-        return NextResponse.json({ error: "timeout", message: "Timeout ao consultar o Google." }, { status: 504 });
-      }
+      const mapped = mapGoogleCseError(error);
       return NextResponse.json(
-        { error: "google_error", message: "Erro ao consultar o Google.", details: error.code },
-        { status: error.status || 500 }
+        { error: mapped.error, message: mapped.message, details: error.code },
+        { status: mapped.status }
       );
     }
 

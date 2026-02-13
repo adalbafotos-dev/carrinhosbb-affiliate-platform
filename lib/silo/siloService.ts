@@ -124,6 +124,18 @@ function logDbError(label: string, error: any) {
     });
 }
 
+function generateOccurrenceId() {
+    if (typeof crypto.randomUUID === "function") {
+        return crypto.randomUUID();
+    }
+    const bytes = crypto.randomBytes(16);
+    // RFC4122 v4 fallback for runtimes without randomUUID.
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    const hex = bytes.toString("hex");
+    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 function resolveHref(href: string, siteHost: string | null) {
     const trimmed = href.trim();
     let normalizedHref = trimmed.split("#")[0].split("?")[0] || trimmed;
@@ -459,6 +471,7 @@ export async function syncLinkOccurrences(
     });
 
     const matchedIds = new Set<string>();
+    const syncTimestamp = new Date().toISOString();
     const mergedOccurrences = occurrences.map((occ) => {
         const key = hasOccurrenceKey
             ? occ.occurrence_key ?? ""
@@ -474,22 +487,21 @@ export async function syncLinkOccurrences(
                 id: existing.id,
                 target_post_id: keepTarget,
                 link_type: keepTarget ? "INTERNAL" : occ.link_type,
+                updated_at: syncTimestamp,
             };
         }
 
-        return { ...occ, target_post_id: keepTarget };
+        return { ...occ, id: generateOccurrenceId(), target_post_id: keepTarget, updated_at: syncTimestamp };
     });
 
-    if (hasOccurrenceKey) {
-        const idsToDelete = Array.from(existingIds).filter((id) => !matchedIds.has(id));
-        if (idsToDelete.length > 0) {
-            const { error: delError } = await supabase
-                .from("post_link_occurrences")
-                .delete()
-                .in("id", idsToDelete);
-            if (delError) {
-                logDbError("Erro ao limpar ocorrencias antigas", delError);
-            }
+    const idsToDelete = Array.from(existingIds).filter((id) => !matchedIds.has(id));
+    if (idsToDelete.length > 0) {
+        const { error: delError } = await supabase
+            .from("post_link_occurrences")
+            .delete()
+            .in("id", idsToDelete);
+        if (delError) {
+            logDbError("Erro ao limpar ocorrencias antigas", delError);
         }
     }
 

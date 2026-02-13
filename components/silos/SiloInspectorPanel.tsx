@@ -236,11 +236,23 @@ export function SiloInspectorPanel({
         ADD_INTERNAL_LINK: "Adicionar link interno",
     };
 
-    const openEditorForOccurrence = (occurrenceId?: string | null) => {
+    const openEditorForOccurrence = (occurrenceId?: string | null, options?: { autoUnlink?: boolean }) => {
         if (!occurrenceId || !linkOccurrences) return;
         const occ = linkOccurrences.find((item) => String(item.id ?? "") === String(occurrenceId ?? ""));
         if (!occ) return;
-        window.open(`/admin/editor/${occ.source_post_id}?highlightOccurrenceId=${occurrenceId}&openLinkDialog=1`, "_blank");
+        const params = new URLSearchParams({
+            highlightOccurrenceId: String(occurrenceId),
+        });
+        if (options?.autoUnlink) {
+            params.set("autoUnlink", "1");
+        } else {
+            params.set("openLinkDialog", "1");
+        }
+        window.open(`/admin/editor/${occ.source_post_id}?${params.toString()}`, "_blank");
+    };
+
+    const removeInEditorForOccurrence = (occurrenceId?: string | null) => {
+        openEditorForOccurrence(occurrenceId, { autoUnlink: true });
     };
 
     return (
@@ -339,6 +351,17 @@ export function SiloInspectorPanel({
                                                             className="text-[10px] uppercase text-amber-600 font-bold hover:underline"
                                                         >
                                                             Editar
+                                                        </button>
+                                                    )}
+                                                    {issue.occurrenceId && (
+                                                        <button
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                removeInEditorForOccurrence(issue.occurrenceId);
+                                                            }}
+                                                            className="text-[10px] uppercase text-red-600 font-bold hover:underline"
+                                                        >
+                                                            Remover
                                                         </button>
                                                     )}
                                                 </div>
@@ -470,6 +493,19 @@ export function SiloInspectorPanel({
                                                     {linkAuditMap.get(String(rel.id ?? ""))?.label}
                                                 </span>
                                             )}
+                                            {rel.id ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        removeInEditorForOccurrence(rel.id);
+                                                    }}
+                                                    className="text-[9px] uppercase text-red-600 font-bold hover:underline"
+                                                    title="Remover este link no editor"
+                                                >
+                                                    remover
+                                                </button>
+                                            ) : null}
                                             <span className="text-blue-400 group-hover:text-blue-600">→</span>
                                         </li>
                                     ))}
@@ -504,6 +540,19 @@ export function SiloInspectorPanel({
                                                     {linkAuditMap.get(String(rel.id ?? ""))?.label}
                                                 </span>
                                             )}
+                                            {rel.id ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        removeInEditorForOccurrence(rel.id);
+                                                    }}
+                                                    className="text-[9px] uppercase text-red-600 font-bold hover:underline"
+                                                    title="Remover este link no editor"
+                                                >
+                                                    remover
+                                                </button>
+                                            ) : null}
                                             <span className="text-blue-400 group-hover:text-blue-600">→</span>
                                         </li>
                                     ))}
@@ -522,7 +571,17 @@ export function SiloInspectorPanel({
                                             <a href={rel.href_normalized} target="_blank" className="font-medium text-blue-600 hover:underline truncate w-full">{rel.href_normalized}</a>
                                             <div className="flex justify-between items-center">
                                                 <span className="text-[10px] text-gray-400">"{rel.anchor_text.substring(0, 25)}"</span>
-                                                <div className="flex gap-1">
+                                                <div className="flex gap-1 items-center">
+                                                    {rel.id ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeInEditorForOccurrence(rel.id)}
+                                                            className="text-[9px] uppercase text-red-600 font-bold hover:underline"
+                                                            title="Remover este link no editor"
+                                                        >
+                                                            remover
+                                                        </button>
+                                                    ) : null}
                                                     {rel.link_type === "AFFILIATE" && renderBadge("AFF", "bg-purple-400")}
                                                     {rel.is_sponsored && renderBadge("SPON", "bg-yellow-400")}
                                                     {rel.is_nofollow && renderBadge("NF", "bg-gray-400")}
@@ -560,6 +619,12 @@ export function SiloInspectorPanel({
                             className="w-full rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-[11px] font-semibold uppercase text-blue-700 hover:bg-blue-100"
                         >
                             Ir para o link no editor
+                        </button>
+                        <button
+                            onClick={() => removeInEditorForOccurrence(selectedLinkData.id)}
+                            className="w-full rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[11px] font-semibold uppercase text-red-700 hover:bg-red-100"
+                        >
+                            Remover link no editor
                         </button>
 
                         {selectedLinkData.context_snippet && (
@@ -652,9 +717,22 @@ export function SiloInspectorPanel({
                                         >
                                             <div className="flex justify-between items-center">
                                                 <span className="font-medium text-gray-800 truncate max-w-[200px]">"{item.occurrence.anchor_text}"</span>
-                                                <span className={`text-[9px] font-semibold ${item.audit?.label === "WEAK" ? "text-red-600" : item.audit?.label === "OK" ? "text-yellow-600" : "text-green-600"}`}>
-                                                    {item.audit?.label ?? "N/A"} {typeof item.audit?.score === "number" ? `(${item.audit.score})` : ""}
-                                                </span>
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`text-[9px] font-semibold ${item.audit?.label === "WEAK" ? "text-red-600" : item.audit?.label === "OK" ? "text-yellow-600" : "text-green-600"}`}>
+                                                        {item.audit?.label ?? "N/A"} {typeof item.audit?.score === "number" ? `(${item.audit.score})` : ""}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(event) => {
+                                                            event.stopPropagation();
+                                                            removeInEditorForOccurrence(item.occurrence.id || null);
+                                                        }}
+                                                        className="text-[9px] uppercase text-red-600 font-bold hover:underline"
+                                                        title="Remover este link no editor"
+                                                    >
+                                                        remover
+                                                    </button>
+                                                </div>
                                             </div>
                                         </li>
                                     ))}

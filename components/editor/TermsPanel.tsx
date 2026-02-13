@@ -15,6 +15,20 @@ type EntitySuggestion = {
   mentionPost: { id: string; title: string; url: string } | null;
 };
 
+type SemanticDiagnostics = {
+  semantic?: {
+    lsiCoverageScore?: number;
+    missingRelatedTerms?: string[];
+    repeatedTerms?: Array<{ term: string; count: number }>;
+    topSemanticTerms?: string[];
+  };
+  structure?: {
+    coverageScore?: number;
+    missingSections?: string[];
+  };
+  warnings?: string[];
+};
+
 function normalize(text: string) {
   return text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 }
@@ -92,6 +106,7 @@ export function TermsPanel() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiSuggestions, setAiSuggestions] = useState<EntitySuggestion[]>([]);
+  const [aiDiagnostics, setAiDiagnostics] = useState<SemanticDiagnostics | null>(null);
 
   const termsData = useMemo(() => {
     const parsed: Array<{ term: string; min: number; max: number; count: number; status: TermStatus }> = [];
@@ -182,6 +197,7 @@ export function TermsPanel() {
     if (!text || text.split(/\s+/).filter(Boolean).length < 80) {
       setAiError("Escreva pelo menos 80 palavras para gerar sugestoes.");
       setAiSuggestions([]);
+      setAiDiagnostics(null);
       return;
     }
 
@@ -206,14 +222,17 @@ export function TermsPanel() {
       if (!response.ok || !json?.ok) {
         setAiError(json?.message || json?.error || "Falha ao gerar sugestoes.");
         setAiSuggestions([]);
+        setAiDiagnostics(null);
         return;
       }
 
       const suggestions = Array.isArray(json?.suggestions) ? (json.suggestions as EntitySuggestion[]) : [];
       setAiSuggestions(suggestions);
+      setAiDiagnostics((json?.diagnostics as SemanticDiagnostics) ?? null);
     } catch (error: any) {
       setAiError(error?.message || "Falha ao gerar sugestoes.");
       setAiSuggestions([]);
+      setAiDiagnostics(null);
     } finally {
       setAiLoading(false);
     }
@@ -249,6 +268,26 @@ export function TermsPanel() {
       </button>
 
       {aiError ? <div className="rounded border border-red-300 bg-red-50 p-2 text-[11px] text-red-700">{aiError}</div> : null}
+
+      {aiDiagnostics ? (
+        <div className="space-y-1 rounded border border-(--border) bg-(--surface) p-2 text-[10px] text-(--muted)">
+          <div className="font-semibold uppercase text-(--text)">Diagnostico LSI/PNL</div>
+          <div>
+            Cobertura LSI: <span className="font-semibold text-(--text)">{Math.round(aiDiagnostics.semantic?.lsiCoverageScore ?? 0)}%</span>
+          </div>
+          <div>
+            Estrutura PNL: <span className="font-semibold text-(--text)">{Math.round(aiDiagnostics.structure?.coverageScore ?? 0)}%</span>
+          </div>
+          {(aiDiagnostics.semantic?.missingRelatedTerms?.length ?? 0) > 0 ? (
+            <div className="line-clamp-2">
+              Falta cobrir: {aiDiagnostics.semantic?.missingRelatedTerms?.slice(0, 4).join(", ")}
+            </div>
+          ) : null}
+          {(aiDiagnostics.warnings?.length ?? 0) > 0 ? (
+            <div className="text-amber-700">{aiDiagnostics.warnings?.slice(0, 2).join(" ")}</div>
+          ) : null}
+        </div>
+      ) : null}
 
       {aiSuggestions.length > 0 ? (
         <div className="space-y-2 rounded border border-(--border) bg-(--surface) p-2">

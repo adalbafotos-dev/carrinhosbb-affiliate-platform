@@ -23,6 +23,7 @@ import { FaqBlock } from "@/components/editor/extensions/FaqBlock";
 import { IconBlock } from "@/components/editor/extensions/IconBlock";
 import { CarouselBlock } from "@/components/editor/extensions/CarouselBlock";
 import { YoutubeEmbed, normalizeYoutubeUrl } from "@/components/editor/extensions/YoutubeEmbed";
+import { FindInContent } from "@/components/editor/extensions/FindInContent";
 import { EditorCanvas } from "@/components/editor/EditorCanvas";
 import { ContentIntelligence } from "@/components/editor/ContentIntelligence";
 import { EditorInspector } from "@/components/editor/EditorInspector";
@@ -625,6 +626,8 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
   const searchParams = useSearchParams();
   const highlightOccurrenceId = searchParams.get("highlightOccurrenceId");
   const openLinkDialogParam = searchParams.get("openLinkDialog");
+  const autoUnlinkParam = searchParams.get("autoUnlink");
+  const shouldAutoUnlink = autoUnlinkParam === "1" || autoUnlinkParam === "true";
   const metaFromJson = (post.content_json as any)?.meta ?? {};
   const eeatDefaults = resolveDefaultEeat({
     authorName: post.author_name ?? "",
@@ -697,6 +700,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
   const dirtyRef = useRef(false);
   const silosRefreshRef = useRef(false);
   const openedHighlightRef = useRef<string | null>(null);
+  const autoUnlinkedOccurrenceRef = useRef<string | null>(null);
 
   const currentSilo = useMemo(() => {
     if (meta.siloId && silos.length) {
@@ -895,9 +899,8 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     void refreshSilos();
   }, [refreshSilos, silos.length]);
 
-  const editor = useEditor({
-    immediatelyRender: false,
-    extensions: [
+  const editorExtensions = useMemo(
+    () => [
       StarterKit.configure({
         heading: { levels: [2, 3, 4] },
       }),
@@ -912,6 +915,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       YoutubeEmbed,
       InternalLinkMention,
       InternalLinkCandidate,
+      FindInContent,
       AffiliateProductCard,
       CtaButton,
       FaqBlock,
@@ -921,34 +925,57 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
         placeholder: "Escreva aqui. Use a barra fixa para inserir blocos.",
       }),
     ],
-    content: normalizeEditorDoc(post.content_json) || post.content_html || defaultDoc(meta),
-    editorProps: {
-      attributes: {
-        class: "editor-content min-h-[520px] outline-none prose max-w-none",
+    []
+  );
+
+  const initialEditorContent = useMemo(
+    () =>
+      normalizeEditorDoc(post.content_json) ||
+      post.content_html ||
+      defaultDoc({ ...(metaRef.current as EditorMeta), targetKeyword: post.target_keyword ?? "" }),
+    [post.content_json, post.content_html, post.target_keyword]
+  );
+
+  const handleEditorDrop = useCallback((view: any, event: DragEvent) => {
+    const hasFiles = event.dataTransfer?.files && event.dataTransfer.files.length > 0;
+    if (!hasFiles) return false;
+    const file = event.dataTransfer?.files?.[0];
+    if (!file || !file.type.startsWith("image/")) return false;
+    event.preventDefault();
+    const coords = { left: event.clientX, top: event.clientY };
+    const pos = view.posAtCoords(coords)?.pos;
+    if (!pos) return false;
+    uploadDropRef.current?.(file, pos);
+    return true;
+  }, []);
+
+  const handleEditorUpdate = useCallback(({ editor: currentEditor }: { editor: Editor }) => {
+    setDocJson(currentEditor.getJSON());
+    setDocHtml(currentEditor.getHTML());
+    setDocText(currentEditor.getText());
+    setOutline(extractOutline(currentEditor));
+    setLinks(extractLinks(currentEditor));
+    dirtyRef.current = true;
+  }, []);
+
+  const editorOptions = useMemo(
+    () => ({
+      immediatelyRender: false,
+      extensions: editorExtensions,
+      content: initialEditorContent,
+      editorProps: {
+        attributes: {
+          class: "editor-content min-h-[520px] outline-none prose max-w-none",
+        },
+        transformPastedHTML: (html: string) => transformGoogleDocsPaste(html),
+        handleDrop: handleEditorDrop,
       },
-      transformPastedHTML: (html) => transformGoogleDocsPaste(html),
-      handleDrop: (view, event) => {
-        const hasFiles = event.dataTransfer?.files && event.dataTransfer.files.length > 0;
-        if (!hasFiles) return false;
-        const file = event.dataTransfer?.files?.[0];
-        if (!file || !file.type.startsWith("image/")) return false;
-        event.preventDefault();
-        const coords = { left: event.clientX, top: event.clientY };
-        const pos = view.posAtCoords(coords)?.pos;
-        if (!pos) return false;
-        uploadDropRef.current?.(file, pos);
-        return true;
-      },
-    },
-    onUpdate: ({ editor }) => {
-      setDocJson(editor.getJSON());
-      setDocHtml(editor.getHTML());
-      setDocText(editor.getText());
-      setOutline(extractOutline(editor));
-      setLinks(extractLinks(editor));
-      dirtyRef.current = true;
-    },
-  });
+      onUpdate: handleEditorUpdate,
+    }),
+    [editorExtensions, handleEditorDrop, handleEditorUpdate, initialEditorContent]
+  );
+
+  const editor = useEditor(editorOptions, [post.id]);
 
   useEffect(() => {
     if (!editor || !highlightOccurrenceId) return;
@@ -965,6 +992,18 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
         setTimeout(() => {
           if (editor.isDestroyed) return;
           const highlighted = highlightOccurrenceInEditor(editor, occurrence);
+          if (highlighted && shouldAutoUnlink && autoUnlinkedOccurrenceRef.current !== highlightOccurrenceId) {
+            autoUnlinkedOccurrenceRef.current = highlightOccurrenceId;
+            const removed = editor.chain().focus().extendMarkRange("link").unsetLink().run();
+            if (!removed) {
+              const { from, to } = editor.state.selection;
+              if (to > from) {
+                const plainText = editor.state.doc.textBetween(from, to, " ", " ");
+                editor.chain().focus().deleteRange({ from, to }).insertContentAt(from, plainText).run();
+              }
+            }
+            return;
+          }
           if (highlighted && openLinkDialogParam && openedHighlightRef.current !== highlightOccurrenceId) {
             openedHighlightRef.current = highlightOccurrenceId;
             setLinkDialogOpen(true);
@@ -979,7 +1018,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [editor, highlightOccurrenceId, openLinkDialogParam]);
+  }, [editor, highlightOccurrenceId, openLinkDialogParam, shouldAutoUnlink]);
 
   useEffect(() => {
     if (!editor) return;
@@ -1382,6 +1421,56 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     [onUpdateTableResponsive]
   );
 
+  const onApplyTableMobileSlide = useCallback(() => {
+    if (!editor) return;
+    updateClosestNodeAttrs(editor, "table", (attrs) =>
+      syncTableLayoutAttrs(
+        setBpAttrs(
+          attrs,
+          "mobile",
+          {
+            renderMode: "scroll",
+            wrapCells: false,
+          },
+          {
+            legacyMap: {
+              renderMode: { tablet: "renderModeTablet", mobile: "renderModeMobile" },
+              wrapCells: { tablet: "wrapCellsTablet", mobile: "wrapCellsMobile" },
+              hiddenColumns: { tablet: "hiddenColumnsTablet", mobile: "hiddenColumnsMobile" },
+              columnWidths: { tablet: "columnWidthsTablet", mobile: "columnWidthsMobile" },
+              stackKeyColumn: { tablet: "stackKeyColumnTablet", mobile: "stackKeyColumnMobile" },
+            },
+          }
+        )
+      )
+    );
+  }, [editor]);
+
+  const onApplyTableMobileCards = useCallback(() => {
+    if (!editor) return;
+    updateClosestNodeAttrs(editor, "table", (attrs) =>
+      syncTableLayoutAttrs(
+        setBpAttrs(
+          attrs,
+          "mobile",
+          {
+            renderMode: "stack",
+            wrapCells: true,
+          },
+          {
+            legacyMap: {
+              renderMode: { tablet: "renderModeTablet", mobile: "renderModeMobile" },
+              wrapCells: { tablet: "wrapCellsTablet", mobile: "wrapCellsMobile" },
+              hiddenColumns: { tablet: "hiddenColumnsTablet", mobile: "hiddenColumnsMobile" },
+              columnWidths: { tablet: "columnWidthsTablet", mobile: "columnWidthsMobile" },
+              stackKeyColumn: { tablet: "stackKeyColumnTablet", mobile: "stackKeyColumnMobile" },
+            },
+          }
+        )
+      )
+    );
+  }, [editor]);
+
   const onResetTableResponsive = useCallback(
     (fields?: Array<"renderMode" | "wrapCells" | "hiddenColumns" | "columnWidths" | "stackKeyColumn">) => {
       if (!editor) return;
@@ -1684,6 +1773,8 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       onResetImageResponsive,
       onClearImageResponsive,
       onSetTableRenderMode,
+      onApplyTableMobileSlide,
+      onApplyTableMobileCards,
       onResetTableRenderMode,
       onUpdateTableResponsive,
       onUpdateTableVisibility,
@@ -1732,6 +1823,8 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       onResetImageResponsive,
       onClearImageResponsive,
       onSetTableRenderMode,
+      onApplyTableMobileSlide,
+      onApplyTableMobileCards,
       onResetTableRenderMode,
       onUpdateTableResponsive,
       onUpdateTableVisibility,

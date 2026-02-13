@@ -103,13 +103,25 @@ async function getSiloMapData(siloId: string): Promise<SiloMapData> {
 
 export default async function SiloMapRoute({ params }: Props) {
     const { slug } = await params;
-    const silo = await adminGetSiloBySlug(slug);
+    let silo: Awaited<ReturnType<typeof adminGetSiloBySlug>> = null;
+    try {
+        silo = await adminGetSiloBySlug(slug);
+    } catch (error) {
+        console.error("[SILO-MAP] falha ao carregar silo por slug", error);
+        silo = null;
+    }
 
     if (!silo) {
         notFound();
     }
 
-    const mapData = await getSiloMapData(silo.id);
+    let mapData: SiloMapData = { nodes: [], edges: [] };
+    try {
+        mapData = await getSiloMapData(silo.id);
+    } catch (error) {
+        console.error("[SILO-MAP] falha ao montar mapa", error);
+        mapData = { nodes: [], edges: [] };
+    }
 
     return (
         <SiloMapPage

@@ -702,6 +702,7 @@ function renderTableNode(node: any) {
   const hasHeaderRow = firstRowCells.length > 0 && firstRowCells.every((cell: any) => cell?.type === "tableHeader");
 
   const headerLabels = firstRowCells.map((cell: any, colIndex: number) => {
+    if (!hasHeaderRow) return `Coluna ${colIndex + 1}`;
     const text = extractNodeText(cell).replace(/\s+/g, " ").trim();
     return text || `Coluna ${colIndex + 1}`;
   });

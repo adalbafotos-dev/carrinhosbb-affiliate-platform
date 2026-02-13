@@ -37,6 +37,7 @@ import { getBpAttrs, normalizeResponsiveMap, resolveDeviceVisibility } from "@/l
 type Props = {
   editor: Editor | null;
   previewMode: "desktop" | "tablet" | "mobile";
+  onPreviewModeChange?: (mode: "desktop" | "tablet" | "mobile") => void;
   onOpenLink: () => void;
   onOpenMedia: () => void;
   onInsertProduct: () => void;
@@ -62,6 +63,8 @@ type Props = {
   onResetImageResponsive?: (fields?: Array<"align" | "widthMode" | "maxWidth" | "wrap" | "spacingY">) => void;
   onClearImageResponsive?: (fields?: Array<"align" | "widthMode" | "maxWidth" | "wrap" | "spacingY">) => void;
   onSetTableRenderMode?: (mode: "table" | "scroll" | "stack") => void;
+  onApplyTableMobileSlide?: () => void;
+  onApplyTableMobileCards?: () => void;
   onResetTableRenderMode?: () => void;
   onUpdateTableResponsive?: (patch: {
     renderMode?: "table" | "scroll" | "stack";
@@ -185,6 +188,7 @@ function runTableCommand(editor: Editor, commandName: "addRowAfter" | "deleteRow
 export function FixedToolbar({
   editor,
   previewMode,
+  onPreviewModeChange,
   onOpenLink,
   onOpenMedia,
   onInsertProduct,
@@ -200,6 +204,8 @@ export function FixedToolbar({
   onResetImageResponsive,
   onClearImageResponsive,
   onSetTableRenderMode,
+  onApplyTableMobileSlide,
+  onApplyTableMobileCards,
   onResetTableRenderMode,
   onUpdateTableResponsive,
   onUpdateTableVisibility,
@@ -695,6 +701,54 @@ export function FixedToolbar({
             <span className="rounded border border-emerald-300 bg-emerald-50 px-1.5 py-0.5 font-semibold uppercase tracking-wide text-emerald-700">
               Modo
             </span>
+            <span className="text-(--muted-2)">Ambiente:</span>
+            <div className="inline-flex items-center rounded border border-(--border)">
+              <button
+                type="button"
+                onClick={() => onPreviewModeChange?.("desktop")}
+                className={`px-1.5 py-0.5 ${previewMode === "desktop" ? "bg-(--surface-muted) font-semibold text-(--text)" : "text-(--muted)"}`}
+              >
+                D
+              </button>
+              <button
+                type="button"
+                onClick={() => onPreviewModeChange?.("tablet")}
+                className={`border-l border-(--border) px-1.5 py-0.5 ${previewMode === "tablet" ? "bg-(--surface-muted) font-semibold text-(--text)" : "text-(--muted)"}`}
+              >
+                T
+              </button>
+              <button
+                type="button"
+                onClick={() => onPreviewModeChange?.("mobile")}
+                className={`border-l border-(--border) px-1.5 py-0.5 ${previewMode === "mobile" ? "bg-(--surface-muted) font-semibold text-(--text)" : "text-(--muted)"}`}
+              >
+                M
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onApplyTableMobileSlide?.();
+                onPreviewModeChange?.("mobile");
+                setTableRenderMode("scroll");
+              }}
+              className="rounded border border-sky-300 bg-sky-50 px-1.5 py-0.5 font-semibold text-sky-700 hover:bg-sky-100"
+              title="Aplica apenas no mobile: render scroll + sem quebra de linha"
+            >
+              Slide mobile
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onApplyTableMobileCards?.();
+                onPreviewModeChange?.("mobile");
+                setTableRenderMode("stack");
+              }}
+              className="rounded border border-violet-300 bg-violet-50 px-1.5 py-0.5 font-semibold text-violet-700 hover:bg-violet-100"
+              title="Aplica apenas no mobile: render em cards (stack)"
+            >
+              Cards mobile
+            </button>
             <span>Render tabela {tableModeOverride && previewMode !== "desktop" ? "*" : ""}</span>
             <select
               value={tableRenderMode}

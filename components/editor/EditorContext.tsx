@@ -55,6 +55,8 @@ export type EditorContextValue = {
   onResetImageResponsive: (fields?: Array<"align" | "widthMode" | "maxWidth" | "wrap" | "spacingY">) => void;
   onClearImageResponsive: (fields?: Array<"align" | "widthMode" | "maxWidth" | "wrap" | "spacingY">) => void;
   onSetTableRenderMode: (mode: "table" | "scroll" | "stack") => void;
+  onApplyTableMobileSlide: () => void;
+  onApplyTableMobileCards: () => void;
   onResetTableRenderMode: () => void;
   onUpdateTableResponsive: (patch: {
     renderMode?: "table" | "scroll" | "stack";

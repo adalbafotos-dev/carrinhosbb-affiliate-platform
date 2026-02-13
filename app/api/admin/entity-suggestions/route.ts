@@ -3,6 +3,12 @@ import { z } from "zod";
 import { requireAdminSession } from "@/lib/admin/auth";
 import { adminSearchPostsByTitle } from "@/lib/db";
 import { checkRateLimit } from "@/lib/seo/rateLimit";
+import {
+  buildSemanticFoundationDiagnostics,
+  dedupeNormalizedTerms,
+  extractFrequentTermsPtBr,
+  normalizePtBr,
+} from "@/lib/seo/semanticFoundation";
 
 export const runtime = "nodejs";
 
@@ -20,56 +26,6 @@ const RATE_LIMIT = {
   limit: 20,
   windowMs: 10 * 60 * 1000,
 };
-
-const STOPWORDS = new Set([
-  "de",
-  "da",
-  "do",
-  "das",
-  "dos",
-  "e",
-  "em",
-  "para",
-  "por",
-  "com",
-  "sem",
-  "um",
-  "uma",
-  "uns",
-  "umas",
-  "o",
-  "a",
-  "os",
-  "as",
-  "na",
-  "no",
-  "nas",
-  "nos",
-  "que",
-  "como",
-  "sobre",
-  "mais",
-  "menos",
-  "se",
-  "ao",
-  "aos",
-  "ainda",
-  "ja",
-  "ou",
-  "tambem",
-  "isso",
-  "essa",
-  "esse",
-  "este",
-  "esta",
-  "sao",
-  "ser",
-  "estar",
-  "foi",
-  "foram",
-  "tem",
-  "ter",
-]);
 
 type MentionPost = {
   id: string;
@@ -93,66 +49,9 @@ function getClientKey(req: Request) {
   return `entity-suggestions:${ip}`;
 }
 
-function normalize(value: string) {
-  return value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function dedupeTerms(terms: string[]) {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  terms.forEach((raw) => {
-    const cleaned = String(raw || "").trim();
-    if (cleaned.length < 3) return;
-    const key = normalize(cleaned);
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    out.push(cleaned);
-  });
-  return out;
-}
-
 function parseKeywordTerm(raw: string) {
   const parts = raw.split("|").map((part) => part.trim()).filter(Boolean);
   return parts[0] || "";
-}
-
-function extractFrequentTerms(text: string, limit: number) {
-  const normalized = normalize(text);
-  const tokens = normalized.split(" ").filter((token) => token.length >= 4 && !STOPWORDS.has(token));
-  const uniCounts = new Map<string, number>();
-  for (const token of tokens) {
-    uniCounts.set(token, (uniCounts.get(token) ?? 0) + 1);
-  }
-
-  const biCounts = new Map<string, number>();
-  for (let index = 0; index < tokens.length - 1; index += 1) {
-    const a = tokens[index];
-    const b = tokens[index + 1];
-    if (STOPWORDS.has(a) || STOPWORDS.has(b)) continue;
-    const bi = `${a} ${b}`;
-    biCounts.set(bi, (biCounts.get(bi) ?? 0) + 1);
-  }
-
-  const candidates = [
-    ...Array.from(biCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, limit)
-      .filter(([, count]) => count >= 2)
-      .map(([term]) => term),
-    ...Array.from(uniCounts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, limit)
-      .filter(([, count]) => count >= 3)
-      .map(([term]) => term),
-  ];
-
-  return dedupeTerms(candidates).slice(0, limit);
 }
 
 function buildWikipediaUrl(termOrTitle: string) {
@@ -176,13 +75,16 @@ async function findMentionPost(term: string, currentPostId?: string) {
 }
 
 const AI_PROMPT = `
-Voce e especialista em SEO semantico para conteudo em portugues (Brasil).
+Voce e especialista em SEO semantico (LSI + PNL/NLP) para portugues do Brasil.
 Recebera dados de um artigo e precisa sugerir entidades para reforco semantico com links.
 
 Regras:
 - Retorne no maximo 8 sugestoes objetivas.
 - Evite termos genericos e vagos.
-- Priorize entidades nomeadas (tecnicas, materiais, conceitos, marcas, orgaos, normas, etc).
+- Priorize entidades nomeadas e termos satelite relevantes (tecnicas, materiais, conceitos, marcas, normas, etc).
+- Priorize primeiro os termos de suporte ainda nao cobertos no texto.
+- Sugira variacoes naturais de linguagem (sem repetir a mesma forma).
+- Nao usar termos comerciais genricos sem contexto.
 - Para cada item informe:
   - term: entidade sugerida
   - reason: justificativa curta (1 frase)
@@ -212,6 +114,7 @@ async function suggestWithAI(input: {
   text: string;
   existingEntities: string[];
   supportingKeywords: string[];
+  semanticDiagnostics: ReturnType<typeof buildSemanticFoundationDiagnostics>;
 }) {
   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (!apiKey) return null;
@@ -222,6 +125,7 @@ async function suggestWithAI(input: {
     existingEntities: input.existingEntities.slice(0, 25),
     supportingKeywords: input.supportingKeywords.slice(0, 40),
     text: input.text.slice(0, 14000),
+    semanticDiagnostics: input.semanticDiagnostics,
   };
 
   const response = await fetch(
@@ -263,14 +167,26 @@ function buildFallbackSuggestions(args: {
   supportingKeywords: string[];
   text: string;
   maxSuggestions: number;
+  semanticDiagnostics: ReturnType<typeof buildSemanticFoundationDiagnostics>;
 }) {
   const supportTerms = args.supportingKeywords.map(parseKeywordTerm).filter(Boolean);
-  const frequentTerms = extractFrequentTerms(args.text, args.maxSuggestions + 3);
-  const merged = dedupeTerms([...args.existingEntities, ...supportTerms, ...frequentTerms]).slice(0, args.maxSuggestions);
+  const frequentTerms = extractFrequentTermsPtBr(args.text, { limit: args.maxSuggestions + 4 });
+  const uncoveredSupportTerms = args.semanticDiagnostics.coverage.missingRelatedTerms.filter((term) =>
+    supportTerms.some((support) => normalizePtBr(support) === normalizePtBr(term))
+  );
+  const merged = dedupeNormalizedTerms([
+    ...uncoveredSupportTerms,
+    ...supportTerms,
+    ...args.existingEntities,
+    ...frequentTerms,
+  ]).slice(0, args.maxSuggestions);
 
   return merged.map((term, index) => ({
     term,
-    reason: "Termo recorrente no texto e relevante para reforco semantico.",
+    reason:
+      uncoveredSupportTerms.some((candidate) => normalizePtBr(candidate) === normalizePtBr(term))
+        ? "Termo de suporte ainda pouco coberto no texto (LSI)."
+        : "Termo recorrente no texto e relevante para reforco semantico.",
     confidence: Number((0.72 - index * 0.04).toFixed(2)),
     suggested_link_type: index % 3 === 0 ? "mention" : "about",
     wikipedia_title: term,
@@ -333,9 +249,15 @@ export async function POST(req: Request) {
   const title = payload.title?.trim() || "";
   const keyword = payload.keyword?.trim() || "";
   const text = payload.text;
-  const existingEntities = dedupeTerms(payload.existingEntities ?? []);
-  const supportingKeywords = dedupeTerms((payload.supportingKeywords ?? []).map((item) => parseKeywordTerm(item)));
+  const existingEntities = dedupeNormalizedTerms(payload.existingEntities ?? []);
+  const supportingKeywords = dedupeNormalizedTerms((payload.supportingKeywords ?? []).map((item) => parseKeywordTerm(item)));
   const maxSuggestions = payload.maxSuggestions ?? 8;
+  const semanticDiagnostics = buildSemanticFoundationDiagnostics({
+    text,
+    keyword,
+    relatedTerms: supportingKeywords,
+    entities: existingEntities,
+  });
 
   const aiResult = await suggestWithAI({
       title,
@@ -343,10 +265,19 @@ export async function POST(req: Request) {
       text,
       existingEntities,
       supportingKeywords,
+      semanticDiagnostics,
     });
 
   const usedAi = Array.isArray(aiResult) && aiResult.length > 0;
-  const aiRaw = aiResult ?? buildFallbackSuggestions({ existingEntities, supportingKeywords, text, maxSuggestions });
+  const aiRaw =
+    aiResult ??
+    buildFallbackSuggestions({
+      existingEntities,
+      supportingKeywords,
+      text,
+      maxSuggestions,
+      semanticDiagnostics,
+    });
 
   const normalizedRaw = Array.isArray(aiRaw) ? aiRaw : [];
   const dedupe = new Set<string>();
@@ -354,7 +285,7 @@ export async function POST(req: Request) {
     .map((item) => {
       const term = sanitizeTerm(item?.term);
       if (!term) return null;
-      const key = normalize(term);
+      const key = normalizePtBr(term);
       if (!key || dedupe.has(key)) return null;
       dedupe.add(key);
 
@@ -396,6 +327,11 @@ export async function POST(req: Request) {
       ok: true,
       source: usedAi ? "ai" : "fallback",
       suggestions,
+      diagnostics: {
+        semantic: semanticDiagnostics.coverage,
+        structure: semanticDiagnostics.structure,
+        warnings: semanticDiagnostics.warnings,
+      },
     },
     { headers: { "x-rate-limit-remaining": String(rate.remaining) } }
   );

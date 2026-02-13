@@ -64,6 +64,13 @@ export function EditorInspector() {
     onHeroUpload(file);
   };
 
+  const handleRemoveHero = () => {
+    if (!meta.heroImageUrl) return;
+    const confirmed = window.confirm("Remover a imagem de capa deste post?");
+    if (!confirmed) return;
+    setMeta({ heroImageUrl: "", heroImageAlt: "" });
+  };
+
   const handleLibraryAltChange = (url: string, alt: string) => {
     onUpdateImageAlt(url, alt);
     if (meta.heroImageUrl === url) {
@@ -125,6 +132,17 @@ export function EditorInspector() {
               <p className="mt-2 text-[10px] text-(--muted)">
                 {meta.heroImageUrl ? "Clique na imagem para trocar." : "Use 1200x628 px para redes sociais."}
               </p>
+              {meta.heroImageUrl ? (
+                <div className="mt-2 flex items-center justify-end">
+                  <button
+                    type="button"
+                    onClick={handleRemoveHero}
+                    className="rounded-md border border-rose-200 bg-rose-50 px-2 py-1 text-[10px] font-semibold text-rose-700 hover:bg-rose-100"
+                  >
+                    Remover capa
+                  </button>
+                </div>
+              ) : null}
             </Field>
 
             <Field label="Alt text da imagem de capa (obrigatório)">

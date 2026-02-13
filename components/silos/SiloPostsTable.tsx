@@ -18,6 +18,12 @@ function statusLabel(status?: string | null) {
 
 export function SiloPostsTable({ posts, metrics, onViewSerp }: SiloPostsTableProps) {
   const metricsByPost = new Map(metrics.perPostMetrics.map((metric) => [metric.postId, metric]));
+  const sortedPosts = [...posts].sort((a, b) => {
+    const aPosition = typeof a.position === "number" ? a.position : Number.MAX_SAFE_INTEGER;
+    const bPosition = typeof b.position === "number" ? b.position : Number.MAX_SAFE_INTEGER;
+    if (aPosition !== bPosition) return aPosition - bPosition;
+    return a.title.localeCompare(b.title);
+  });
 
   return (
     <div className="overflow-hidden rounded-2xl border border-(--border) bg-(--paper)">
@@ -25,6 +31,7 @@ export function SiloPostsTable({ posts, metrics, onViewSerp }: SiloPostsTablePro
         <thead className="bg-(--surface-muted) text-[11px] uppercase text-(--muted-2)">
           <tr>
             <th className="px-4 py-3">Post</th>
+            <th className="px-4 py-3">Hierarquia</th>
             <th className="px-4 py-3">Status</th>
             <th className="px-4 py-3">Focus keyword</th>
             <th className="px-4 py-3">Links internos (silo)</th>
@@ -37,11 +44,18 @@ export function SiloPostsTable({ posts, metrics, onViewSerp }: SiloPostsTablePro
           </tr>
         </thead>
         <tbody>
-          {posts.map((post) => {
+          {sortedPosts.map((post) => {
             const metric = metricsByPost.get(post.id);
+            const role = post.role ?? (post.isPillar ? "PILLAR" : null);
             return (
               <tr key={post.id} className="border-t border-(--border)">
                 <td className="px-4 py-3 font-medium text-(--text)">{post.title}</td>
+                <td className="px-4 py-3 text-(--muted)">
+                  <div className="leading-tight">
+                    <div>{typeof post.position === "number" ? `#${post.position}` : "Sem posicao"}</div>
+                    <div className="text-[10px] uppercase text-(--muted-2)">{role ?? "Sem papel"}</div>
+                  </div>
+                </td>
                 <td className="px-4 py-3 text-(--muted)">{statusLabel(post.status)}</td>
                 <td className="px-4 py-3 text-(--muted)">
                   {post.focus_keyword || post.targetKeyword?.trim() || post.title}

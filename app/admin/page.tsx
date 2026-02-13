@@ -2,6 +2,7 @@ import Link from "next/link";
 import { adminListPosts } from "@/lib/db";
 import { bulkDeletePosts, schedulePost, setPublishState } from "@/app/admin/actions";
 import { requireAdminSession } from "@/lib/admin/auth";
+import { getAdminSupabase } from "@/lib/supabase/admin";
 
 
 export const revalidate = 0;
@@ -22,6 +23,75 @@ function formatDate(value?: string | null) {
   }
 }
 
+type HierarchyRole = "PILLAR" | "SUPPORT" | "AUX";
+type HierarchyDisplay = { role: HierarchyRole; position: number; label: string };
+
+function buildHierarchyDisplayMap(
+  posts: Array<{ id: string; silo_id: string | null; title: string; pillar_rank?: number | null }>,
+  hierarchyRows: Array<{ post_id: string; silo_id: string; role: HierarchyRole | null; position: number | null }>
+) {
+  const displayMap = new Map<string, HierarchyDisplay>();
+  const hierarchyByPost = new Map<string, { role: HierarchyRole | null; position: number | null }>();
+  hierarchyRows.forEach((row) => {
+    hierarchyByPost.set(row.post_id, { role: row.role, position: row.position });
+  });
+
+  const grouped = new Map<string, typeof posts>();
+  posts.forEach((post) => {
+    const key = post.silo_id ?? "__no_silo__";
+    const list = grouped.get(key) ?? [];
+    list.push(post);
+    grouped.set(key, list);
+  });
+
+  const rankPosition = (value?: number | null) =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? value : Number.MAX_SAFE_INTEGER;
+  const sortByPositionThenTitle = (
+    a: { id: string; title: string },
+    b: { id: string; title: string }
+  ) => {
+    const aPos = rankPosition(hierarchyByPost.get(a.id)?.position);
+    const bPos = rankPosition(hierarchyByPost.get(b.id)?.position);
+    if (aPos !== bPos) return aPos - bPos;
+    return a.title.localeCompare(b.title, "pt-BR");
+  };
+
+  grouped.forEach((groupPosts, groupKey) => {
+    if (groupKey === "__no_silo__") return;
+
+    const explicitPillar = groupPosts
+      .filter((post) => hierarchyByPost.get(post.id)?.role === "PILLAR")
+      .sort(sortByPositionThenTitle)[0];
+    const rankedPillar = groupPosts
+      .filter((post) => post.pillar_rank === 1)
+      .sort(sortByPositionThenTitle)[0];
+    const fallbackPillar = [...groupPosts].sort(sortByPositionThenTitle)[0];
+    const pillarId = explicitPillar?.id ?? rankedPillar?.id ?? fallbackPillar?.id ?? null;
+
+    if (pillarId) {
+      displayMap.set(pillarId, { role: "PILLAR", position: 1, label: "Pilar" });
+    }
+
+    const supports = groupPosts
+      .filter((post) => post.id !== pillarId && hierarchyByPost.get(post.id)?.role !== "AUX")
+      .sort(sortByPositionThenTitle);
+    supports.forEach((post, index) => {
+      const position = index + 1;
+      displayMap.set(post.id, { role: "SUPPORT", position, label: `Suporte ${position}` });
+    });
+
+    const auxList = groupPosts
+      .filter((post) => hierarchyByPost.get(post.id)?.role === "AUX")
+      .sort(sortByPositionThenTitle);
+    auxList.forEach((post, index) => {
+      const position = index + 1;
+      displayMap.set(post.id, { role: "AUX", position, label: `Aux ${position}` });
+    });
+  });
+
+  return displayMap;
+}
+
 export default async function AdminPage({
   searchParams,
 }: {
@@ -36,6 +106,24 @@ export default async function AdminPage({
   ]); */
   // Simplified to just fetching posts since we removed the Google card
   const posts = await adminListPosts({ status: statusFilter, query: q ?? null });
+  const supabase = getAdminSupabase();
+  const postIds = posts.map((post) => post.id);
+  let hierarchyRows: Array<{ post_id: string; silo_id: string; role: HierarchyRole | null; position: number | null }> = [];
+  if (postIds.length > 0) {
+    const { data, error } = await supabase
+      .from("silo_posts")
+      .select("post_id, silo_id, role, position")
+      .in("post_id", postIds);
+    if (!error) {
+      hierarchyRows = (data ?? []) as typeof hierarchyRows;
+    } else if (error.code !== "42P01") {
+      console.error("Erro ao carregar hierarquia da lista de conteudos", {
+        code: error.code,
+        message: error.message,
+      });
+    }
+  }
+  const hierarchyMap = buildHierarchyDisplayMap(posts, hierarchyRows);
 
   return (
     <div className="space-y-6">
@@ -95,6 +183,7 @@ export default async function AdminPage({
               <th className="px-4 py-3">Capa</th>
               <th className="px-4 py-3">Titulo</th>
               <th className="px-4 py-3">Silo</th>
+              <th className="px-4 py-3">Hierarquia</th>
               <th className="px-4 py-3">Atualizado</th>
               <th className="px-4 py-3">Agendado</th>
               <th className="px-4 py-3">Acoes</th>
@@ -103,7 +192,7 @@ export default async function AdminPage({
           <tbody>
             {posts.length === 0 ? (
               <tr>
-                <td className="px-4 py-6 text-(--muted)" colSpan={6}>
+                <td className="px-4 py-6 text-(--muted)" colSpan={9}>
                   Nenhum post encontrado. Ajuste os filtros ou crie um novo.
                 </td>
               </tr>
@@ -113,6 +202,7 @@ export default async function AdminPage({
                 const statusLabel = statusLabels[statusValue] ?? "Rascunho";
                 const siloSlug = p.silo?.slug ?? "";
                 const publicHref = siloSlug ? `/${siloSlug}/${p.slug}` : `/${p.slug}`;
+                const hierarchy = hierarchyMap.get(p.id);
 
                 return (
                   <tr key={p.id} className="border-t border-(--border) align-top">
@@ -133,6 +223,16 @@ export default async function AdminPage({
                     </td>
                     <td className="px-4 py-4 font-medium">{p.title}</td>
                     <td className="px-4 py-4 text-(--muted)">{p.silo?.name ?? "-"}</td>
+                    <td className="px-4 py-4 text-(--muted)">
+                      {hierarchy ? (
+                        <div className="leading-tight">
+                          <div className="text-(--text)">{hierarchy.label}</div>
+                          <div className="text-[11px] uppercase text-(--muted-2)">#{hierarchy.position}</div>
+                        </div>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
                     <td className="px-4 py-4 text-(--muted)">{formatDate(p.updated_at)}</td>
                     <td className="px-4 py-4 text-(--muted)">{formatDate(p.scheduled_at)}</td>
                     <td className="px-4 py-4">

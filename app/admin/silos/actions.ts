@@ -79,9 +79,13 @@ const UpdateSiloSchema = z.object({
   hero_image_url: z.string().optional().nullable(),
   hero_image_alt: z.string().optional().nullable(),
   pillar_content_html: z.string().optional().nullable(),
-  menu_order: z.coerce.number().int().default(0),
-  is_active: z.coerce.boolean(),
 });
+
+function toNullableText(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
 
 export async function updateSiloAction(formData: FormData) {
   await requireAdminSession();
@@ -89,16 +93,23 @@ export async function updateSiloAction(formData: FormData) {
     id: formData.get("id"),
     name: formData.get("name"),
     slug: formData.get("slug"),
-    description: formData.get("description"),
-    meta_title: formData.get("meta_title"),
-    meta_description: formData.get("meta_description"),
-    hero_image_url: formData.get("hero_image_url"),
-    hero_image_alt: formData.get("hero_image_alt"),
-    pillar_content_html: formData.get("pillar_content_html"),
-    menu_order: formData.get("menu_order"),
-    is_active: formData.get("is_active") === "true" || formData.get("is_active") === "on",
+    description: toNullableText(formData.get("description")),
+    meta_title: toNullableText(formData.get("meta_title")),
+    meta_description: toNullableText(formData.get("meta_description")),
+    hero_image_url: toNullableText(formData.get("hero_image_url")),
+    hero_image_alt: toNullableText(formData.get("hero_image_alt")),
+    pillar_content_html: toNullableText(formData.get("pillar_content_html")),
   });
 
-  await adminUpdateSilo(payload.id, payload);
+  await adminUpdateSilo(payload.id, {
+    name: payload.name,
+    slug: payload.slug,
+    description: payload.description,
+    meta_title: payload.meta_title,
+    meta_description: payload.meta_description,
+    hero_image_url: payload.hero_image_url,
+    hero_image_alt: payload.hero_image_alt,
+    pillar_content_html: payload.pillar_content_html,
+  });
   redirect(`/admin/silos/${payload.slug}`);
 }

@@ -148,6 +148,8 @@ export function EditorCanvas() {
     onResetImageResponsive,
     onClearImageResponsive,
     onSetTableRenderMode,
+    onApplyTableMobileSlide,
+    onApplyTableMobileCards,
     onResetTableRenderMode,
     onUpdateTableResponsive,
     onUpdateTableVisibility,
@@ -338,6 +340,8 @@ export function EditorCanvas() {
             onResetImageResponsive={onResetImageResponsive}
             onClearImageResponsive={onClearImageResponsive}
             onSetTableRenderMode={onSetTableRenderMode}
+            onApplyTableMobileSlide={onApplyTableMobileSlide}
+            onApplyTableMobileCards={onApplyTableMobileCards}
             onResetTableRenderMode={onResetTableRenderMode}
             onUpdateTableResponsive={onUpdateTableResponsive}
             onUpdateTableVisibility={onUpdateTableVisibility}
@@ -345,6 +349,7 @@ export function EditorCanvas() {
             onClearTableResponsive={onClearTableResponsive}
             onMoveBlockUp={onMoveBlockUp}
             onMoveBlockDown={onMoveBlockDown}
+            onPreviewModeChange={setPreviewMode}
           />
         </div>
 

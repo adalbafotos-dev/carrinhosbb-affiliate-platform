@@ -1,11 +1,47 @@
 import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from "next";
 import { listLatestPublicPosts } from "@/lib/db";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SiloNarrativeCarousel } from "@/components/site/SiloNarrativeCarousel";
 import type { PostWithSilo } from "@/lib/types";
 
 export const revalidate = 3600;
+
+const siteUrl = (process.env.SITE_URL ?? "https://lindisse.com.br").replace(/\/$/, "");
+const homeSocialImage = "/unhas-francesinhas-criativas-e-coloridas.webp";
+const twitterSite = process.env.NEXT_PUBLIC_TWITTER_SITE?.trim() || undefined;
+
+export const metadata: Metadata = {
+  title: "Analises e Comparativos de Materiais para Unhas de Gel e Fibra | Lindisse",
+  description:
+    "Analises tecnicas de materiais e equipamentos para unhas de gel, fibra e nail design. Criterios claros, comparativos e recomendacoes para decisoes de compra seguras.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    type: "website",
+    url: siteUrl,
+    siteName: "Lindisse",
+    locale: "pt_BR",
+    title: "Analises e Comparativos de Materiais para Unhas (Gel e Fibra)",
+    description:
+      "Criterios claros, comparativos e recomendacoes seguras para escolher materiais e equipamentos com mais confianca.",
+    images: [
+      {
+        url: homeSocialImage,
+        alt: "Materiais e equipamentos para unhas de gel e fibra em bancada de manicure",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: twitterSite,
+    title: "Analises de materiais para unhas (gel e fibra)",
+    description: "Comparativos e criterios claros para decidir com seguranca.",
+    images: [homeSocialImage],
+  },
+};
 
 function normalize(text: string | null | undefined) {
   return (text ?? "").toLocaleLowerCase("pt-BR");
@@ -21,26 +57,6 @@ function matchesQuery(post: PostWithSilo, query: string) {
     normalize(post.meta_description).includes(needle) ||
     normalize(post.silo?.name).includes(needle)
   );
-}
-
-function buildMoneyPicks(posts: PostWithSilo[]) {
-  const relevant = posts.filter((post) => {
-    const intent = normalize(post.intent);
-    return Boolean(post.is_featured) || intent === "commercial" || intent === "transactional";
-  });
-
-  if (!relevant.length) {
-    return posts.slice(0, 4);
-  }
-
-  const unique = new Map<string, PostWithSilo>();
-  for (const post of relevant) {
-    if (!unique.has(post.id)) {
-      unique.set(post.id, post);
-    }
-  }
-
-  return Array.from(unique.values()).slice(0, 4);
 }
 
 const fallbackAffiliateShowcase = [
@@ -91,10 +107,8 @@ export default async function HomePage({
 
   const rawPosts = await listLatestPublicPosts(48);
   const searchResults = query ? rawPosts.filter((post) => matchesQuery(post, query)).slice(0, 10) : [];
-  const moneyPicks = buildMoneyPicks(rawPosts);
   const recentPosts = rawPosts.slice(0, 8);
 
-  const siteUrl = (process.env.SITE_URL ?? "https://lindisse.com.br").replace(/\/$/, "");
   const organizationLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
@@ -192,61 +206,47 @@ export default async function HomePage({
           </p>
         </div>
 
-        {moneyPicks.length === 0 ? (
-          <div className="rounded-2xl border border-(--border) bg-(--paper)">
-            <ul className="divide-y divide-(--border)">
-              {fallbackAffiliateShowcase.map((offer) => (
-                <li key={offer.id} className="grid grid-cols-[56px_1fr_auto] items-center gap-3 p-3">
-                  <a
-                    href={offer.href}
-                    target="_blank"
-                    rel="sponsored nofollow noopener noreferrer"
-                    className="block overflow-hidden rounded-lg border border-(--border) bg-white p-1"
-                  >
-                    <Image
-                      src={offer.image}
-                      alt={offer.title}
-                      width={160}
-                      height={160}
-                      sizes="56px"
-                      className="h-12 w-12 object-contain"
-                    />
-                  </a>
-
-                  <h4 className="line-clamp-2 text-sm font-semibold leading-snug text-(--ink)">{offer.title}</h4>
-
-                  <a
-                    href={offer.href}
-                    target="_blank"
-                    rel="sponsored nofollow noopener noreferrer"
-                    className="inline-flex whitespace-nowrap rounded-lg bg-(--brand-hot) px-2.5 py-1.5 text-xs font-semibold text-white transition hover:brightness-95"
-                  >
-                    Veja os preços
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : (
-          <div className="stagger-grid grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {moneyPicks.map((post) => (
-              <Link
-                key={post.id}
-                href={post.silo ? `/${post.silo.slug}/${post.slug}` : "#"}
-                className="flex h-full flex-col rounded-2xl border border-(--border) bg-(--paper) p-5 transition hover:-translate-y-0.5 hover:shadow-sm"
+        <div className="space-y-2">
+          {fallbackAffiliateShowcase.map((offer) => (
+            <article
+              key={offer.id}
+              className="grid grid-cols-[80px_1fr] gap-3 rounded-xl border border-[rgba(165,119,100,0.16)] bg-[rgba(230,228,226,0.78)] p-2 sm:grid-cols-[80px_1fr_auto]"
+            >
+              <a
+                href={offer.href}
+                target="_blank"
+                rel="sponsored nofollow noopener noreferrer"
+                className="block h-20 w-20 overflow-hidden rounded-lg border border-[rgba(165,119,100,0.14)] bg-[rgba(255,255,255,0.58)]"
               >
-                <p className="text-xs uppercase tracking-wide text-(--muted-2)">{post.silo?.name ?? "Guia"}</p>
-                <h3 className="mt-2 line-clamp-2 text-base font-semibold text-(--ink)">{post.title}</h3>
-                <p className="mt-2 line-clamp-3 text-sm text-(--muted)">
-                  {post.meta_description || "Veja comparativos, prós e contras antes de comprar."}
-                </p>
-                <span className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-(--brand-hot) px-3 py-2 text-sm font-semibold text-white">
-                  Ver preço na Amazon
-                </span>
-              </Link>
-            ))}
-          </div>
-        )}
+                <Image
+                  src={offer.image}
+                  alt={offer.title}
+                  width={80}
+                  height={80}
+                  sizes="80px"
+                  className="h-20 w-20 object-contain p-1"
+                />
+              </a>
+
+              <div className="min-w-0 self-center">
+                <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-[rgba(43,44,48,0.86)]">
+                  {offer.title}
+                </h3>
+              </div>
+
+              <div className="col-span-2 sm:col-span-1 sm:self-center">
+                <a
+                  href={offer.href}
+                  target="_blank"
+                  rel="sponsored nofollow noopener noreferrer"
+                  className="inline-flex w-full items-center justify-center rounded-lg border border-[rgba(165,119,100,0.2)] bg-[rgba(241,188,153,0.24)] px-3 py-1.5 text-xs font-semibold text-[rgba(43,44,48,0.75)] transition hover:bg-[rgba(241,188,153,0.32)] sm:w-auto"
+                >
+                  Ver preco na Amazon
+                </a>
+              </div>
+            </article>
+          ))}
+        </div>
       </section>
 
       <section id="manifesto" className="space-y-5 border-t border-(--border) pt-10">
