@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
 import { listAllPostParams, getPublicSilos } from "@/lib/db";
+import { resolveSiteUrl } from "@/lib/site/url";
 
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const siteUrl = (process.env.SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const siteUrl = resolveSiteUrl();
 
   const [silos, posts] = await Promise.all([getPublicSilos(), listAllPostParams()]);
 

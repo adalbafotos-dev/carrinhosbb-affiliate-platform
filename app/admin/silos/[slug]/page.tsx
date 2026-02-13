@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireAdminSession } from "@/lib/admin/auth";
 import { adminGetSiloBySlug, adminListPostsBySiloId } from "@/lib/db";
-import { updateSiloAction } from "@/app/admin/silos/actions";
+import { deleteSiloAction, updateSiloAction } from "@/app/admin/silos/actions";
 import { buildSiloMetrics } from "@/lib/seo/buildSiloMetrics";
 import { buildInternalSimilarity } from "@/lib/seo/cannibalization";
 import { SiloIntelligenceTabs } from "@/components/silos/SiloIntelligenceTabs";
@@ -9,9 +9,16 @@ import type { LinkAudit, LinkOccurrence, LinkOccurrenceEdge } from "@/lib/silo/t
 
 export const revalidate = 0;
 
-export default async function EditSiloPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function EditSiloPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ error?: string }>;
+}) {
   await requireAdminSession();
   const { slug } = await params;
+  const { error } = await searchParams;
   let silo: Awaited<ReturnType<typeof adminGetSiloBySlug>> = null;
   try {
     silo = await adminGetSiloBySlug(slug);
@@ -246,8 +253,25 @@ export default async function EditSiloPage({ params }: { params: Promise<{ slug:
     };
   });
 
+  const deleteErrorMessage =
+    error === "has_posts"
+      ? "Nao foi possivel excluir: ainda existem posts vinculados a este silo."
+      : error === "has_batches"
+      ? "Nao foi possivel excluir: ainda existem batches vinculados a este silo."
+      : error === "confirm_required"
+      ? "Marque a confirmacao para excluir o silo."
+      : error === "delete_failed"
+      ? "Falha ao excluir silo. Tente novamente."
+      : null;
+
   return (
     <div className="space-y-6">
+
+      {deleteErrorMessage ? (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {deleteErrorMessage}
+        </div>
+      ) : null}
 
 
 
@@ -266,6 +290,7 @@ export default async function EditSiloPage({ params }: { params: Promise<{ slug:
         settingsContent={
           <form action={updateSiloAction} className="space-y-5 rounded-xl border border-(--border) bg-(--surface) p-6">
             <input type="hidden" name="id" value={silo.id} />
+            <input type="hidden" name="return_to" value={`/admin/silos/${silo.slug}`} />
             <div className="grid gap-4 md:grid-cols-2">
               <Field label="Nome">
                 <input
@@ -361,13 +386,32 @@ export default async function EditSiloPage({ params }: { params: Promise<{ slug:
               </Field>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
-              <button
-                type="submit"
-                className="rounded-md bg-(--brand-hot) px-4 py-2 text-sm font-semibold text-(--paper) hover:bg-(--brand-accent)"
-              >
-                Salvar silo
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-(--border) pt-3">
+              <label className="inline-flex items-center gap-2 text-xs text-(--muted)">
+                <input
+                  name="confirm_delete"
+                  type="checkbox"
+                  value="1"
+                  className="h-4 w-4 rounded border-(--border-strong)"
+                />
+                Confirmo exclusao permanente deste silo
+              </label>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="submit"
+                  formAction={deleteSiloAction}
+                  className="rounded-md border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                >
+                  Excluir silo
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-md bg-(--brand-hot) px-4 py-2 text-sm font-semibold text-(--paper) hover:bg-(--brand-accent)"
+                >
+                  Salvar silo
+                </button>
+              </div>
             </div>
           </form>
         }

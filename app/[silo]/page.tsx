@@ -1,11 +1,16 @@
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Image from "next/image";
+import { cache } from "react";
 import { getPublicPostsBySilo, getPublicSiloBySlug, listAllSiloSlugs } from "@/lib/db";
 import type { Post } from "@/lib/types";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { resolveSiteUrl } from "@/lib/site/url";
 
 export const revalidate = 3600;
+
+const getCachedSilo = cache(async (siloSlug: string) => getPublicSiloBySlug(siloSlug));
+const getCachedPosts = cache(async (siloSlug: string) => getPublicPostsBySilo(siloSlug));
 
 export async function generateStaticParams() {
   const slugs = await listAllSiloSlugs();
@@ -14,7 +19,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ silo: string }> }): Promise<Metadata> {
   const { silo } = await params;
-  const pillar = await getPublicSiloBySlug(silo);
+  const pillar = await getCachedSilo(silo);
   if (!pillar) return { title: "Silo" };
   return {
     title: pillar.meta_title || pillar.name,
@@ -44,16 +49,16 @@ function resolvePostCover(post: Post) {
 
 export default async function PillarPage({ params }: { params: Promise<{ silo: string }> }) {
   const { silo } = await params;
-  const pillar = await getPublicSiloBySlug(silo);
+  const pillar = await getCachedSilo(silo);
   if (!pillar) return notFound();
-  const posts = await getPublicPostsBySilo(silo);
+  const posts = await getCachedPosts(silo);
   const ordered = [...posts].sort((a, b) => {
     if (Boolean(b.is_featured) !== Boolean(a.is_featured)) return Number(b.is_featured) - Number(a.is_featured);
     if ((a.pillar_rank ?? 0) !== (b.pillar_rank ?? 0)) return (a.pillar_rank ?? 0) - (b.pillar_rank ?? 0);
     return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
   });
   const groups = groupPosts(ordered);
-  const siteUrl = (process.env.SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const siteUrl = resolveSiteUrl();
   const collectionLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",

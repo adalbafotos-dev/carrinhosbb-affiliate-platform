@@ -4,12 +4,28 @@ import { adminListSilos } from "@/lib/db";
 
 export const revalidate = 0;
 
-export default async function AdminSilosPage() {
+export default async function AdminSilosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ deleted?: string; error?: string }>;
+}) {
   await requireAdminSession();
+  const { deleted, error } = await searchParams;
   const silos = await adminListSilos();
 
   return (
     <div className="space-y-6">
+      {deleted === "1" ? (
+        <div className="rounded-lg border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          Silo excluido com sucesso.
+        </div>
+      ) : null}
+      {error === "delete_failed" ? (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+          Falha ao excluir o silo.
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-(--text)">Silos (Pilares)</h1>
@@ -64,4 +80,3 @@ export default async function AdminSilosPage() {
     </div>
   );
 }
-

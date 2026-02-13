@@ -1,10 +1,17 @@
 import type { MetadataRoute } from "next";
+import { resolveSiteUrl } from "@/lib/site/url";
 
 export default function robots(): MetadataRoute.Robots {
-  const siteUrl = (process.env.SITE_URL ?? "http://localhost:3000").replace(/\/$/, "");
+  const siteUrl = resolveSiteUrl();
 
   return {
-    rules: [{ userAgent: "*", allow: "/" }],
+    rules: [
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow: ["/admin", "/api", "/wp-json"],
+      },
+    ],
     sitemap: `${siteUrl}/sitemap.xml`,
   };
 }

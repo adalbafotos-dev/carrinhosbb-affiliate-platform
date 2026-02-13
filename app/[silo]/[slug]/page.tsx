@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getPublicPostBySlug, listAllPostParams, adminGetPostBySlug } from "@/lib/db";
+import { cache } from "react";
+import { getPublicPostBySlug, listAllPostParams } from "@/lib/db";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { PostToc } from "@/components/site/PostToc";
 import type { PostWithSilo } from "@/lib/types";
-import { isAdminSession } from "@/lib/admin/auth";
 import { renderEditorDocToHtml } from "@/lib/editor/docRenderer";
+import { resolveSiteUrl } from "@/lib/site/url";
 
-export const revalidate = 0;
-export const dynamic = "force-dynamic";
+export const revalidate = 3600;
+
+const getPublishedPost = cache(async (siloSlug: string, postSlug: string) => getPublicPostBySlug(siloSlug, postSlug));
 
 export async function generateStaticParams() {
   const params = await listAllPostParams();
@@ -17,15 +19,12 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ silo: string; slug: string }> }): Promise<Metadata> {
   const { silo, slug } = await params;
-  let post = await getPublicPostBySlug(silo, slug);
-  if (!post && (await isAdminSession())) {
-    post = await adminGetPostBySlug(silo, slug);
-  }
+  const post = await getPublishedPost(silo, slug);
   if (!post) return { title: "Artigo" };
 
   const metaTitle = post.meta_title ?? post.seo_title ?? post.title;
   const canonicalPath = post.canonical_path ?? `/${silo}/${slug}`;
-  const siteUrl = process.env.SITE_URL ?? "http://localhost:3000";
+  const siteUrl = resolveSiteUrl();
   const canonicalUrl = `${siteUrl.replace(/\/$/, "")}${canonicalPath.startsWith("/") ? canonicalPath : `/${canonicalPath}`}`;
   const ogImage = post.og_image_url ?? post.hero_image_url ?? post.cover_image ?? undefined;
 
@@ -308,14 +307,11 @@ function buildBreadcrumbJsonLd(post: PostWithSilo, siteUrl: string, silo: string
 
 export default async function PostPage({ params }: { params: Promise<{ silo: string; slug: string }> }) {
   const { silo, slug } = await params;
-  let post = await getPublicPostBySlug(silo, slug);
-  if (!post && (await isAdminSession())) {
-    post = await adminGetPostBySlug(silo, slug);
-  }
+  const post = await getPublishedPost(silo, slug);
 
   if (!post) return notFound();
 
-  const siteUrl = process.env.SITE_URL ?? "http://localhost:3000";
+  const siteUrl = resolveSiteUrl();
   const canonicalPath = post.canonical_path ?? `/${silo}/${slug}`;
   const canonical = `${siteUrl.replace(/\/$/, "")}${canonicalPath.startsWith("/") ? canonicalPath : `/${canonicalPath}`}`;
 

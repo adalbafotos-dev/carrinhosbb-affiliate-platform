@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
 import { SiteChrome } from "@/components/site/SiteChrome";
+import { resolveSiteUrl } from "@/lib/site/url";
 
 const body = Manrope({
   subsets: ["latin"],
@@ -9,7 +10,7 @@ const body = Manrope({
   weight: ["400", "500", "600", "700"],
 });
 
-const defaultSiteUrl = process.env.SITE_URL ?? "https://lindisse.com.br";
+const defaultSiteUrl = resolveSiteUrl();
 
 export const metadata: Metadata = {
   title: {

@@ -1,14 +1,16 @@
 import Link from "next/link";
 import Image from "next/image";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { listLatestPublicPosts } from "@/lib/db";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { SiloNarrativeCarousel } from "@/components/site/SiloNarrativeCarousel";
-import type { PostWithSilo } from "@/lib/types";
+import { HomeSearchResults } from "@/components/site/HomeSearchResults";
+import { resolveSiteUrl } from "@/lib/site/url";
 
 export const revalidate = 3600;
 
-const siteUrl = (process.env.SITE_URL ?? "https://lindisse.com.br").replace(/\/$/, "");
+const siteUrl = resolveSiteUrl();
 const homeSocialImage = "/unhas-francesinhas-criativas-e-coloridas.webp";
 const twitterSite = process.env.NEXT_PUBLIC_TWITTER_SITE?.trim() || undefined;
 
@@ -42,22 +44,6 @@ export const metadata: Metadata = {
     images: [homeSocialImage],
   },
 };
-
-function normalize(text: string | null | undefined) {
-  return (text ?? "").toLocaleLowerCase("pt-BR");
-}
-
-function matchesQuery(post: PostWithSilo, query: string) {
-  const needle = normalize(query);
-  if (!needle) return true;
-
-  return (
-    normalize(post.title).includes(needle) ||
-    normalize(post.target_keyword).includes(needle) ||
-    normalize(post.meta_description).includes(needle) ||
-    normalize(post.silo?.name).includes(needle)
-  );
-}
 
 const fallbackAffiliateShowcase = [
   {
@@ -97,16 +83,8 @@ function HomeSectionIndicator({ iconSrc, label }: { iconSrc: string; label: stri
   );
 }
 
-export default async function HomePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ q?: string }>;
-}) {
-  const { q } = await searchParams;
-  const query = (q ?? "").trim();
-
+export default async function HomePage() {
   const rawPosts = await listLatestPublicPosts(48);
-  const searchResults = query ? rawPosts.filter((post) => matchesQuery(post, query)).slice(0, 10) : [];
   const recentPosts = rawPosts.slice(0, 8);
 
   const organizationLd = {
@@ -157,41 +135,9 @@ export default async function HomePage({
         </div>
       </section>
 
-      {query ? (
-        <section className="space-y-4">
-          <div className="rounded-3xl border border-(--border) bg-(--paper) p-6">
-            <p className="text-xs uppercase tracking-wide text-(--muted-2)">Busca</p>
-            <h2 className="mt-2 text-2xl font-semibold text-(--ink)">Resultados para &quot;{query}&quot;</h2>
-            <p className="mt-2 text-sm text-(--muted)">
-              {searchResults.length} resultado(s) encontrado(s) nos guias mais recentes.
-            </p>
-          </div>
-
-          {searchResults.length === 0 ? (
-            <div className="rounded-2xl border border-(--border) bg-(--paper) p-5 text-sm text-(--muted)">
-              Nenhum resultado por enquanto. Tente termos mais amplos como &quot;cabine&quot;, &quot;gel&quot; ou
-              &quot;alongamento&quot;.
-            </div>
-          ) : (
-            <div className="stagger-grid grid gap-4 md:grid-cols-2">
-              {searchResults.map((post) => (
-                <Link
-                  key={post.id}
-                  href={post.silo ? `/${post.silo.slug}/${post.slug}` : "#"}
-                  className="flex h-full flex-col rounded-2xl border border-(--border) bg-(--paper) p-5 transition hover:-translate-y-0.5 hover:shadow-sm"
-                >
-                  <p className="text-xs uppercase tracking-wide text-(--muted-2)">{post.silo?.name ?? "Conteúdo"}</p>
-                  <h3 className="mt-2 line-clamp-2 text-lg font-semibold text-(--ink)">{post.title}</h3>
-                  <p className="mt-2 line-clamp-3 text-sm text-(--muted)">
-                    {post.meta_description || "Abrir artigo para ver detalhes e comparativos."}
-                  </p>
-                  <span className="mt-4 text-sm font-semibold text-(--brand-hot)">Abrir guia</span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </section>
-      ) : null}
+      <Suspense fallback={null}>
+        <HomeSearchResults posts={rawPosts} />
+      </Suspense>
 
       <section id="silos">
         <SiloNarrativeCarousel />
@@ -407,3 +353,4 @@ export default async function HomePage({
     </div>
   );
 }
+

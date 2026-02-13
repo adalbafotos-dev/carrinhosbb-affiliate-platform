@@ -6,6 +6,7 @@ import { requireAdminSession } from "@/lib/admin/auth";
 import {
   adminAddPostToBatch,
   adminCreatePost,
+  adminDeleteSilo,
   adminCreateSilo,
   adminCreateSiloBatch,
   adminGetSiloBySlug,
@@ -112,4 +113,47 @@ export async function updateSiloAction(formData: FormData) {
     pillar_content_html: payload.pillar_content_html,
   });
   redirect(`/admin/silos/${payload.slug}`);
+}
+
+const DeleteSiloSchema = z.object({
+  id: z.string().uuid(),
+  return_to: z.string().optional(),
+  confirm_delete: z.literal("1"),
+});
+
+function toSafeReturnPath(path: string | null | undefined) {
+  if (!path) return "/admin/silos";
+  return path.startsWith("/") ? path : "/admin/silos";
+}
+
+export async function deleteSiloAction(formData: FormData) {
+  await requireAdminSession();
+
+  const returnTo = toSafeReturnPath(
+    typeof formData.get("return_to") === "string" ? String(formData.get("return_to")) : undefined
+  );
+
+  const parsed = DeleteSiloSchema.safeParse({
+    id: formData.get("id"),
+    return_to: formData.get("return_to"),
+    confirm_delete: formData.get("confirm_delete"),
+  });
+
+  if (!parsed.success) {
+    redirect(`${returnTo}?error=confirm_required`);
+  }
+
+  try {
+    await adminDeleteSilo(parsed.data.id);
+    redirect("/admin/silos?deleted=1");
+  } catch (error: any) {
+    const message = String(error?.message || "");
+    if (message === "SILO_HAS_POSTS") {
+      redirect(`${returnTo}?error=has_posts`);
+    }
+    if (message === "SILO_HAS_BATCHES") {
+      redirect(`${returnTo}?error=has_batches`);
+    }
+    redirect(`${returnTo}?error=delete_failed`);
+  }
 }

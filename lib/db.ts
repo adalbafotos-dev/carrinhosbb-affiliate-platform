@@ -674,6 +674,28 @@ export async function adminUpdateSilo(id: string, patch: Partial<Silo>): Promise
   return data as Silo;
 }
 
+export async function adminDeleteSilo(id: string): Promise<void> {
+  if (!isUuid(id)) throw new Error("Silo invalido");
+  const supabase = await getAdminSupabaseClient();
+
+  const { count: postCount, error: postCountError } = await supabase
+    .from("posts")
+    .select("id", { count: "exact", head: true })
+    .eq("silo_id", id);
+  if (postCountError) throw postCountError;
+  if ((postCount ?? 0) > 0) throw new Error("SILO_HAS_POSTS");
+
+  const { count: batchCount, error: batchCountError } = await supabase
+    .from("silo_batches")
+    .select("id", { count: "exact", head: true })
+    .eq("silo_id", id);
+  if (batchCountError && batchCountError.code !== "42P01") throw batchCountError;
+  if ((batchCount ?? 0) > 0) throw new Error("SILO_HAS_BATCHES");
+
+  const { error } = await supabase.from("silos").delete().eq("id", id);
+  if (error) throw handleDbError(error);
+}
+
 export async function adminSearchPostsByTitle(query: string, limit = 10): Promise<Array<{ id: string; title: string; slug: string; silo_slug: string }>> {
   const supabase = await getAdminSupabaseClient();
 

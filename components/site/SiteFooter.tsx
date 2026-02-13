@@ -54,6 +54,16 @@ export function SiteFooter() {
                 Política de afiliados na lindisse.com.br
               </Link>
             </li>
+            <li>
+              <a className="hover:text-(--brand-hot)" href="/sitemap.xml" target="_blank" rel="noreferrer">
+                Sitemap XML
+              </a>
+            </li>
+            <li>
+              <a className="hover:text-(--brand-hot)" href="/robots.txt" target="_blank" rel="noreferrer">
+                Robots.txt
+              </a>
+            </li>
           </ul>
         </section>
 
