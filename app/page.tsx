@@ -297,15 +297,12 @@ export default async function HomePage() {
           </p>
         ) : (
           <ol className="divide-y divide-(--border)">
-            {recentPosts.map((post, index) => (
+            {recentPosts.map((post) => (
               <li key={post.id} className="py-4">
                 <Link
                   href={post.silo ? `/${post.silo.slug}/${post.slug}` : "#"}
-                  className="group grid gap-3 md:grid-cols-[auto_1fr_auto] md:items-center"
+                  className="group grid gap-3 md:grid-cols-[1fr_auto] md:items-center"
                 >
-                  <p className="text-xs font-semibold tracking-wide text-(--muted-2)">
-                    {String(index + 1).padStart(2, "0")}
-                  </p>
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-(--muted-2)">{post.silo?.name ?? "Guia"}</p>
                     <p className="mt-1 text-lg font-semibold text-(--ink)">{post.title}</p>

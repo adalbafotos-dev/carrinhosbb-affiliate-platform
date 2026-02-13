@@ -2,14 +2,14 @@
 
 import type { ReactNode } from "react";
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useSelectedLayoutSegments } from "next/navigation";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 
 export function SiteChrome({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
-  const isAdmin = pathname?.startsWith("/admin");
-  const isHome = pathname === "/";
+  const segments = useSelectedLayoutSegments();
+  const isAdmin = segments[0] === "admin";
+  const isHome = !isAdmin && segments.length === 0;
 
   useEffect(() => {
     if (!isHome) return;

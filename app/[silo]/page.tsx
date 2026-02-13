@@ -80,8 +80,7 @@ export default async function PillarPage({ params }: { params: Promise<{ silo: s
       <details className="group overflow-hidden rounded-3xl border border-[rgba(165,119,100,0.24)] bg-[linear-gradient(148deg,rgba(255,255,255,0.96)_0%,rgba(255,247,230,0.92)_58%,rgba(241,188,153,0.28)_100%)] shadow-[0_14px_30px_-22px_rgba(165,119,100,0.42)]">
         <summary className="flex cursor-pointer list-none items-start justify-between gap-4 p-6 md:p-8 [&::-webkit-details-marker]:hidden">
           <div>
-            <p className="text-xs uppercase tracking-wide text-(--muted-2)">Pilar</p>
-            <h1 className="mt-2 text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">{pillar.name}</h1>
+            <h1 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">{pillar.name}</h1>
             <p className="mt-2 text-xs font-medium text-(--brand-accent)">Toque para expandir o conteudo do silo</p>
           </div>
           <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgba(165,119,100,0.28)] bg-[rgba(255,255,255,0.92)] text-lg text-(--brand-accent) transition group-open:rotate-180">

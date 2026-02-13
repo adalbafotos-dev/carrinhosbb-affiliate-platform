@@ -1377,6 +1377,14 @@ a {
   }
 }
 
+@media (max-width: 767px) {
+  .home-hero-shell::after {
+    content: none;
+    background-image: none;
+    animation: none;
+  }
+}
+
 @media (min-width: 768px) {
   .home-hero-shell {
     --home-header-height: 136px;
