@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, type DragEvent } from "react";
 import { Calendar, Image as ImageIcon, Upload, User } from "lucide-react";
+import { EDITOR_AUTHOR_OPTIONS } from "@/lib/site/collaborators";
 
 export type EditorMeta = {
   title: string;
@@ -105,7 +106,7 @@ export function EditorSidebar(props: {
     }
   }
 
-  const authors = props.authorOptions ?? ["Equipe", "Convidado"];
+  const authors = props.authorOptions ?? EDITOR_AUTHOR_OPTIONS;
 
   return (
     <aside

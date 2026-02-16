@@ -8,10 +8,21 @@ import type { PostWithSilo } from "@/lib/types";
 import { renderEditorDocToHtml } from "@/lib/editor/docRenderer";
 import { resolveSiteUrl } from "@/lib/site/url";
 import { buildCanonicalUrl, buildPostCanonicalPath } from "@/lib/seo/canonical";
+import { findCollaboratorByName } from "@/lib/site/collaborators";
 
 export const revalidate = 3600;
 
 const getPublishedPost = cache(async (siloSlug: string, postSlug: string) => getPublicPostBySlug(siloSlug, postSlug));
+
+function normalizeName(value: string | null | undefined) {
+  if (!value) return "";
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
 
 export async function generateStaticParams() {
   const params = await listAllPostParams();
@@ -47,17 +58,29 @@ function buildAuthor(post: PostWithSilo) {
   const name = post.expert_name || post.author_name;
   if (name) {
     const author: Record<string, any> = { "@type": "Person", name };
+    const collaborator = findCollaboratorByName(name);
     if (post.expert_role) author.jobTitle = post.expert_role;
     if (post.expert_bio) author.description = post.expert_bio;
     if (post.expert_credentials) author.honorificSuffix = post.expert_credentials;
+    if (collaborator?.professionalName) author.alternateName = collaborator.professionalName;
+    if (collaborator?.image?.src) author.image = collaborator.image.src;
+    if (collaborator?.links?.length) author.sameAs = collaborator.links.map((link) => link.href);
     return author;
   }
   return { "@type": "Organization", name: "Lindisse" };
 }
 
 function buildReviewedBy(post: PostWithSilo) {
-  if (!post.reviewed_by) return undefined;
-  return { "@type": "Person", name: post.reviewed_by };
+  const reviewedBy = post.reviewed_by?.trim();
+  if (!reviewedBy) return undefined;
+  const authorName = post.expert_name || post.author_name || "";
+  if (normalizeName(reviewedBy) === normalizeName(authorName)) return undefined;
+
+  const reviewer: Record<string, any> = { "@type": "Person", name: reviewedBy };
+  const collaborator = findCollaboratorByName(reviewedBy);
+  if (collaborator?.image?.src) reviewer.image = collaborator.image.src;
+  if (collaborator?.links?.length) reviewer.sameAs = collaborator.links.map((link) => link.href);
+  return reviewer;
 }
 
 function buildArticleJsonLd(post: PostWithSilo, canonical: string) {
@@ -329,6 +352,10 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
   const storedHasCtaColor = /data-bg-color="[^"]+"/i.test(storedHtml);
   const shouldFallbackToStored = (!jsonHasImg && storedHasImg) || (!jsonHasCtaColor && storedHasCtaColor);
   const contentHtml = shouldFallbackToStored ? storedHtml : contentHtmlFromJson || storedHtml;
+  const displayAuthorName = post.expert_name || post.author_name || "";
+  const showReviewer =
+    Boolean(post.reviewed_by?.trim()) && normalizeName(post.reviewed_by) !== normalizeName(displayAuthorName);
+  const authorProfile = findCollaboratorByName(displayAuthorName);
   const detectedFaq = faqItems.length ? faqItems : extractFaqFromHtml(contentHtml);
   const faqLd = detectedFaq.length ? buildFaqJsonLd(detectedFaq, canonical, post) : null;
   const howToLd = post.schema_type === "howto" ? buildHowToJsonLd(howToItems, post, canonical) : null;
@@ -363,13 +390,13 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
               <div className="flex items-center gap-1">
                 <span className="text-(--muted-2)">Por</span>
                 <span className="font-semibold text-(--ink)">
-                  {post.expert_name || post.author_name || "Redação"}
+                  {displayAuthorName || "Redação"}
                 </span>
               </div>
 
-              {post.reviewed_by && (
+              {showReviewer && (
                 <div className="flex items-center gap-1 border-l border-(--border) pl-4">
-                  <span className="text-(--muted-2)">Revisado por</span>
+                  <span className="text-(--muted-2)">Edição técnica</span>
                   <span className="font-semibold text-(--ink)">{post.reviewed_by}</span>
                 </div>
               )}
@@ -434,6 +461,39 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
                   ))}
                 </ul>
               </div>
+            ) : null}
+
+            {authorProfile ? (
+              <section className="rounded-2xl border border-(--border) bg-(--surface-muted) p-5 md:p-6">
+                <div className="grid gap-4 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
+                  <img
+                    src={authorProfile.image.src}
+                    alt={authorProfile.image.alt}
+                    width={authorProfile.image.width}
+                    height={authorProfile.image.height}
+                    className="h-24 w-24 rounded-xl border border-(--border) object-cover"
+                    loading="lazy"
+                  />
+                  <div className="space-y-2">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-(--muted-2)">Autor / Especialista</p>
+                    <h2 className="text-lg font-semibold text-(--ink)">{authorProfile.name}</h2>
+                    {authorProfile.professionalName ? (
+                      <p className="text-xs font-medium text-(--muted-2)">{authorProfile.professionalName}</p>
+                    ) : null}
+                    <p className="text-sm leading-relaxed text-(--muted)">{authorProfile.expertBoxShort}</p>
+                    <div className="flex flex-wrap gap-3 text-xs">
+                      {authorProfile.links.map((link) => (
+                        <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className="underline">
+                          {link.label}
+                        </a>
+                      ))}
+                      <a href="/colaboradores" className="underline">
+                        Perfil completo
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              </section>
             ) : null}
           </div>
         </div>

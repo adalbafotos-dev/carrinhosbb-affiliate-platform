@@ -3,10 +3,11 @@
 import { useMemo, useState, type DragEvent } from "react";
 import { CalendarClock, CheckCircle2, Globe2, Info, ShieldCheck, UserRound } from "lucide-react";
 import { useEditorContext } from "@/components/editor/EditorContext";
+import { EDITOR_AUTHOR_OPTIONS } from "@/lib/site/collaborators";
 
 type Tab = "post" | "seo" | "eeat" | "publish";
 
-const AUTHORS = ["Ana Linda Ferreira", "Equipe", "Lucas Prado", "Marina Ramos"];
+const AUTHORS = EDITOR_AUTHOR_OPTIONS;
 
 function counterTone(count: number, min: number, max: number) {
   if (count === 0) return "text-(--muted-2)";

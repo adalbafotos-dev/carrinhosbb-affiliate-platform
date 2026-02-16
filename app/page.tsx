@@ -7,6 +7,7 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { SiloNarrativeCarousel } from "@/components/site/SiloNarrativeCarousel";
 import { HomeSearchResults } from "@/components/site/HomeSearchResults";
 import { resolveSiteUrl } from "@/lib/site/url";
+import { ANA_LINDA_PROFILE } from "@/lib/site/collaborators";
 
 export const revalidate = 3600;
 
@@ -194,7 +195,11 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section data-home-scroll id="manifesto" className="space-y-5 border-t border-(--border) pt-10">
+      <section
+        data-home-scroll
+        id="manifesto"
+        className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10"
+      >
         <HomeSectionIndicator iconSrc="/maos-e-dedos02.webp" label="Missão e Visão" />
         <h2 className="max-w-4xl text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
           Elevando o Padrão da Nail Designer Brasileira: Onde a Técnica Encontra a Química
@@ -220,7 +225,7 @@ export default async function HomePage() {
             </p>
           </article>
 
-          <aside className="space-y-3 border-l border-(--border) pl-5 text-sm leading-relaxed text-(--muted) md:text-base">
+          <aside className="space-y-3 border-l border-[rgba(193,149,86,0.4)] pl-5 text-sm leading-relaxed text-(--muted) md:text-base">
             <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">O que você vai dominar</p>
             <p>
               Biossegurança no atendimento · Polimerização correta · Escolha da cabine UV/LED · Viscosidade ideal do
@@ -236,7 +241,11 @@ export default async function HomePage() {
         </div>
       </section>
 
-      <section data-home-scroll id="sobre-lindisse" className="space-y-5 border-t border-(--border) pt-10">
+      <section
+        data-home-scroll
+        id="sobre-lindisse"
+        className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10"
+      >
         <HomeSectionIndicator iconSrc="/maos-e-dedos03.webp" label="Sobre" />
         <h2 className="max-w-3xl text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
           A Curadoria Técnica que a Sua Mesa Exige
@@ -250,6 +259,44 @@ export default async function HomePage() {
           Nós atuamos como um filtro de qualidade entre os milhares de produtos da Amazon e a sua bancada de trabalho.
           Nossos guias e reviews são construídos com foco em três pilares inegociáveis:
         </p>
+
+        <article className="rounded-2xl border border-[rgba(165,119,100,0.28)] bg-[linear-gradient(146deg,rgba(255,255,255,0.96)_0%,rgba(255,247,230,0.95)_56%,rgba(241,188,153,0.32)_100%)] p-4 shadow-[0_12px_28px_rgba(165,119,100,0.14)] sm:p-5">
+          <div className="grid gap-4 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
+            <Image
+              src={ANA_LINDA_PROFILE.image.src}
+              alt={ANA_LINDA_PROFILE.image.alt}
+              width={ANA_LINDA_PROFILE.image.width}
+              height={ANA_LINDA_PROFILE.image.height}
+              sizes="96px"
+              className="h-24 w-24 rounded-xl border border-[rgba(165,119,100,0.24)] bg-white/70 object-cover"
+            />
+            <div className="space-y-2">
+              <p className="inline-flex w-fit rounded-full border border-[rgba(165,119,100,0.24)] bg-white/72 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[rgba(125,86,69,0.92)]">
+                Autora especialista
+              </p>
+              <h3 className="text-lg font-semibold text-(--ink)">{ANA_LINDA_PROFILE.name}</h3>
+              <p className="text-sm leading-relaxed text-(--muted)">{ANA_LINDA_PROFILE.expertBoxShort}</p>
+              <div className="flex flex-wrap gap-3 text-xs">
+                <Link
+                  href="/colaboradores"
+                  className="inline-flex items-center rounded-full border border-[rgba(165,119,100,0.24)] bg-white/78 px-3 py-1 font-semibold text-[rgba(212,92,67,0.95)] transition hover:bg-[rgba(241,188,153,0.24)]"
+                >
+                  Ver perfil completo
+                </Link>
+                {ANA_LINDA_PROFILE.links[0] ? (
+                  <a
+                    href={ANA_LINDA_PROFILE.links[0].href}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center rounded-full border border-[rgba(165,119,100,0.24)] bg-white/78 px-3 py-1 font-semibold text-[rgba(212,92,67,0.95)] transition hover:bg-[rgba(241,188,153,0.24)]"
+                  >
+                    {ANA_LINDA_PROFILE.links[0].label}
+                  </a>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </article>
 
         <div className="grid gap-6 md:grid-cols-3">
           <article className="space-y-2">
@@ -283,7 +330,11 @@ export default async function HomePage() {
         </p>
       </section>
 
-      <section data-home-scroll id="analises-recentes" className="space-y-5 border-t border-(--border) pt-10">
+      <section
+        data-home-scroll
+        id="analises-recentes"
+        className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10"
+      >
         <HomeSectionIndicator iconSrc="/maos-e-dedos04.webp" label="Posts mais Novos" />
         <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
           Análises Recentes e Atualizações do Mercado
@@ -295,7 +346,7 @@ export default async function HomePage() {
             técnicas e tendências do mercado.
           </p>
         ) : (
-          <ol className="divide-y divide-(--border)">
+          <ol className="divide-y divide-[rgba(193,149,86,0.36)]">
             {recentPosts.map((post) => (
               <li key={post.id} className="py-4">
                 <Link
@@ -319,7 +370,11 @@ export default async function HomePage() {
         )}
       </section>
 
-      <section data-home-scroll id="cta-recomendacoes" className="space-y-5 border-t border-(--border) pt-10">
+      <section
+        data-home-scroll
+        id="cta-recomendacoes"
+        className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10"
+      >
         <HomeSectionIndicator iconSrc="/maos-e-dedos05.webp" label="Saiba Mais" />
         <div className="grid gap-6 md:grid-cols-[1.2fr_auto] md:items-end">
           <div className="space-y-3 rounded-3xl border border-[rgba(165,119,100,0.28)] bg-[linear-gradient(148deg,rgba(255,255,255,0.95)_0%,rgba(255,247,230,0.98)_52%,rgba(241,188,153,0.5)_100%)] p-6 shadow-[0_16px_36px_rgba(165,119,100,0.16)] md:p-8">
@@ -349,4 +404,3 @@ export default async function HomePage() {
     </div>
   );
 }
-

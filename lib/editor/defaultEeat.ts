@@ -1,14 +1,15 @@
+import { ANA_LINDA_PROFILE } from "@/lib/site/collaborators";
+
 export const DEFAULT_EEAT_AUTHOR = {
-  authorName: "Ana Linda Ferreira",
-  expertName: "Ana Linda Ferreira",
-  expertRole: "Especialista em Nail Design e Unhas de Gel",
-  expertBio:
-    "Nail designer com foco em biosseguranca, avaliacao tecnica de produtos e performance real em mesa de atendimento.",
-  expertCredentials: "Nail Designer",
-  reviewedBy: "Equipe Lindisse",
+  authorName: ANA_LINDA_PROFILE.name,
+  expertName: ANA_LINDA_PROFILE.name,
+  expertRole: ANA_LINDA_PROFILE.siteRole,
+  expertBio: ANA_LINDA_PROFILE.shortBio,
+  expertCredentials: `Manicure e professora desde ${ANA_LINDA_PROFILE.experienceSince}`,
+  reviewedBy: ANA_LINDA_PROFILE.name,
   disclaimer:
-    "Este conteudo pode conter links de afiliado. Como Associado da Amazon, o Lindisse pode receber comissao por compras qualificadas, sem custo adicional para voce.",
-  authorLinks: ["https://br.pinterest.com/lindissestetic/", "https://lindisse.com.br/colaboradores"],
+    "Este conteúdo pode conter links de afiliado. Como Associado da Amazon, o Lindisse pode receber comissão por compras qualificadas, sem custo adicional para você.",
+  authorLinks: [...ANA_LINDA_PROFILE.links.map((link) => link.href), "https://lindisse.com.br/colaboradores"],
 } as const;
 
 function normalizeText(value: string | null | undefined) {
