@@ -337,10 +337,10 @@ export default async function HomePage() {
           </div>
 
           <Link
-            href="#melhores"
+            href="/equipamentos/cabine-de-unha-profissional"
             className="inline-flex h-fit items-center justify-center rounded-xl bg-(--brand-hot) px-6 py-3 text-sm font-semibold text-white transition hover:brightness-95"
           >
-            Ver Melhores Recomendações
+            Ver Cabines Profissionais
           </Link>
         </div>
       </section>
@@ -349,5 +349,4 @@ export default async function HomePage() {
     </div>
   );
 }
-
 

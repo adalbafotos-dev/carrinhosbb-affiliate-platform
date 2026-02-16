@@ -42,6 +42,7 @@ import {
   setBpAttrs,
   type ResponsiveMode,
 } from "@/lib/editor/responsive";
+import { buildPostCanonicalPath, normalizeCanonicalPath } from "@/lib/seo/canonical";
 
 type Props = {
   post: PostWithSilo;
@@ -59,6 +60,10 @@ function slugify(value: string) {
     .trim()
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+}
+
+function resolvePostCanonicalPath(rawCanonical: string | null | undefined, siloSlug: string | null | undefined, slug: string | null | undefined) {
+  return buildPostCanonicalPath(siloSlug, slug) ?? normalizeCanonicalPath(rawCanonical) ?? "";
 }
 
 type HighlightOccurrence = {
@@ -652,7 +657,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       schemaType: (post.schema_type as EditorMeta["schemaType"]) ?? "article",
       status: (post.status as EditorMeta["status"]) ?? (post.published ? "published" : "draft"),
       scheduledAt: toLocalInput(post.scheduled_at),
-      canonicalPath: post.canonical_path ?? "",
+      canonicalPath: resolvePostCanonicalPath(post.canonical_path, post.silo?.slug, post.slug),
       heroImageUrl: post.hero_image_url ?? "",
       heroImageAlt: post.hero_image_alt ?? "",
       ogImageUrl: post.og_image_url ?? "",
@@ -712,7 +717,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     return null;
   }, [meta.siloId, post.silo, post.silo_id, silos]);
 
-  const siloSlug = currentSilo?.slug ?? "silo";
+  const siloSlug = currentSilo?.slug ?? "";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -757,7 +762,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       schemaType: (post.schema_type as EditorMeta["schemaType"]) ?? "article",
       status: (post.status as EditorMeta["status"]) ?? (post.published ? "published" : "draft"),
       scheduledAt: toLocalInput(post.scheduled_at),
-      canonicalPath: post.canonical_path ?? "",
+      canonicalPath: resolvePostCanonicalPath(post.canonical_path, post.silo?.slug, post.slug),
       heroImageUrl: post.hero_image_url ?? "",
       heroImageAlt: post.hero_image_alt ?? "",
       ogImageUrl: post.og_image_url ?? "",
@@ -1638,9 +1643,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
   const onSave = useCallback(
     async (nextStatus?: EditorMeta["status"]) => {
       const statusToSave = nextStatus ?? metaRef.current.status;
-      const canonicalPath =
-        metaRef.current.canonicalPath ||
-        (siloSlug && metaRef.current.slug ? `/${siloSlug}/${metaRef.current.slug}` : null);
+      const canonicalPath = buildPostCanonicalPath(siloSlug, metaRef.current.slug);
 
         const currentJson = editor ? editor.getJSON() : docJson;
         const currentHtml = editor ? editor.getHTML() : docHtml;

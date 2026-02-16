@@ -6,6 +6,7 @@ import { getPublicPostsBySilo, getPublicSiloBySlug, listAllSiloSlugs } from "@/l
 import type { Post } from "@/lib/types";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { resolveSiteUrl } from "@/lib/site/url";
+import { buildCanonicalUrl, buildSiloCanonicalPath } from "@/lib/seo/canonical";
 
 export const revalidate = 3600;
 
@@ -21,9 +22,20 @@ export async function generateMetadata({ params }: { params: Promise<{ silo: str
   const { silo } = await params;
   const pillar = await getCachedSilo(silo);
   if (!pillar) return { title: "Silo" };
+  const canonicalPath = buildSiloCanonicalPath(silo) ?? `/${silo}`;
+  const canonicalUrl = buildCanonicalUrl(resolveSiteUrl(), canonicalPath);
   return {
     title: pillar.meta_title || pillar.name,
     description: pillar.meta_description || pillar.description || undefined,
+    alternates: {
+      canonical: canonicalPath,
+    },
+    openGraph: {
+      type: "website",
+      url: canonicalUrl,
+      title: pillar.meta_title || pillar.name,
+      description: pillar.meta_description || pillar.description || undefined,
+    },
   };
 }
 

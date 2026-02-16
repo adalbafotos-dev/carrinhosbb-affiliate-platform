@@ -5,6 +5,9 @@ export const revalidate = 86400;
 export const metadata: Metadata = {
   title: "Colaboradores",
   description: "Conheça os colaboradores do Lindisse e seus canais oficiais.",
+  alternates: {
+    canonical: "/colaboradores",
+  },
 };
 
 type Collaborator = {

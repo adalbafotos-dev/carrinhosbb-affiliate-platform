@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ArrowLeft, Laptop, Tablet, Smartphone } from "lucide-react";
 import { FixedToolbar } from "@/components/editor/FixedToolbar";
 import { useEditorContext } from "@/components/editor/EditorContext";
+import { buildPostCanonicalPath, normalizeCanonicalPath } from "@/lib/seo/canonical";
 
 type PreviewMode = "desktop" | "tablet" | "mobile";
 
@@ -213,10 +214,9 @@ export function EditorCanvas() {
     return silos.find((silo) => silo.id === meta.siloId)?.slug ?? "";
   }, [meta.siloId, silos]);
   const previewPath = useMemo(() => {
-    if (meta.canonicalPath) return meta.canonicalPath;
-    if (siloSlug && meta.slug) return `/${siloSlug}/${meta.slug}`;
-    if (meta.slug) return `/${meta.slug}`;
-    return "";
+    const routePath = buildPostCanonicalPath(siloSlug, meta.slug);
+    if (routePath) return routePath;
+    return normalizeCanonicalPath(meta.canonicalPath) ?? "";
   }, [meta.canonicalPath, meta.slug, siloSlug]);
   const canPreview = Boolean(previewPath);
   const previewWidths: Record<typeof previewMode, number> = {

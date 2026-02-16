@@ -7,6 +7,7 @@ import { PostToc } from "@/components/site/PostToc";
 import type { PostWithSilo } from "@/lib/types";
 import { renderEditorDocToHtml } from "@/lib/editor/docRenderer";
 import { resolveSiteUrl } from "@/lib/site/url";
+import { buildCanonicalUrl, buildPostCanonicalPath } from "@/lib/seo/canonical";
 
 export const revalidate = 3600;
 
@@ -23,15 +24,15 @@ export async function generateMetadata({ params }: { params: Promise<{ silo: str
   if (!post) return { title: "Artigo" };
 
   const metaTitle = post.meta_title ?? post.seo_title ?? post.title;
-  const canonicalPath = post.canonical_path ?? `/${silo}/${slug}`;
+  const canonicalPath = buildPostCanonicalPath(silo, slug) ?? `/${silo}/${slug}`;
   const siteUrl = resolveSiteUrl();
-  const canonicalUrl = `${siteUrl.replace(/\/$/, "")}${canonicalPath.startsWith("/") ? canonicalPath : `/${canonicalPath}`}`;
+  const canonicalUrl = buildCanonicalUrl(siteUrl, canonicalPath);
   const ogImage = post.og_image_url ?? post.hero_image_url ?? post.cover_image ?? undefined;
 
   return {
     title: metaTitle,
     description: post.meta_description ?? undefined,
-    alternates: { canonical: canonicalUrl },
+    alternates: { canonical: canonicalPath },
     openGraph: {
       title: metaTitle,
       description: post.meta_description ?? undefined,
@@ -312,8 +313,8 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
   if (!post) return notFound();
 
   const siteUrl = resolveSiteUrl();
-  const canonicalPath = post.canonical_path ?? `/${silo}/${slug}`;
-  const canonical = `${siteUrl.replace(/\/$/, "")}${canonicalPath.startsWith("/") ? canonicalPath : `/${canonicalPath}`}`;
+  const canonicalPath = buildPostCanonicalPath(silo, slug) ?? `/${silo}/${slug}`;
+  const canonical = buildCanonicalUrl(siteUrl, canonicalPath);
 
   const articleLd = buildArticleJsonLd(post, canonical);
   const productLd = Array.isArray(post.amazon_products) ? buildProductJsonLd(post.amazon_products) : [];

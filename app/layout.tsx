@@ -25,7 +25,6 @@ export const metadata: Metadata = {
   description:
     "Guias, reviews e comparativos para nail designers comprarem melhor, com metodologia transparente e foco em E-E-A-T.",
   metadataBase: new URL(defaultSiteUrl),
-  alternates: { canonical: "/" },
   openGraph: {
     type: "website",
     siteName: "Lindisse",

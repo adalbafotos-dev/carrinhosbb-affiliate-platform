@@ -7,12 +7,14 @@ import {
   adminFindTargetKeywordConflict,
   adminGetPostById,
   adminGetPostLinks,
+  adminGetSiloById,
   adminPublishPost,
   adminReplacePostLinks,
   adminUpdatePost,
   adminUpsertSiloPost,
 } from "@/lib/db";
 import { requireAdminSession } from "@/lib/admin/auth";
+import { buildPostCanonicalPath, normalizeCanonicalPath } from "@/lib/seo/canonical";
 
 const SaveSchema = z.object({
   id: z.string().uuid(),
@@ -340,6 +342,8 @@ export async function saveEditorPost(payload: unknown) {
   if (!post) {
     throw new Error("Post nao encontrado");
   }
+  const selectedSilo = data.silo_id ? await adminGetSiloById(data.silo_id) : null;
+  const finalSiloSlug = selectedSilo?.slug ?? post.silo?.slug ?? null;
 
   const coverImage =
     typeof data.cover_image === "string" ? (data.cover_image.trim() ? data.cover_image.trim() : null) : undefined;
@@ -365,6 +369,7 @@ export async function saveEditorPost(payload: unknown) {
         ? new Date(data.reviewed_at).toISOString()
         : null
       : undefined;
+  const canonicalPath = buildPostCanonicalPath(finalSiloSlug, data.slug) ?? normalizeCanonicalPath(data.canonical_path) ?? null;
 
   const hydratedContentJson = hydrateContentJsonFromHtml(data.content_json, data.content_html);
 
@@ -405,7 +410,7 @@ export async function saveEditorPost(payload: unknown) {
     target_keyword: data.target_keyword,
     supporting_keywords: data.supporting_keywords ?? [],
     meta_description: metaDescription,
-    canonical_path: data.canonical_path?.trim() || null,
+    canonical_path: canonicalPath,
     entities: data.entities ?? [],
     schema_type: data.schema_type ?? undefined,
     faq_json: data.faq_json ?? null,
@@ -468,7 +473,7 @@ export async function saveEditorPost(payload: unknown) {
     try {
       const { syncLinkOccurrences } = await import("@/lib/silo/siloService");
       await syncLinkOccurrences(finalSiloId, data.id, data.content_html, {
-        siloSlug: post.silo?.slug ?? null,
+        siloSlug: finalSiloSlug,
         siteUrl: process.env.SITE_URL ?? "http://localhost:3000",
       });
     } catch (error) {

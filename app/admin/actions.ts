@@ -13,6 +13,7 @@ import {
   adminUpdatePost,
 } from "@/lib/db";
 import { requireAdminSession } from "@/lib/admin/auth";
+import { buildPostCanonicalPath, normalizeCanonicalPath } from "@/lib/seo/canonical";
 
 const SaveSchema = z.object({
   id: z.string().uuid(),
@@ -79,6 +80,8 @@ async function revalidatePostPaths(id: string) {
 export async function saveDraft(payload: unknown) {
   await requireAdminSession();
   const data = SaveSchema.parse(payload);
+  const post = await adminGetPostById(data.id);
+  const canonicalPath = buildPostCanonicalPath(post?.silo?.slug ?? null, data.slug) ?? normalizeCanonicalPath(data.canonical_path) ?? null;
 
   await adminUpdatePost({
     id: data.id,
@@ -88,7 +91,7 @@ export async function saveDraft(payload: unknown) {
     supporting_keywords: data.supporting_keywords ?? [],
     meta_description: data.meta_description ?? null,
     meta_title: data.meta_title ?? null,
-    canonical_path: data.canonical_path ?? null,
+    canonical_path: canonicalPath,
     entities: data.entities ?? [],
     schema_type: data.schema_type ?? undefined,
     status: data.status ?? undefined,
