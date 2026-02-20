@@ -4,7 +4,8 @@ import "./globals.css";
 import { SiteChrome } from "@/components/site/SiteChrome";
 import type { SiteHeaderLink } from "@/components/site/SiteHeader";
 import { getPublicPostsBySilo, getPublicSiloGroupsBySiloId, getPublicSilos } from "@/lib/db";
-import { SITE_DESCRIPTION, SITE_LOCALE, SITE_NAME, SITE_URL } from "@/lib/site";
+import { SITE_DESCRIPTION, SITE_LOCALE, SITE_NAME } from "@/lib/site";
+import { resolveSiteUrl } from "@/lib/site/url";
 import { normalizeSiloGroup } from "@/lib/silo/groups";
 import type { Post, SiloGroup } from "@/lib/types";
 
@@ -16,6 +17,7 @@ const body = Manrope({
 
 const ogLocale = SITE_LOCALE.replace("-", "_");
 const twitterSite = process.env.NEXT_PUBLIC_TWITTER_SITE?.trim() || undefined;
+const siteUrl = resolveSiteUrl();
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
@@ -29,13 +31,13 @@ export const metadata: Metadata = {
     apple: [{ url: "/favicon.ico" }],
   },
   description: SITE_DESCRIPTION,
-  metadataBase: new URL(SITE_URL),
+  metadataBase: new URL(siteUrl),
   openGraph: {
     type: "website",
     siteName: SITE_NAME,
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
-    url: SITE_URL,
+    url: siteUrl,
     locale: ogLocale,
   },
   twitter: {

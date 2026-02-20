@@ -1,7 +1,7 @@
 ﻿import Link from "next/link";
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { listLatestPublicPosts } from "@/lib/db";
+import { getPublicSilos, listLatestPublicPosts } from "@/lib/db";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { BrandBeamCard } from "@/components/site/BrandBeamCard";
 import { HomeSearchResults } from "@/components/site/HomeSearchResults";
@@ -59,8 +59,11 @@ const WHAT_YOU_FIND = [
 ] as const;
 
 export default async function HomePage() {
-  const rawPosts = await listLatestPublicPosts(48);
+  const [rawPosts, silos] = await Promise.all([listLatestPublicPosts(48), getPublicSilos()]);
   const latestPosts = rawPosts.slice(0, 8);
+  const firstActiveSilo = silos.find((silo) => silo.is_active !== false && silo.slug);
+  const startHereHref = firstActiveSilo ? `/${firstActiveSilo.slug}` : "/#posts-mais-novos";
+  const startHereLabel = firstActiveSilo ? `Comecar por ${firstActiveSilo.name}` : "Comecar pelos posts mais novos";
 
   const organizationLd = {
     "@context": "https://schema.org",
@@ -99,10 +102,10 @@ export default async function HomePage() {
 
             <div className="mt-6 flex flex-wrap gap-3">
               <Link
-                href="/mobilidade-e-passeio"
+                href={startHereHref}
                 className="inline-flex items-center justify-center rounded-xl bg-(--brand-hot) px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95"
               >
-                Começar por Mobilidade e Passeio
+                {startHereLabel}
               </Link>
               <Link
                 href="#posts-mais-novos"
@@ -185,7 +188,7 @@ export default async function HomePage() {
             {latestPosts.map((post) => (
               <li key={post.id} className="py-4">
                 <Link
-                  href={post.silo ? `/${post.silo.slug}/${post.slug}` : "#"}
+                  href={post.silo ? `/${post.silo.slug}/${post.slug}` : "/#posts-mais-novos"}
                   className="group grid gap-3 md:grid-cols-[1fr_auto] md:items-center"
                 >
                   <div>

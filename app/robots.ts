@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/admin", "/api", "/wp-json"],
       },
     ],
+    host: siteUrl,
     sitemap: `${siteUrl}/sitemap.xml`,
   };
 }

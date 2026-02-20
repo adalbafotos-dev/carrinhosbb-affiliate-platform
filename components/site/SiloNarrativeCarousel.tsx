@@ -20,7 +20,7 @@ const NARRATIVE_CARDS: NarrativeCard[] = [
       {
         text: "Organizamos os comparativos por faixa de investimento para facilitar a escolha entre economia, equilibrio e performance.",
       },
-      { text: "Ver guias de preco", href: "/mobilidade-e-passeio" },
+      { text: "Ver guias de preco", href: "/#posts-mais-novos" },
     ],
   },
   {
@@ -29,7 +29,7 @@ const NARRATIVE_CARDS: NarrativeCard[] = [
       {
         text: "Mostramos quando vale investir mais e quais criterios realmente impactam a rotina de passeio com bebe.",
       },
-      { text: "Criterios de decisao", href: "/mobilidade-e-passeio" },
+      { text: "Criterios de decisao", href: "/#posts-mais-novos" },
     ],
   },
   {
@@ -38,7 +38,7 @@ const NARRATIVE_CARDS: NarrativeCard[] = [
       {
         text: "Compacto, travel system ou versao robusta: explicamos para quem cada modelo funciona melhor.",
       },
-      { text: "Comparar tipos", href: "/mobilidade-e-passeio" },
+      { text: "Comparar tipos", href: "/#posts-mais-novos" },
     ],
   },
   {
@@ -47,7 +47,7 @@ const NARRATIVE_CARDS: NarrativeCard[] = [
       {
         text: "Para deslocamentos frequentes, peso, fechamento e praticidade fazem diferenca. Reunimos os principais pontos.",
       },
-      { text: "Guia para viagem", href: "/mobilidade-e-passeio" },
+      { text: "Guia para viagem", href: "/#posts-mais-novos" },
     ],
   },
   {
@@ -56,7 +56,7 @@ const NARRATIVE_CARDS: NarrativeCard[] = [
       {
         text: "Cada fase do bebe pede recursos diferentes. Avaliamos limite de peso, reclinacao e conforto para cada etapa.",
       },
-      { text: "Peso e idade", href: "/mobilidade-e-passeio" },
+      { text: "Peso e idade", href: "/#posts-mais-novos" },
     ],
   },
   {
@@ -65,7 +65,7 @@ const NARRATIVE_CARDS: NarrativeCard[] = [
       {
         text: "Capota, cinto, amortecimento e cesto inferior: destacamos o que realmente importa em seguranca e usabilidade.",
       },
-      { text: "Recursos importantes", href: "/mobilidade-e-passeio" },
+      { text: "Recursos importantes", href: "/#posts-mais-novos" },
     ],
   },
 ];
