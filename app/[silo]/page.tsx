@@ -1,10 +1,10 @@
-import { notFound } from "next/navigation";
+import Link from "next/link";
 import type { Metadata } from "next";
-import Image from "next/image";
 import { cache } from "react";
+import { notFound } from "next/navigation";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { getPublicPostsBySilo, getPublicSiloBySlug, listAllSiloSlugs } from "@/lib/db";
 import type { Post } from "@/lib/types";
-import { JsonLd } from "@/components/seo/JsonLd";
 import { resolveSiteUrl } from "@/lib/site/url";
 import { buildCanonicalUrl, buildSiloCanonicalPath } from "@/lib/seo/canonical";
 
@@ -13,6 +13,82 @@ export const revalidate = 3600;
 const getCachedSilo = cache(async (siloSlug: string) => getPublicSiloBySlug(siloSlug));
 const getCachedPosts = cache(async (siloSlug: string) => getPublicPostsBySilo(siloSlug));
 
+function toMetaDescription(value: string | null | undefined): string | undefined {
+  const text = String(value ?? "").trim();
+  if (!text) return undefined;
+  if (text.length <= 160) return text;
+  return `${text.slice(0, 157).trim()}...`;
+}
+
+function isPillar(post: Post): boolean {
+  return post.silo_role === "PILLAR" || post.pillar_rank === 1;
+}
+
+function resolveOrder(post: Post): number {
+  const directOrder =
+    typeof post.silo_order === "number" && Number.isFinite(post.silo_order) ? Math.max(0, Math.trunc(post.silo_order)) : null;
+  if (directOrder !== null) return directOrder;
+
+  const legacyOrder =
+    typeof post.silo_group_order === "number" && Number.isFinite(post.silo_group_order)
+      ? Math.max(0, Math.trunc(post.silo_group_order))
+      : null;
+  if (legacyOrder !== null) return legacyOrder;
+
+  return 0;
+}
+
+function sortHubPosts(a: Post, b: Post): number {
+  const pillarA = isPillar(a);
+  const pillarB = isPillar(b);
+  if (pillarA !== pillarB) return pillarA ? -1 : 1;
+
+  const orderA = resolveOrder(a);
+  const orderB = resolveOrder(b);
+  if (orderA !== orderB) return orderA - orderB;
+
+  const dateA = new Date(a.updated_at || a.published_at || 0).getTime();
+  const dateB = new Date(b.updated_at || b.published_at || 0).getTime();
+  if (dateA !== dateB) return dateB - dateA;
+
+  return (a.title || "").localeCompare(b.title || "", "pt-BR");
+}
+
+function formatPostDate(post: Post): string {
+  const value = post.published_at || post.updated_at;
+  if (!value) return "";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+
+  return parsed.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function resolveSummary(post: Post): string {
+  const summary = post.meta_description || post.excerpt;
+  if (summary && summary.trim().length > 0) return summary.trim();
+  return "Abrir guia completo.";
+}
+
+function resolvePostCover(post: Post): string | null {
+  const candidates = [post.hero_image_url, post.cover_image, post.og_image_url];
+  for (const value of candidates) {
+    const normalized = String(value ?? "").trim();
+    if (normalized) return normalized;
+  }
+  return null;
+}
+
+function resolvePostCoverAlt(post: Post): string {
+  const alt = String(post.hero_image_alt ?? "").trim();
+  if (alt) return alt;
+  return post.title;
+}
+
 export async function generateStaticParams() {
   const slugs = await listAllSiloSlugs();
   return slugs.map((slug) => ({ silo: slug }));
@@ -20,208 +96,174 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: { params: Promise<{ silo: string }> }): Promise<Metadata> {
   const { silo } = await params;
-  const pillar = await getCachedSilo(silo);
-  if (!pillar) return { title: "Silo" };
-  const canonicalPath = buildSiloCanonicalPath(silo) ?? `/${silo}`;
+  const currentSilo = await getCachedSilo(silo);
+  if (!currentSilo) return { title: "Silo" };
+
+  const canonicalPath = buildSiloCanonicalPath(currentSilo.slug) ?? `/${currentSilo.slug}`;
   const canonicalUrl = buildCanonicalUrl(resolveSiteUrl(), canonicalPath);
+  const description = toMetaDescription(currentSilo.description);
+
   return {
-    title: pillar.meta_title || pillar.name,
-    description: pillar.meta_description || pillar.description || undefined,
-    alternates: {
-      canonical: canonicalPath,
-    },
+    title: currentSilo.name,
+    description,
+    alternates: { canonical: canonicalPath },
     openGraph: {
       type: "website",
       url: canonicalUrl,
-      title: pillar.meta_title || pillar.name,
-      description: pillar.meta_description || pillar.description || undefined,
+      title: currentSilo.name,
+      description,
     },
   };
 }
 
-function groupPosts(posts: Post[]) {
-  const featured = posts.filter((p) => p.is_featured);
-  const commercial = posts.filter((p) => p.intent === "commercial" || p.intent === "transactional");
-  const latest = posts.filter((p) => !featured.includes(p) && !commercial.includes(p));
-  return { featured, commercial, latest };
-}
-
-function badge(intent?: string | null) {
-  if (!intent) return null;
-  const tone =
-    intent === "commercial" ? "bg-amber-100 text-amber-700" : intent === "transactional" ? "bg-blue-100 text-blue-700" : "bg-zinc-100 text-zinc-700";
-  const label =
-    intent === "commercial" ? "Comercial" : intent === "transactional" ? "Transacional" : "Informativo";
-  return <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${tone}`}>{label}</span>;
-}
-
-function resolvePostCover(post: Post) {
-  return post.hero_image_url || post.cover_image || post.og_image_url || null;
-}
-
-export default async function PillarPage({ params }: { params: Promise<{ silo: string }> }) {
+export default async function PublicSiloHubPage({ params }: { params: Promise<{ silo: string }> }) {
   const { silo } = await params;
-  const pillar = await getCachedSilo(silo);
-  if (!pillar) return notFound();
-  const posts = await getCachedPosts(silo);
-  const ordered = [...posts].sort((a, b) => {
-    if (Boolean(b.is_featured) !== Boolean(a.is_featured)) return Number(b.is_featured) - Number(a.is_featured);
-    if ((a.pillar_rank ?? 0) !== (b.pillar_rank ?? 0)) return (a.pillar_rank ?? 0) - (b.pillar_rank ?? 0);
-    return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-  });
-  const groups = groupPosts(ordered);
+  const currentSilo = await getCachedSilo(silo);
+  if (!currentSilo) return notFound();
+
+  const allPosts = await getCachedPosts(silo);
+  const posts = allPosts.slice().sort(sortHubPosts);
+  const pillarPost = posts.find((post) => isPillar(post)) ?? null;
+
   const siteUrl = resolveSiteUrl();
+  const base = siteUrl.replace(/\/$/, "");
+
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: `${base}/`,
+      },
+      {
+        "@type": "ListItem",
+        position: 2,
+        name: currentSilo.name,
+        item: `${base}/${currentSilo.slug}`,
+      },
+    ],
+  };
+
   const collectionLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: pillar.name,
-    description: pillar.meta_description ?? pillar.description ?? undefined,
+    name: currentSilo.name,
+    description: currentSilo.meta_description ?? currentSilo.description ?? undefined,
     mainEntity: {
       "@type": "ItemList",
-      itemListElement: ordered.map((post, index) => ({
+      itemListElement: posts.map((post, index) => ({
         "@type": "ListItem",
         position: index + 1,
         name: post.title,
-        url: `${siteUrl}/${pillar.slug}/${post.slug}`,
+        url: `${siteUrl}/${currentSilo.slug}/${post.slug}`,
       })),
     },
   };
 
   return (
-    <div className="space-y-10">
-      <details className="group overflow-hidden rounded-3xl border border-[rgba(165,119,100,0.24)] bg-[linear-gradient(148deg,rgba(255,255,255,0.96)_0%,rgba(255,247,230,0.92)_58%,rgba(241,188,153,0.28)_100%)] shadow-[0_14px_30px_-22px_rgba(165,119,100,0.42)]">
-        <summary className="flex cursor-pointer list-none items-start justify-between gap-4 p-6 md:p-8 [&::-webkit-details-marker]:hidden">
+    <div className="space-y-8">
+      <section className="brand-card rounded-3xl p-6 md:p-8">
+        <nav className="text-[11px] text-(--muted-2)">
+          <Link href="/">Home</Link> / <span>{currentSilo.name}</span>
+        </nav>
+
+        <div className={`mt-4 grid gap-6 ${pillarPost ? "lg:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)] lg:items-start" : ""}`}>
           <div>
-            <h1 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">{pillar.name}</h1>
-            <p className="mt-2 text-xs font-medium text-(--brand-accent)">Toque para expandir o conteudo do silo</p>
-          </div>
-          <span className="mt-1 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgba(165,119,100,0.28)] bg-[rgba(255,255,255,0.92)] text-lg text-(--brand-accent) transition group-open:rotate-180">
-            v
-          </span>
-        </summary>
-        <div className="border-t border-[rgba(165,119,100,0.2)] px-6 pb-6 pt-5 md:px-8 md:pb-8">
-          {pillar.hero_image_url ? (
-            <div className="relative mb-5 overflow-hidden rounded-xl border border-[rgba(165,119,100,0.2)]">
-              <img
-                src={pillar.hero_image_url}
-                alt={pillar.hero_image_alt || pillar.name}
-                className="h-60 w-full object-cover md:h-72"
-                loading="lazy"
+            <h1 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">{currentSilo.name}</h1>
+
+            {currentSilo.description ? <p className="mt-3 text-sm text-(--muted)">{currentSilo.description}</p> : null}
+
+            {currentSilo.pillar_content_html ? (
+              <div
+                className="content mt-5 w-full max-w-none text-(--muted)"
+                dangerouslySetInnerHTML={{ __html: currentSilo.pillar_content_html }}
               />
-            </div>
-          ) : null}
-          {pillar.description ? <p className="text-sm text-(--muted)">{pillar.description}</p> : null}
-          {pillar.pillar_content_html ? (
-            <div
-              className="prose prose-zinc mt-5 max-w-none text-(--muted)"
-              dangerouslySetInnerHTML={{ __html: pillar.pillar_content_html }}
-            />
+            ) : null}
+          </div>
+
+          {pillarPost ? (
+            <aside className="rounded-2xl border border-[rgba(165,119,100,0.26)] bg-white/80 p-5 shadow-[0_12px_30px_rgba(43,44,48,0.08)]">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-(--muted-2)">Comece por aqui</p>
+              <h2 className="mt-2 text-xl font-semibold text-(--ink)">
+                <Link href={`/${currentSilo.slug}/${pillarPost.slug}`} className="hover:text-(--brand-hot)">
+                  {pillarPost.title}
+                </Link>
+              </h2>
+              <p className="mt-2 text-sm text-(--muted)">{resolveSummary(pillarPost)}</p>
+              <Link
+                href={`/${currentSilo.slug}/${pillarPost.slug}`}
+                className="mt-4 inline-flex items-center rounded-xl bg-(--brand-hot) px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95"
+              >
+                Ler guia
+              </Link>
+            </aside>
           ) : null}
         </div>
-      </details>
-
-      {groups.featured.length ? (
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-(--ink)">Destaques</h2>
-          <div className="grid gap-5 md:grid-cols-2">
-            {groups.featured.map((post) => (
-              <PostCard key={post.id} post={post} silo={pillar.slug} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {groups.commercial.length ? (
-        <section className="space-y-4">
-          <h2 className="text-lg font-semibold text-(--ink)">Guias / Reviews</h2>
-          <div className="grid gap-5 md:grid-cols-2">
-            {groups.commercial.map((post) => (
-              <PostCard key={post.id} post={post} silo={pillar.slug} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="space-y-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-end gap-3">
-            <Image
-              src="/maos-e-dedos06.webp"
-              alt=""
-              aria-hidden
-              width={96}
-              height={96}
-              sizes="(min-width: 768px) 96px, 72px"
-              className="h-12 w-12 object-contain md:h-16 md:w-16"
-            />
-            <h2
-              className="text-[clamp(2.25rem,1.5rem+3.2vw,4.4rem)] leading-none text-(--ink)"
-              style={{ fontFamily: '"Grey Qo", var(--font-body), "Segoe UI", sans-serif', fontWeight: 400 }}
-            >
-              Últimos publicados
-            </h2>
-          </div>
-          <span className="text-sm text-(--muted-2)">{ordered.length} páginas</span>
-        </div>
-        {ordered.length === 0 ? (
-          <div className="rounded-xl border border-(--border) bg-(--paper) p-5 text-sm text-(--muted)">
-            Nenhum post publicado neste silo ainda.
-          </div>
-        ) : (
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {ordered.map((post) => (
-              <PostCard key={post.id} post={post} silo={pillar.slug} />
-            ))}
-          </div>
-        )}
       </section>
 
-      <JsonLd data={collectionLd} />
+      {posts.length === 0 ? (
+        <section className="brand-card rounded-2xl p-6 text-sm text-(--muted)">
+          Estamos preparando os primeiros guias deste tema.
+        </section>
+      ) : (
+        <section className="space-y-4">
+          <h2 className="text-2xl font-semibold text-(--ink)">Mais guias deste tema</h2>
+          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            {posts.map((post) => (
+              <article
+                key={post.id}
+                className="brand-card group overflow-hidden rounded-2xl border border-[rgba(165,119,100,0.24)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(43,44,48,0.18)]"
+              >
+                <Link href={`/${currentSilo.slug}/${post.slug}`} className="block">
+                  <div className="relative aspect-square overflow-hidden">
+                    {resolvePostCover(post) ? (
+                      <img
+                        src={resolvePostCover(post) || ""}
+                        alt={resolvePostCoverAlt(post)}
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
+                      />
+                    ) : (
+                      <div className="h-full w-full bg-linear-to-br from-[rgba(241,188,153,0.55)] via-[rgba(255,255,255,0.9)] to-[rgba(19,104,99,0.14)]" />
+                    )}
+                    <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-[rgba(22,22,22,0.34)] via-[rgba(22,22,22,0.04)] to-transparent" />
+
+                    <div className="absolute left-3 top-3 flex items-center gap-2 text-[11px]">
+                      <span className="rounded-full bg-white/90 px-2.5 py-1 font-semibold text-(--ink)">
+                        {isPillar(post) ? "Principal" : "Guia"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3 p-4">
+                    <div className="flex items-center justify-between gap-3 text-[11px] text-(--muted-2)">
+                      <span className="truncate">/{currentSilo.slug}/{post.slug}</span>
+                      {formatPostDate(post) ? <span className="shrink-0">{formatPostDate(post)}</span> : null}
+                    </div>
+
+                    <h3 className="line-clamp-2 text-lg font-semibold leading-tight text-(--ink) transition-colors group-hover:text-(--brand-hot)">
+                      {post.title}
+                    </h3>
+
+                    <p className="line-clamp-3 text-sm leading-relaxed text-(--muted)">
+                      {resolveSummary(post)}
+                    </p>
+
+                    <span className="inline-flex items-center rounded-lg border border-[rgba(165,119,100,0.28)] bg-white/80 px-3 py-1.5 text-xs font-semibold text-(--ink) transition group-hover:border-(--brand-hot) group-hover:text-(--brand-hot)">
+                      Ler guia
+                    </span>
+                  </div>
+                </Link>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <JsonLd data={[collectionLd, breadcrumbLd]} />
     </div>
   );
 }
-
-function PostCard({ post, silo }: { post: Post; silo: string }) {
-  const cover = resolvePostCover(post);
-  const coverAlt = post.hero_image_alt || post.title;
-
-  return (
-    <a
-      href={`/${silo}/${post.slug}`}
-      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[rgba(165,119,100,0.24)] bg-[linear-gradient(160deg,rgba(255,255,255,0.98)_0%,rgba(255,249,237,0.94)_60%,rgba(241,188,153,0.24)_100%)] shadow-[0_12px_28px_-22px_rgba(165,119,100,0.38)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-20px_rgba(165,119,100,0.46)]"
-    >
-      <div className="relative aspect-[4/3] overflow-hidden border-b border-[rgba(165,119,100,0.2)] bg-[rgba(255,248,234,0.8)]">
-        {cover ? (
-          <img
-            src={cover}
-            alt={coverAlt}
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.04]"
-            loading="lazy"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-sm font-medium text-(--brand-accent)">
-            Sem imagem de capa
-          </div>
-        )}
-      </div>
-      <div className="flex flex-1 flex-col gap-3 p-4 md:p-5">
-        <div className="flex items-center gap-2">
-          {badge(post.intent)}
-          {post.is_featured ? (
-            <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700">
-              Pilar
-            </span>
-          ) : null}
-        </div>
-        <h3 className="line-clamp-3 text-lg font-semibold leading-tight text-(--ink)">{post.title}</h3>
-        <p className="line-clamp-4 text-sm leading-relaxed text-(--muted)">
-          {post.meta_description || "Resumo indisponivel para este post."}
-        </p>
-        <span className="mt-auto inline-flex w-fit items-center rounded-full bg-(--brand-hot) px-4 py-2 text-sm font-semibold text-(--paper)">
-          Abrir guia
-        </span>
-      </div>
-    </a>
-  );
-}
-

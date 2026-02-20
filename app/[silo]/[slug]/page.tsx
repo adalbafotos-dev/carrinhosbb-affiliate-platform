@@ -8,7 +8,8 @@ import type { PostWithSilo } from "@/lib/types";
 import { renderEditorDocToHtml } from "@/lib/editor/docRenderer";
 import { resolveSiteUrl } from "@/lib/site/url";
 import { buildCanonicalUrl, buildPostCanonicalPath } from "@/lib/seo/canonical";
-import { findCollaboratorByName } from "@/lib/site/collaborators";
+import { ANA_LINDA_PROFILE, findCollaboratorByName } from "@/lib/site/collaborators";
+import { SITE_NAME, isStandardAffiliateDisclosure } from "@/lib/site";
 
 export const revalidate = 3600;
 
@@ -51,29 +52,39 @@ export async function generateMetadata({ params }: { params: Promise<{ silo: str
       url: canonicalUrl,
       images: ogImage ? [ogImage] : undefined,
     },
+    twitter: {
+      card: "summary_large_image",
+      title: metaTitle,
+      description: post.meta_description ?? undefined,
+      images: ogImage ? [ogImage] : undefined,
+    },
   };
 }
 
 function buildAuthor(post: PostWithSilo) {
-  const name = post.expert_name || post.author_name;
-  if (name) {
-    const author: Record<string, any> = { "@type": "Person", name };
-    const collaborator = findCollaboratorByName(name);
-    if (post.expert_role) author.jobTitle = post.expert_role;
-    if (post.expert_bio) author.description = post.expert_bio;
-    if (post.expert_credentials) author.honorificSuffix = post.expert_credentials;
-    if (collaborator?.professionalName) author.alternateName = collaborator.professionalName;
-    if (collaborator?.image?.src) author.image = collaborator.image.src;
-    if (collaborator?.links?.length) author.sameAs = collaborator.links.map((link) => link.href);
-    return author;
+  const fallbackName = post.expert_name || post.author_name || ANA_LINDA_PROFILE.name;
+  const collaborator = findCollaboratorByName(fallbackName) ?? ANA_LINDA_PROFILE;
+  const author: Record<string, any> = {
+    "@type": "Person",
+    name: collaborator.name || fallbackName,
+  };
+
+  author.jobTitle = post.expert_role || collaborator.siteRole;
+  author.description = post.expert_bio || collaborator.shortBio;
+  author.honorificSuffix =
+    post.expert_credentials || `Autora e editora ativa desde ${collaborator.experienceSince}`;
+  if (collaborator.professionalName && collaborator.professionalName !== author.name) {
+    author.alternateName = collaborator.professionalName;
   }
-  return { "@type": "Organization", name: "Lindisse" };
+  if (collaborator.image?.src) author.image = collaborator.image.src;
+  if (collaborator.links?.length) author.sameAs = collaborator.links.map((link) => link.href);
+  return author;
 }
 
 function buildReviewedBy(post: PostWithSilo) {
   const reviewedBy = post.reviewed_by?.trim();
   if (!reviewedBy) return undefined;
-  const authorName = post.expert_name || post.author_name || "";
+  const authorName = post.expert_name || post.author_name || ANA_LINDA_PROFILE.name;
   if (normalizeName(reviewedBy) === normalizeName(authorName)) return undefined;
 
   const reviewer: Record<string, any> = { "@type": "Person", name: reviewedBy };
@@ -100,7 +111,7 @@ function buildArticleJsonLd(post: PostWithSilo, canonical: string) {
     reviewedBy: buildReviewedBy(post),
     publisher: {
       "@type": "Organization",
-      name: "Lindisse",
+      name: SITE_NAME,
     },
   };
 }
@@ -116,19 +127,19 @@ function buildProductJsonLd(products: any[] = []) {
       description: Array.isArray(p.features) ? p.features.join(" - ") : undefined,
       aggregateRating: p.rating
         ? {
-          "@type": "AggregateRating",
-          ratingValue: p.rating,
-          reviewCount: p.reviewCount ?? 1,
-        }
+            "@type": "AggregateRating",
+            ratingValue: p.rating,
+            reviewCount: p.reviewCount ?? 1,
+          }
         : undefined,
       offers: p.url
         ? {
-          "@type": "Offer",
-          url: p.url,
-          priceCurrency: p.currency ?? "BRL",
-          price: p.price ?? undefined,
-          availability: p.availability ?? undefined,
-        }
+            "@type": "Offer",
+            url: p.url,
+            priceCurrency: p.currency ?? "BRL",
+            price: p.price ?? undefined,
+            availability: p.availability ?? undefined,
+          }
         : undefined,
     }));
 }
@@ -136,6 +147,7 @@ function buildProductJsonLd(products: any[] = []) {
 function buildReviewJsonLd(post: PostWithSilo, canonical: string) {
   const products = Array.isArray(post.amazon_products) ? post.amazon_products : [];
   if (!products.length) return null;
+
   const primary = products[0];
   const productName = primary.title || post.title;
   const product = {
@@ -146,19 +158,19 @@ function buildReviewJsonLd(post: PostWithSilo, canonical: string) {
     description: Array.isArray(primary.features) ? primary.features.join(" - ") : post.meta_description ?? undefined,
     aggregateRating: primary.rating
       ? {
-        "@type": "AggregateRating",
-        ratingValue: primary.rating,
-        reviewCount: primary.reviewCount ?? 1,
-      }
+          "@type": "AggregateRating",
+          ratingValue: primary.rating,
+          reviewCount: primary.reviewCount ?? 1,
+        }
       : undefined,
     offers: primary.url
       ? {
-        "@type": "Offer",
-        url: primary.url,
-        priceCurrency: primary.currency ?? "BRL",
-        price: primary.price ?? undefined,
-        availability: primary.availability ?? undefined,
-      }
+          "@type": "Offer",
+          url: primary.url,
+          priceCurrency: primary.currency ?? "BRL",
+          price: primary.price ?? undefined,
+          availability: primary.availability ?? undefined,
+        }
       : undefined,
   };
 
@@ -344,6 +356,7 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
   const reviewLd = post.schema_type === "review" ? buildReviewJsonLd(post, canonical) : null;
   const faqItems = Array.isArray(post.faq_json) ? post.faq_json : [];
   const howToItems = Array.isArray(post.howto_json) ? post.howto_json : [];
+
   const contentHtmlFromJson = post.content_json ? renderEditorDocToHtml(post.content_json) : "";
   const storedHtml = post.content_html || "";
   const jsonHasImg = /<img\b/i.test(contentHtmlFromJson);
@@ -352,10 +365,17 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
   const storedHasCtaColor = /data-bg-color="[^"]+"/i.test(storedHtml);
   const shouldFallbackToStored = (!jsonHasImg && storedHasImg) || (!jsonHasCtaColor && storedHasCtaColor);
   const contentHtml = shouldFallbackToStored ? storedHtml : contentHtmlFromJson || storedHtml;
-  const displayAuthorName = post.expert_name || post.author_name || "";
+
+  const rawAuthorName = post.expert_name || post.author_name || "";
+  const authorProfile = findCollaboratorByName(rawAuthorName) ?? ANA_LINDA_PROFILE;
+  const displayAuthorName = authorProfile?.name || rawAuthorName || ANA_LINDA_PROFILE.name;
   const showReviewer =
     Boolean(post.reviewed_by?.trim()) && normalizeName(post.reviewed_by) !== normalizeName(displayAuthorName);
-  const authorProfile = findCollaboratorByName(displayAuthorName);
+  const shouldShowTopDisclaimer =
+    Boolean(post.disclaimer?.trim()) && !isStandardAffiliateDisclosure(post.disclaimer);
+  const showProfessionalName =
+    Boolean(authorProfile.professionalName) &&
+    normalizeName(authorProfile.professionalName) !== normalizeName(authorProfile.name);
   const detectedFaq = faqItems.length ? faqItems : extractFaqFromHtml(contentHtml);
   const faqLd = detectedFaq.length ? buildFaqJsonLd(detectedFaq, canonical, post) : null;
   const howToLd = post.schema_type === "howto" ? buildHowToJsonLd(howToItems, post, canonical) : null;
@@ -376,7 +396,8 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
 
   return (
     <div className="post-page relative min-h-screen bg-transparent pb-12">
-      <div className="pointer-events-none fixed inset-x-0 top-0 h-[600px] z-0 bg-linear-to-b from-white via-white/200 to-transparent" />
+      <div className="pointer-events-none fixed inset-x-0 top-0 z-0 h-[600px] bg-linear-to-b from-white via-white/200 to-transparent" />
+
       <section className="relative z-10 bg-transparent">
         <article className="page-in relative z-10 mx-auto max-w-6xl px-4 pb-8 pt-8 sm:px-5 md:px-6">
           <header className="space-y-3">
@@ -384,22 +405,29 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
               <a href="/">Home</a> / <a href={`/${silo}`}>{post.silo?.name ?? silo}</a> / {post.title}
             </nav>
 
+            <div>
+              <a
+                href={`/${silo}`}
+                className="inline-flex items-center rounded-full border border-[rgba(165,119,100,0.3)] bg-white/80 px-3 py-1 text-xs font-semibold text-(--muted-2) hover:text-(--ink)"
+              >
+                Voltar para {post.silo?.name ?? silo}
+              </a>
+            </div>
+
             <h1 className="text-3xl font-semibold leading-tight md:text-4xl">{post.title}</h1>
 
             <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-(--muted)">
               <div className="flex items-center gap-1">
                 <span className="text-(--muted-2)">Por</span>
-                <span className="font-semibold text-(--ink)">
-                  {displayAuthorName || "Redação"}
-                </span>
+                <span className="font-semibold text-(--ink)">{displayAuthorName || ANA_LINDA_PROFILE.name}</span>
               </div>
 
-              {showReviewer && (
+              {showReviewer ? (
                 <div className="flex items-center gap-1 border-l border-(--border) pl-4">
-                  <span className="text-(--muted-2)">Edição técnica</span>
+                  <span className="text-(--muted-2)">Revisão técnica</span>
                   <span className="font-semibold text-(--ink)">{post.reviewed_by}</span>
                 </div>
-              )}
+              ) : null}
 
               <div className="flex items-center gap-1 border-l border-(--border) pl-4">
                 <span className="text-(--muted-2)">Atualizado</span>
@@ -432,11 +460,7 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
           <PostToc contentSelector=".content" title="Índice" />
 
           <div className="space-y-8">
-            {post.disclaimer ? (
-              <div className="text-xs text-(--muted) italic">
-                {post.disclaimer}
-              </div>
-            ) : null}
+            {shouldShowTopDisclaimer ? <div className="text-xs italic text-(--muted)">{post.disclaimer}</div> : null}
 
             <div className="content">
               {contentHtml ? (
@@ -449,7 +473,7 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
             </div>
 
             {Array.isArray(post.sources) && post.sources.length ? (
-              <div className="rounded-2xl border border-(--border) bg-transparent p-6 text-xs text-(--muted)">
+              <div className="brand-card rounded-2xl p-6 text-xs text-(--muted)">
                 <p className="text-[11px] font-semibold uppercase text-(--muted-2)">Fontes</p>
                 <ul className="mt-3 list-disc space-y-2 pl-5">
                   {post.sources.map((source: any, index: number) => (
@@ -464,7 +488,7 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
             ) : null}
 
             {authorProfile ? (
-              <section className="rounded-2xl border border-(--border) bg-(--surface-muted) p-5 md:p-6">
+              <section className="brand-card rounded-2xl p-5 md:p-6">
                 <div className="grid gap-4 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
                   <img
                     src={authorProfile.image.src}
@@ -477,18 +501,13 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
                   <div className="space-y-2">
                     <p className="text-[11px] font-semibold uppercase tracking-wide text-(--muted-2)">Autor / Especialista</p>
                     <h2 className="text-lg font-semibold text-(--ink)">{authorProfile.name}</h2>
-                    {authorProfile.professionalName ? (
+                    {showProfessionalName ? (
                       <p className="text-xs font-medium text-(--muted-2)">{authorProfile.professionalName}</p>
                     ) : null}
                     <p className="text-sm leading-relaxed text-(--muted)">{authorProfile.expertBoxShort}</p>
                     <div className="flex flex-wrap gap-3 text-xs">
-                      {authorProfile.links.map((link) => (
-                        <a key={link.href} href={link.href} target="_blank" rel="noreferrer" className="underline">
-                          {link.label}
-                        </a>
-                      ))}
-                      <a href="/colaboradores" className="underline">
-                        Perfil completo
+                      <a href="/sobre" className="underline">
+                        Ver metodologia editorial
                       </a>
                     </div>
                   </div>
@@ -503,3 +522,4 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
     </div>
   );
 }
+

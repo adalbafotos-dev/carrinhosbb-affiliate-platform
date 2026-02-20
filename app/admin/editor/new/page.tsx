@@ -1,10 +1,11 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
 import { requireAdminSession } from "@/lib/admin/auth";
 import { adminCreateDraftPost, adminListSilos, detectMissingPostColumns } from "@/lib/db";
 
 export const revalidate = 0;
-const MIGRATION_PATH = "supabase/migrations/20260122_01_add_post_editor_fields.sql";
+const MIGRATION_PATH =
+  "supabase/migrations (rodar pendentes, incluindo 20260219_01_silo_menu_groups.sql, 20260219_02_silo_role_order.sql e 20260219_03_unique_pillar_per_silo.sql)";
 const IS_PROD = process.env.NODE_ENV === "production";
 
 function DevCard({

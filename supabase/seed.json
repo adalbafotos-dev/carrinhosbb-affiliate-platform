@@ -1,93 +1,164 @@
 [
   {
-    "silo_name": "Cabines e Equipamentos",
-    "slug": "equipamentos",
-    "description": "Cabines UV/LED, lixadeiras, aspiradores e acessórios para manicure.",
+    "silo_name": "Mobilidade e Passeio",
+    "slug": "mobilidade-e-passeio",
+    "description": "Guias práticos para escolher carrinhos e itens de passeio sem gastar à toa e sem dor de cabeça.",
+    "meta_title": "Mobilidade e Passeio: guias e comparativos de carrinho de bebê",
+    "meta_description": "Hub de conteúdos sobre preço, tipos, viagem, peso, idade e recursos para escolher carrinho de bebê.",
+    "menu_order": 1,
+    "is_active": true,
+    "show_in_navigation": true,
+    "pillar_content_html": "<p>A ideia aqui é simples: ajudar você a acertar na compra pensando na sua rotina real.</p><p>Orçamento, tamanho, peso, praticidade e o que vale a pena de verdade.</p>",
     "posts": [
       {
-        "h1": "Cabine de Unha Profissional Original: Qual Escolher?",
-        "slug": "cabine-de-unha-profissional-original",
-        "kgr_keyword": "cabine de unha profissional original",
+        "h1": "Preço de carrinho de bebê: quanto custa e o que muda por faixa",
+        "slug": "preco-carrinho-de-bebe",
+        "kgr_keyword": "preço carrinho de bebê",
+        "meta_title": "Preço de carrinho de bebê: faixas de valor e diferenças reais",
+        "meta_description": "Veja quanto custa um carrinho de bebê por faixa de preço e quais recursos realmente mudam na prática.",
+        "content_type": "informativo",
+        "intent": "informational",
+        "schema_type": "article",
+        "is_featured": false,
+        "pillar_rank": 0,
         "supporting": [
-          "qual a melhor cabine para unha de gel",
-          "luz uv para unhas faz mal"
+          "carrinho de bebê barato vale a pena",
+          "diferença entre carrinho premium e básico"
         ]
       },
       {
-        "h1": "Esmalte Normal Seca na Cabine? A Verdade Revelada",
-        "slug": "esmalte-normal-seca-na-cabine",
-        "kgr_keyword": "esmalte normal seca na cabine",
+        "h1": "Carrinho de bebê até 300 reais: o que esperar sem errar",
+        "slug": "carrinho-de-bebe-ate-300-reais",
+        "kgr_keyword": "carrinho de bebê até 300 reais",
+        "meta_title": "Carrinho de bebê até 300 reais: opções de entrada e limites",
+        "meta_description": "Comparativo de carrinhos de bebê até 300 reais com foco em segurança, estrutura e uso real.",
+        "content_type": "comparativo",
+        "intent": "commercial",
+        "schema_type": "review",
+        "is_featured": false,
+        "pillar_rank": 0,
         "supporting": [
-          "cabine uv seca esmalte comum",
-          "quanto tempo para secar esmalte comum"
+          "carrinho de bebê econômico",
+          "carrinho de bebê bom e barato"
+        ]
+      },
+      {
+        "h1": "Onde comprar carrinho de bebê barato com segurança",
+        "slug": "onde-comprar-carrinho-de-bebe-barato",
+        "kgr_keyword": "onde comprar carrinho de bebê barato",
+        "meta_title": "Onde comprar carrinho de bebê barato: critérios para comprar com segurança",
+        "meta_description": "Saiba onde comprar carrinho de bebê barato com mais segurança e quais sinais avaliar antes da compra.",
+        "content_type": "informativo",
+        "intent": "informational",
+        "schema_type": "article",
+        "is_featured": false,
+        "pillar_rank": 0,
+        "supporting": [
+          "oferta carrinho de bebê confiável",
+          "como evitar carrinho de bebê falso"
+        ]
+      },
+      {
+        "h1": "Carrinho de bebê em promoção: como identificar uma boa oferta",
+        "slug": "carrinho-de-bebe-promocao",
+        "kgr_keyword": "carrinho de bebê promoção",
+        "meta_title": "Carrinho de bebê em promoção: checklist para não cair em pegadinha",
+        "meta_description": "Checklist rápido para avaliar carrinho de bebê em promoção e evitar compra impulsiva sem critério.",
+        "content_type": "comparativo",
+        "intent": "transactional",
+        "schema_type": "review",
+        "is_featured": false,
+        "pillar_rank": 0,
+        "supporting": [
+          "melhor época para comprar carrinho de bebê",
+          "promoção carrinho de bebê vale a pena"
+        ]
+      },
+      {
+        "h1": "Qual o melhor carrinho de bebê para diferentes rotinas",
+        "slug": "qual-o-melhor-carrinho-de-bebe",
+        "kgr_keyword": "qual o melhor carrinho de bebê",
+        "meta_title": "Qual o melhor carrinho de bebê: ranking por perfil de uso",
+        "meta_description": "Ranking objetivo para descobrir qual o melhor carrinho de bebê conforme rotina, mobilidade e orçamento.",
+        "content_type": "top lista",
+        "intent": "transactional",
+        "schema_type": "review",
+        "is_featured": true,
+        "pillar_rank": 1,
+        "supporting": [
+          "melhor carrinho de bebê para cidade",
+          "melhor carrinho de bebê para viagem"
+        ]
+      },
+      {
+        "h1": "Carrinho de bebê melhor custo-benefício: como comparar certo",
+        "slug": "carrinho-de-bebe-melhor-custo-beneficio",
+        "kgr_keyword": "carrinho de bebê melhor custo-benefício",
+        "meta_title": "Carrinho de bebê melhor custo-benefício: comparativo prático",
+        "meta_description": "Compare carrinhos de bebê com melhor custo-benefício usando critérios de segurança, conforto e durabilidade.",
+        "content_type": "comparativo",
+        "intent": "commercial",
+        "schema_type": "review",
+        "is_featured": true,
+        "pillar_rank": 2,
+        "supporting": [
+          "carrinho de bebê que vale o preço",
+          "melhor custo-benefício carrinho de bebê 2026"
+        ]
+      },
+      {
+        "h1": "Melhor marca de carrinho de bebê: como escolher com critério",
+        "slug": "melhor-marca-de-carrinho-de-bebe",
+        "kgr_keyword": "melhor marca de carrinho de bebê",
+        "meta_title": "Melhor marca de carrinho de bebê: guia de comparação por marca",
+        "meta_description": "Entenda como comparar marcas de carrinho de bebê e escolher a melhor para sua rotina.",
+        "content_type": "top lista",
+        "intent": "commercial",
+        "schema_type": "review",
+        "is_featured": true,
+        "pillar_rank": 3,
+        "supporting": [
+          "marca de carrinho de bebê confiável",
+          "qual marca de carrinho de bebê dura mais"
         ]
       }
     ]
   },
   {
-    "silo_name": "Review de Géis",
-    "slug": "geis",
-    "description": "Comparativos, prós e contras, e recomendações de géis e finalizadores.",
-    "posts": [
-      {
-        "h1": "Qual a Melhor Marca de Gel para Unhas em 2025",
-        "slug": "qual-a-melhor-marca-de-gel-para-unhas",
-        "kgr_keyword": "qual a melhor marca de gel para unhas",
-        "supporting": [
-          "qual o melhor gel para unhas de fibra",
-          "esmalte top coat para que serve"
-        ]
-      }
-    ]
+    "silo_name": "Seguranca Automotiva",
+    "slug": "seguranca-automotiva",
+    "description": "Conteúdos diretos para escolher e usar cadeirinha e bebê conforto com mais segurança e menos dúvida.",
+    "meta_title": "Seguranca Automotiva: cadeirinha, bebe conforto e instalacao",
+    "meta_description": "Guia pratico para escolher, instalar e usar dispositivos de seguranca automotiva infantil.",
+    "menu_order": 2,
+    "is_active": true,
+    "show_in_navigation": true,
+    "pillar_content_html": "<p>Sem exagero e sem confusão: critérios de escolha, instalação, erros comuns e checklists para o dia a dia no carro.</p>",
+    "posts": []
   },
   {
-    "silo_name": "Kits e Materiais",
-    "slug": "kits",
-    "description": "Kits completos, materiais de fibra, tips, colas, primers e itens essenciais.",
-    "posts": [
-      {
-        "h1": "Kit para Fazer Unhas de Fibra de Vidro: Vale a Pena?",
-        "slug": "kit-para-fazer-unhas-de-fibra-de-vidro",
-        "kgr_keyword": "kit para fazer unhas de fibra de vidro",
-        "supporting": [
-          "quanto custa para fazer unha de fibra",
-          "unha de fibra preço"
-        ]
-      },
-      {
-        "h1": "Onde Comprar Unha Postiça Realista Decorada",
-        "slug": "unha-postica-para-comprar",
-        "kgr_keyword": "unha postiça para comprar",
-        "supporting": [
-          "modelo de unha postiça realista decorada",
-          "tabela de preço de unhas postiças"
-        ]
-      }
-    ]
+    "silo_name": "Sono Seguro e Portabilidade",
+    "slug": "sono-seguro-e-portabilidade",
+    "description": "Soluções para o bebê dormir bem e com segurança fora de casa, com menos improviso.",
+    "meta_title": "Sono Seguro e Portabilidade: guias para rotina e viagem",
+    "meta_description": "Checklist e orientacoes praticas para sono do bebe em deslocamentos e fora de casa.",
+    "menu_order": 3,
+    "is_active": true,
+    "show_in_navigation": true,
+    "pillar_content_html": "<p>Viagem, casa de parentes ou passeio longo: aqui você encontra checklists e guias para organizar o sono do bebê sem levar a casa inteira.</p>",
+    "posts": []
   },
   {
-    "silo_name": "Inspiração e Decoração",
-    "slug": "decoracao",
-    "description": "Modelos, ideias, tendências e variações de francesinha e encapsuladas.",
-    "posts": [
-      {
-        "h1": "Unhas de Gel com Francesinha Branca: 50 Modelos",
-        "slug": "unhas-de-gel-com-francesinha-branca",
-        "kgr_keyword": "unhas de gel com francesinha branca",
-        "supporting": [
-          "unha encapsulada branca francesinha",
-          "modelos de unhas com francesinha"
-        ]
-      },
-      {
-        "h1": "Tudo Sobre Unha Francesinha Encapsulada",
-        "slug": "unha-francesinha-encapsulada",
-        "kgr_keyword": "unha francesinha encapsulada",
-        "supporting": [
-          "unha de gel encapsulada francesinha",
-          "encapsulada unha em gel francesinha"
-        ]
-      }
-    ]
+    "silo_name": "Ergonomia e Transporte Corporal",
+    "slug": "ergonomia-e-transporte-corporal",
+    "description": "Sling, canguru e carregadores explicados de um jeito simples, com foco em conforto e ergonomia.",
+    "meta_title": "Ergonomia e Transporte Corporal: sling, canguru e ajustes",
+    "meta_description": "Como escolher e ajustar carregadores para mais conforto e menos dor nas costas.",
+    "menu_order": 4,
+    "is_active": true,
+    "show_in_navigation": true,
+    "pillar_content_html": "<p>Para você carregar o bebê com mais liberdade e menos dor nas costas. Tipos, ajustes e como escolher o modelo certo para a sua rotina.</p>",
+    "posts": []
   }
 ]
+

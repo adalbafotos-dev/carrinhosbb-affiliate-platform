@@ -18,7 +18,7 @@ import { buildPostCanonicalPath, normalizeCanonicalPath } from "@/lib/seo/canoni
 
 const SaveSchema = z.object({
   id: z.string().uuid(),
-  silo_id: z.string().uuid().nullable().optional(),
+  silo_id: z.string().uuid(),
   silo_role: z.enum(["PILLAR", "SUPPORT", "AUX"]).nullable().optional(),
   silo_position: z.number().int().min(1).max(100).nullable().optional(),
   title: z.string().min(3).max(180),
@@ -27,6 +27,18 @@ const SaveSchema = z.object({
   slug: z.string().min(3).max(180),
   target_keyword: z.string().min(2).max(180),
   supporting_keywords: z.array(z.string()).optional(),
+  silo_group: z
+    .string()
+    .trim()
+    .min(1)
+    .max(64)
+    .regex(/^[a-z0-9_-]+$/i)
+    .nullable()
+    .optional(),
+  silo_order: z.number().int().min(0).max(999).nullable().optional(),
+  silo_group_order: z.number().int().min(0).max(999).nullable().optional(),
+  show_in_silo_menu: z.boolean().nullable().optional(),
+  replace_existing_pillar: z.boolean().optional(),
   meta_description: z.string().max(800).nullable().optional(),
   canonical_path: z.string().max(220).nullable().optional(),
   entities: z.array(z.string()).optional(),
@@ -59,6 +71,22 @@ const PublishSchema = z.object({
   published: z.boolean(),
 });
 
+type PillarConflictPayload = {
+  code: "PILLAR_CONFLICT";
+  silo_id: string;
+  current_pillar: {
+    id: string;
+    title: string;
+    slug: string;
+    silo_group: string | null;
+    silo_order: number | null;
+  };
+};
+
+function buildPillarConflictError(payload: PillarConflictPayload) {
+  return new Error(`PILLAR_CONFLICT::${JSON.stringify(payload)}`);
+}
+
 async function revalidatePostPaths(id: string) {
   const post = await adminGetPostById(id);
   if (!post) return;
@@ -66,6 +94,7 @@ async function revalidatePostPaths(id: string) {
   const siloSlug = post.silo?.slug;
   if (siloSlug) {
     revalidatePath(`/${siloSlug}`);
+    revalidatePath(`/silos/${siloSlug}`);
     revalidatePath(`/${siloSlug}/${post.slug}`);
   }
 
@@ -370,6 +399,104 @@ export async function saveEditorPost(payload: unknown) {
         : null
       : undefined;
   const canonicalPath = buildPostCanonicalPath(finalSiloSlug, data.slug) ?? normalizeCanonicalPath(data.canonical_path) ?? null;
+  const isPillarRole = data.silo_role === "PILLAR";
+  const isAuxRole = data.silo_role === "AUX";
+  const normalizedSiloGroup =
+    isPillarRole || isAuxRole
+      ? null
+      : typeof data.silo_group === "string" && data.silo_group.trim()
+        ? data.silo_group.trim()
+        : null;
+  const normalizedSiloOrder =
+    isPillarRole || isAuxRole
+      ? 0
+      : typeof data.silo_order === "number" && Number.isFinite(data.silo_order)
+        ? Math.max(0, Math.trunc(data.silo_order))
+        : typeof data.silo_group_order === "number" && Number.isFinite(data.silo_group_order)
+          ? Math.max(0, Math.trunc(data.silo_group_order))
+          : 0;
+  const normalizedShowInSiloMenu =
+    isPillarRole ? true : isAuxRole ? false : typeof data.show_in_silo_menu === "boolean" ? data.show_in_silo_menu : true;
+
+  if (data.silo_id && data.silo_role === "PILLAR") {
+    const { adminGetSiloPostsBySiloId, adminListPostsBySiloId } = await import("@/lib/db");
+    const [existingHierarchy, existingPosts] = await Promise.all([
+      adminGetSiloPostsBySiloId(data.silo_id),
+      adminListPostsBySiloId(data.silo_id),
+    ]);
+
+    let existingPillarPost:
+      | {
+          id: string;
+          title: string;
+          slug: string;
+          silo_group: string | null;
+          silo_order: number | null;
+        }
+      | null = null;
+
+    const fromPosts = existingPosts.find((postInSilo) => postInSilo.silo_role === "PILLAR" && postInSilo.id !== data.id);
+    if (fromPosts) {
+      existingPillarPost = {
+        id: fromPosts.id,
+        title: fromPosts.title,
+        slug: fromPosts.slug,
+        silo_group: fromPosts.silo_group ?? null,
+        silo_order: fromPosts.silo_order ?? fromPosts.silo_group_order ?? null,
+      };
+    }
+
+    if (!existingPillarPost) {
+      const hierarchyPillar = existingHierarchy.find((entry) => entry.role === "PILLAR" && entry.post_id !== data.id);
+      if (hierarchyPillar) {
+        const hydrated = await adminGetPostById(hierarchyPillar.post_id);
+        existingPillarPost = hydrated
+          ? {
+              id: hydrated.id,
+              title: hydrated.title,
+              slug: hydrated.slug,
+              silo_group: hydrated.silo_group ?? null,
+              silo_order: hydrated.silo_order ?? hydrated.silo_group_order ?? null,
+            }
+          : null;
+      }
+    }
+
+    if (existingPillarPost && !data.replace_existing_pillar) {
+      throw buildPillarConflictError({
+        code: "PILLAR_CONFLICT",
+        silo_id: data.silo_id,
+        current_pillar: {
+          id: existingPillarPost.id,
+          title: existingPillarPost.title,
+          slug: existingPillarPost.slug,
+          silo_group: existingPillarPost.silo_group ?? null,
+          silo_order: existingPillarPost.silo_order ?? null,
+        },
+      });
+    }
+
+    if (existingPillarPost && data.replace_existing_pillar) {
+      const hierarchyEntry = existingHierarchy.find((entry) => entry.post_id === existingPillarPost?.id);
+      if (existingPillarPost.id !== data.id) {
+        await adminUpdatePost({
+          id: existingPillarPost.id,
+          silo_role: "SUPPORT",
+        });
+        await adminUpsertSiloPost({
+          silo_id: data.silo_id,
+          post_id: existingPillarPost.id,
+          role: "SUPPORT",
+          position:
+            typeof hierarchyEntry?.position === "number"
+              ? hierarchyEntry.position
+              : typeof existingPillarPost.silo_order === "number"
+                ? Math.max(1, existingPillarPost.silo_order)
+                : undefined,
+        });
+      }
+    }
+  }
 
   const hydratedContentJson = hydrateContentJsonFromHtml(data.content_json, data.content_html);
 
@@ -400,41 +527,75 @@ export async function saveEditorPost(payload: unknown) {
     });
   }
 
-  await adminUpdatePost({
-    id: data.id,
-    silo_id: data.silo_id ?? undefined,
-    title: data.title,
-    seo_title: data.seo_title?.trim() || null,
-    meta_title: metaTitle,
-    slug: data.slug,
-    target_keyword: data.target_keyword,
-    supporting_keywords: data.supporting_keywords ?? [],
-    meta_description: metaDescription,
-    canonical_path: canonicalPath,
-    entities: data.entities ?? [],
-    schema_type: data.schema_type ?? undefined,
-    faq_json: data.faq_json ?? null,
-    howto_json: data.howto_json ?? null,
-    hero_image_url: data.hero_image_url?.trim() || null,
-    hero_image_alt: data.hero_image_alt?.trim() || null,
-    og_image_url: data.og_image_url?.trim() || null,
-    images: data.images ?? [],
-    cover_image: coverImage,
-    author_name: authorName,
-    expert_name: data.expert_name?.trim() || null,
-    expert_role: data.expert_role?.trim() || null,
-    expert_bio: data.expert_bio?.trim() || null,
-    expert_credentials: data.expert_credentials?.trim() || null,
-    reviewed_by: data.reviewed_by?.trim() || null,
-    reviewed_at: reviewedAt,
-    sources: data.sources ?? [],
-    disclaimer: data.disclaimer?.trim() || null,
-    scheduled_at: scheduledAt,
-    status: data.status ?? undefined,
-    content_json: hydratedContentJson,
-    content_html: data.content_html,
-    amazon_products: data.amazon_products ?? null,
-  });
+  try {
+    await adminUpdatePost({
+      id: data.id,
+      silo_id: data.silo_id ?? undefined,
+      title: data.title,
+      seo_title: data.seo_title?.trim() || null,
+      meta_title: metaTitle,
+      slug: data.slug,
+      target_keyword: data.target_keyword,
+      supporting_keywords: data.supporting_keywords ?? [],
+      silo_role: data.silo_role ?? null,
+      silo_group: normalizedSiloGroup,
+      silo_order: normalizedSiloOrder,
+      silo_group_order: normalizedSiloOrder,
+      show_in_silo_menu: normalizedShowInSiloMenu,
+      meta_description: metaDescription,
+      canonical_path: canonicalPath,
+      entities: data.entities ?? [],
+      schema_type: data.schema_type ?? undefined,
+      faq_json: data.faq_json ?? null,
+      howto_json: data.howto_json ?? null,
+      hero_image_url: data.hero_image_url?.trim() || null,
+      hero_image_alt: data.hero_image_alt?.trim() || null,
+      og_image_url: data.og_image_url?.trim() || null,
+      images: data.images ?? [],
+      cover_image: coverImage,
+      author_name: authorName,
+      expert_name: data.expert_name?.trim() || null,
+      expert_role: data.expert_role?.trim() || null,
+      expert_bio: data.expert_bio?.trim() || null,
+      expert_credentials: data.expert_credentials?.trim() || null,
+      reviewed_by: data.reviewed_by?.trim() || null,
+      reviewed_at: reviewedAt,
+      sources: data.sources ?? [],
+      disclaimer: data.disclaimer?.trim() || null,
+      scheduled_at: scheduledAt,
+      status: data.status ?? undefined,
+      content_json: hydratedContentJson,
+      content_html: data.content_html,
+      amazon_products: data.amazon_products ?? null,
+    });
+  } catch (error: any) {
+    const conflictByConstraint =
+      data.silo_id &&
+      data.silo_role === "PILLAR" &&
+      (error?.code === "23505" || String(error?.message ?? "").includes("idx_posts_unique_pillar_per_silo"));
+
+    if (conflictByConstraint) {
+      const { adminListPostsBySiloId } = await import("@/lib/db");
+      const existing = (await adminListPostsBySiloId(data.silo_id)).find(
+        (item) => item.silo_role === "PILLAR" && item.id !== data.id
+      );
+      if (existing) {
+        throw buildPillarConflictError({
+          code: "PILLAR_CONFLICT",
+          silo_id: data.silo_id,
+          current_pillar: {
+            id: existing.id,
+            title: existing.title,
+            slug: existing.slug,
+            silo_group: existing.silo_group ?? null,
+            silo_order: existing.silo_order ?? existing.silo_group_order ?? null,
+          },
+        });
+      }
+    }
+
+    throw error;
+  }
 
   let links: ExtractedLink[] = [];
   try {
@@ -482,47 +643,28 @@ export async function saveEditorPost(payload: unknown) {
   }
 
   // ========================================
-  // SALVAR HIERARQUIA DO SILO (role + position)
+  // SYNC SILO IDENTIFIER (role + optional post number)
   // ========================================
-  if (data.silo_id && (data.silo_role || typeof data.silo_position === "number")) {
+  if (data.silo_id) {
+    const resolvedSiloRole = data.silo_role ?? post.silo_role ?? "SUPPORT";
+    const resolvedSiloPosition =
+      typeof data.silo_position === "number" && Number.isFinite(data.silo_position)
+        ? Math.max(1, Math.trunc(data.silo_position))
+        : undefined;
+
     try {
-      // Validação: apenas 1 pilar por silo
-      if (data.silo_role === "PILLAR") {
-        const { adminGetSiloPostsBySiloId } = await import("@/lib/db");
-        const existingPosts = await adminGetSiloPostsBySiloId(data.silo_id);
-        const existingPillar = existingPosts.find((sp) => sp.role === "PILLAR" && sp.post_id !== data.id);
-
-        if (existingPillar) {
-          throw new Error("Já existe um post Pilar nesse silo. Remova o outro pilar primeiro ou mude o papel.");
-        }
-      }
-
-      // Validação: posição única dentro do silo
-      if (typeof data.silo_position === "number") {
-        const { adminGetSiloPostsBySiloId } = await import("@/lib/db");
-        const existingPosts = await adminGetSiloPostsBySiloId(data.silo_id);
-        const positionConflict = existingPosts.find(
-          (sp) => sp.position === data.silo_position && sp.post_id !== data.id
-        );
-
-        if (positionConflict) {
-          throw new Error(`Posição ${data.silo_position} já está ocupada por outro post neste silo.`);
-        }
-      }
-
-      // Salvar hierarquia
-      const { adminUpsertSiloPost } = await import("@/lib/db");
       await adminUpsertSiloPost({
         silo_id: data.silo_id,
         post_id: data.id,
-        role: data.silo_role || undefined,
-        position: data.silo_position || undefined,
+        role: resolvedSiloRole,
+        position: resolvedSiloPosition,
       });
     } catch (error) {
       console.error("Erro ao salvar hierarquia do silo:", error);
-      throw error; // Re-throw para mostrar erro ao usuário
+      throw error;
     }
   }
+
 
 
 
@@ -744,6 +886,91 @@ function anchorWordCount(links: ExtractedLink[]) {
   }, 0);
 }
 
+function normalizeHrefToPath(href: string): string | null {
+  const raw = String(href ?? "").trim();
+  if (!raw) return null;
+  if (/^(#|mailto:|tel:|javascript:)/i.test(raw)) return null;
+  try {
+    const url = new URL(raw, "https://local.internal");
+    return url.pathname.replace(/\/+$/g, "") || "/";
+  } catch {
+    return null;
+  }
+}
+
+function safeDecode(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+}
+
+function normalizeRelativeHrefToSiloPath(href: string, siloSlug: string): string | null {
+  const raw = String(href ?? "").trim();
+  if (!raw) return null;
+  if (/^(#|mailto:|tel:|javascript:)/i.test(raw)) return null;
+  if (/^(https?:)?\/\//i.test(raw)) return null;
+  if (raw.startsWith("/")) return null;
+
+  const cleaned = raw
+    .replace(/^\.\//, "")
+    .replace(/^\/+/, "")
+    .split(/[?#]/)[0]
+    .trim();
+  if (!cleaned) return null;
+
+  const normalizedSlug = String(siloSlug ?? "").trim().replace(/^\/+|\/+$/g, "").toLowerCase();
+  if (!normalizedSlug) return null;
+  return `/${normalizedSlug}/${cleaned}`.replace(/\/+$/g, "");
+}
+
+function isInternalHref(href: string): boolean {
+  const raw = String(href ?? "").trim();
+  if (!raw) return false;
+  if (/^(#|mailto:|tel:|javascript:)/i.test(raw)) return false;
+  if (/^(https?:)?\/\//i.test(raw)) {
+    const path = normalizeHrefToPath(raw);
+    return Boolean(path);
+  }
+  return true;
+}
+
+function extractHrefCandidatesFromHtml(html: string): string[] {
+  if (!html) return [];
+  const $ = cheerio.load(html);
+  const fromAnchors = $("a[href]")
+    .map((_index, element) => String($(element).attr("href") ?? "").trim())
+    .get();
+  const fromDataHrefs = $("[data-href]")
+    .map((_index, element) => String($(element).attr("data-href") ?? "").trim())
+    .get();
+  return [...fromAnchors, ...fromDataHrefs].filter(Boolean);
+}
+
+function hasSiloReference(href: string, siloSlug: string): boolean {
+  const normalizedSlug = safeDecode(String(siloSlug).trim().replace(/^\/+|\/+$/g, "")).toLowerCase();
+  if (!normalizedSlug) return false;
+
+  const pathCandidates = [normalizeHrefToPath(href), normalizeRelativeHrefToSiloPath(href, normalizedSlug)].filter(
+    Boolean
+  ) as string[];
+  if (!pathCandidates.length) return false;
+
+  const hubPath = `/silos/${normalizedSlug}`; // legado de hub
+  const canonicalHubPath = `/${normalizedSlug}`; // hub atual
+  const canonicalPostPrefix = `/${normalizedSlug}/`; // posts do silo
+  const legacyPostPrefix = `/silos/${normalizedSlug}/`; // legado antigo /silos/{silo}/{post}
+
+  for (const candidate of pathCandidates) {
+    const normalizedPath = safeDecode(candidate).toLowerCase();
+    if (normalizedPath === hubPath || normalizedPath === canonicalHubPath) return true;
+    if (normalizedPath.startsWith(canonicalPostPrefix) || normalizedPath.startsWith(legacyPostPrefix)) return true;
+  }
+
+  return false;
+}
+
 export async function validatePostForPublish(
   postId: string,
   opts?: { links?: ExtractedLink[]; html?: string; title?: string; target_keyword?: string; meta_description?: string }
@@ -769,14 +996,38 @@ export async function validatePostForPublish(
     warnings.push("Meta description ausente");
   }
   if (post.hero_image_url && !post.hero_image_alt) {
-    errors.push("Alt text da imagem de capa é obrigatório");
+    errors.push("Alt text da imagem de capa Ã© obrigatÃ³rio");
   }
 
   const siloSlug = post.silo?.slug ?? null;
   if (siloSlug) {
-    const hasLinkToSilo = links.some((l) => typeof l.target_url === "string" && l.target_url.startsWith(`/${siloSlug}`));
+    const normalizedSiloRole = String(post.silo_role ?? "SUPPORT").toUpperCase();
+    const isPillarPost = normalizedSiloRole === "PILLAR";
+    const hasInternalTarget = links.some((link) => Boolean(link.target_post_id));
+    const candidates = [
+      ...links.map((link) => (typeof link.target_url === "string" ? link.target_url : "")).filter(Boolean),
+      ...extractHrefCandidatesFromHtml(html),
+    ];
+    const hasAnyInternalLink = hasInternalTarget || candidates.some((href) => isInternalHref(href));
+    const hasLinkToSilo = hasInternalTarget || candidates.some((href) => hasSiloReference(href, siloSlug));
     if (!hasLinkToSilo) {
-      errors.push("Necessario pelo menos um link interno para a pagina do silo");
+      if (isPillarPost) {
+        if (hasAnyInternalLink) {
+          warnings.push(
+            "Pilar com links internos, mas nenhum para o silo atual. Recomenda-se linkar para o hub ou para suportes/apoio quando existirem."
+          );
+        } else {
+          warnings.push(
+            "Post pilar sem link interno para o silo. Recomendado linkar para o hub ou para suportes/apoio quando existirem."
+          );
+        }
+      } else if (hasAnyInternalLink) {
+        errors.push(
+          "Links internos detectados, mas nenhum aponta para o silo atual. Adicione link para o hub ou para um post do mesmo silo."
+        );
+      } else {
+        errors.push("Necessario pelo menos um link interno para o silo (hub ou post do mesmo silo)");
+      }
     }
   }
 
@@ -830,14 +1081,14 @@ export async function validatePostForPublish(
   if (schemaType === "howto") {
     const steps = Array.isArray(post.howto_json) ? post.howto_json : [];
     if (!steps.length) {
-      errors.push("Schema HowTo exige passos (howto_json) ou conteúdo estruturado");
+      errors.push("Schema HowTo exige passos (howto_json) ou conteÃºdo estruturado");
     }
   }
   if (schemaType === "faq") {
     const faq = Array.isArray(post.faq_json) ? post.faq_json : [];
     const detectedFaq = detectFaqFromHtml(html);
     if (!faq.length && !detectedFaq.length) {
-      errors.push("Schema FAQ exige perguntas e respostas (faq_json ou H2 + parágrafo)");
+      errors.push("Schema FAQ exige perguntas e respostas (faq_json ou H2 + parÃ¡grafo)");
     }
   }
 
@@ -850,9 +1101,9 @@ export async function validatePostForPublish(
     }
   }
 
-  const mentionsVideo = /video|vídeo/i.test(title);
+  const mentionsVideo = /video|vÃ­deo/i.test(title);
   if (mentionsVideo && !detectYouTubeEmbed(html)) {
-    warnings.push("Artigo com vídeo no título, mas nenhum embed do YouTube foi detectado");
+    warnings.push("Artigo com vÃ­deo no tÃ­tulo, mas nenhum embed do YouTube foi detectado");
   }
 
   return { errors, warnings };

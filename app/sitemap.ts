@@ -13,9 +13,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const base: MetadataRoute.Sitemap = [
     { url: `${siteUrl}/`, lastModified: now },
-    { url: `${siteUrl}/contato`, lastModified: now },
+    { url: `${siteUrl}/sobre`, lastModified: now },
     { url: `${siteUrl}/colaboradores`, lastModified: now },
-    { url: `${siteUrl}/politica-de-afiliados`, lastModified: now },
+    { url: `${siteUrl}/contato`, lastModified: now },
+    { url: `${siteUrl}/afiliados`, lastModified: now },
     { url: `${siteUrl}/politica-de-privacidade`, lastModified: now },
     { url: `${siteUrl}/politica-editorial`, lastModified: now },
   ];
@@ -32,3 +33,4 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [...base, ...siloUrls, ...postUrls];
 }
+

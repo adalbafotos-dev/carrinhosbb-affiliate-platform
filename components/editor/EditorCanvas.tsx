@@ -6,7 +6,6 @@ import Link from "next/link";
 import { ArrowLeft, Laptop, Tablet, Smartphone } from "lucide-react";
 import { FixedToolbar } from "@/components/editor/FixedToolbar";
 import { useEditorContext } from "@/components/editor/EditorContext";
-import { buildPostCanonicalPath, normalizeCanonicalPath } from "@/lib/seo/canonical";
 
 type PreviewMode = "desktop" | "tablet" | "mobile";
 
@@ -134,6 +133,7 @@ function enhanceResponsiveTablePreview(table: HTMLTableElement, mode: PreviewMod
 export function EditorCanvas() {
   const {
     editor,
+    postId,
     onOpenLinkDialog,
     onOpenMedia,
     onInsertProduct,
@@ -209,15 +209,7 @@ export function EditorCanvas() {
   }, [editor, previewMode]);
 
   const savedLabel = useMemo(() => formatRelativeTime(lastSavedAt), [lastSavedAt]);
-  const siloSlug = useMemo(() => {
-    if (!meta.siloId) return "";
-    return silos.find((silo) => silo.id === meta.siloId)?.slug ?? "";
-  }, [meta.siloId, silos]);
-  const previewPath = useMemo(() => {
-    const routePath = buildPostCanonicalPath(siloSlug, meta.slug);
-    if (routePath) return routePath;
-    return normalizeCanonicalPath(meta.canonicalPath) ?? "";
-  }, [meta.canonicalPath, meta.slug, siloSlug]);
+  const previewPath = useMemo(() => (postId ? `/admin/preview/${postId}` : ""), [postId]);
   const canPreview = Boolean(previewPath);
   const previewWidths: Record<typeof previewMode, number> = {
     desktop: 1200,
@@ -316,7 +308,7 @@ export function EditorCanvas() {
                     ? "border border-(--border) bg-(--surface) text-(--text) hover:bg-(--surface-muted)"
                     : "border border-transparent bg-(--surface-muted) text-(--muted-2)"
                 }`}
-                title={canPreview ? "Abrir preview" : "Defina slug e silo para preview"}
+                title={canPreview ? "Abrir preview do rascunho" : "Salve o rascunho para habilitar o preview"}
               >
                 Preview
               </button>

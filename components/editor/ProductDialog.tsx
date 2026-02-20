@@ -131,7 +131,7 @@ export default function ProductDialog({ isOpen, onClose, editor }: ProductDialog
                         <label className="text-xs font-bold uppercase text-zinc-500">Nome do Produto</label>
                         <input
                             className="w-full p-2 border rounded text-sm"
-                            placeholder="Ex: Cabine Sun 5 Original"
+                            placeholder="Ex: Carrinho de bebe compacto"
                             value={data.title}
                             onChange={e => setData({ ...data, title: e.target.value })}
                         />

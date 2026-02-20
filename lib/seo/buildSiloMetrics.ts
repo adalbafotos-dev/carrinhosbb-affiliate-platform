@@ -163,7 +163,7 @@ export function buildSiloMetrics({ silo, posts, siteUrl }: BuildArgs): SiloMetri
 
       const path = resolvePathFromHref(link.href, siteUrl);
       if (path) {
-        if (path.startsWith(`/${silo.slug}`)) {
+        if (path.startsWith(`/${silo.slug}`) || path === `/silos/${silo.slug}`) {
           internalSiloLinks += 1;
         }
 

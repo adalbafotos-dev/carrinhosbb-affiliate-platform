@@ -1,4 +1,6 @@
-const DEFAULT_SITE_URL = "https://lindisse.com.br";
+import { SITE_URL } from "@/lib/site";
+
+const DEFAULT_SITE_URL = SITE_URL;
 
 function normalizeSiteUrl(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -40,3 +42,4 @@ export function resolveSiteUrl(): string {
 
   return DEFAULT_SITE_URL;
 }
+

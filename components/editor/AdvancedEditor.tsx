@@ -43,6 +43,7 @@ import {
   type ResponsiveMode,
 } from "@/lib/editor/responsive";
 import { buildPostCanonicalPath, normalizeCanonicalPath } from "@/lib/seo/canonical";
+import { normalizeSiloGroup } from "@/lib/silo/groups";
 
 type Props = {
   post: PostWithSilo;
@@ -77,6 +78,43 @@ type HighlightOccurrence = {
   end_index?: number | null;
   occurrence_key?: string | null;
 };
+
+type PillarConflictPrompt = {
+  code: "PILLAR_CONFLICT";
+  silo_id: string;
+  current_pillar: {
+    id: string;
+    title: string;
+    slug: string;
+    silo_group: string | null;
+    silo_order: number | null;
+  };
+  pendingStatus?: EditorMeta["status"];
+};
+
+const PILLAR_CONFLICT_PREFIX = "PILLAR_CONFLICT::";
+
+function parsePillarConflictError(error: unknown): Omit<PillarConflictPrompt, "pendingStatus"> | null {
+  const message = typeof (error as any)?.message === "string" ? (error as any).message : "";
+  if (!message.startsWith(PILLAR_CONFLICT_PREFIX)) return null;
+  const raw = message.slice(PILLAR_CONFLICT_PREFIX.length).trim();
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as Omit<PillarConflictPrompt, "pendingStatus">;
+    if (
+      parsed?.code === "PILLAR_CONFLICT" &&
+      typeof parsed?.silo_id === "string" &&
+      typeof parsed?.current_pillar?.id === "string"
+    ) {
+      return parsed;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
 
 function normalizeText(value: string) {
   return value.toLowerCase().replace(/\s+/g, " ").trim();
@@ -676,6 +714,24 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       howto: Array.isArray(post.howto_json) ? post.howto_json : [],
       amazonProducts: Array.isArray(post.amazon_products) ? post.amazon_products : [],
       siloId: post.silo_id ?? "",
+      siloRole: post.silo_role ?? "SUPPORT",
+      siloPosition: undefined,
+      siloOrder:
+        typeof post.silo_order === "number" && Number.isFinite(post.silo_order)
+          ? Math.max(0, Math.trunc(post.silo_order))
+          : typeof post.silo_group_order === "number" && Number.isFinite(post.silo_group_order)
+            ? Math.max(0, Math.trunc(post.silo_group_order))
+            : 0,
+      siloGroup: normalizeSiloGroup(post.silo_group),
+      siloGroupOrder:
+        typeof post.silo_order === "number" && Number.isFinite(post.silo_order)
+          ? Math.max(0, Math.trunc(post.silo_order))
+          : typeof post.silo_group_order === "number" && Number.isFinite(post.silo_group_order)
+            ? Math.max(0, Math.trunc(post.silo_group_order))
+            : 0,
+      showInSiloMenu:
+        post.silo_role === "AUX" ? false : typeof post.show_in_silo_menu === "boolean" ? post.show_in_silo_menu : true,
+      replaceExistingPillar: false,
     }
   );
 
@@ -697,6 +753,8 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [previewMode, setPreviewMode] = useState<"desktop" | "tablet" | "mobile">("desktop");
+  const [pillarConflictPrompt, setPillarConflictPrompt] = useState<PillarConflictPrompt | null>(null);
+  const [resolvingPillarConflict, setResolvingPillarConflict] = useState(false);
 
   const heroInputRef = useRef<HTMLInputElement | null>(null);
   const bodyInputRef = useRef<HTMLInputElement | null>(null);
@@ -781,6 +839,24 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
       faq: Array.isArray(post.faq_json) ? post.faq_json : [],
       howto: Array.isArray(post.howto_json) ? post.howto_json : [],
       siloId: post.silo_id ?? "",
+      siloRole: post.silo_role ?? "SUPPORT",
+      siloPosition: undefined,
+      siloOrder:
+        typeof post.silo_order === "number" && Number.isFinite(post.silo_order)
+          ? Math.max(0, Math.trunc(post.silo_order))
+          : typeof post.silo_group_order === "number" && Number.isFinite(post.silo_group_order)
+            ? Math.max(0, Math.trunc(post.silo_group_order))
+            : 0,
+      siloGroup: normalizeSiloGroup(post.silo_group),
+      siloGroupOrder:
+        typeof post.silo_order === "number" && Number.isFinite(post.silo_order)
+          ? Math.max(0, Math.trunc(post.silo_order))
+          : typeof post.silo_group_order === "number" && Number.isFinite(post.silo_group_order)
+            ? Math.max(0, Math.trunc(post.silo_group_order))
+            : 0,
+      showInSiloMenu:
+        post.silo_role === "AUX" ? false : typeof post.show_in_silo_menu === "boolean" ? post.show_in_silo_menu : true,
+      replaceExistingPillar: false,
     });
 
     setDocJson(normalizeEditorDoc(post.content_json ?? null));
@@ -798,22 +874,39 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     if (initialSilos.length) setSilos(initialSilos);
   }, [initialSilos]);
 
-  // Load silo hierarchy (role + position) from database
+  // Load silo organization (role + order + group visibility) from database
   useEffect(() => {
     async function loadHierarchy() {
-      if (!post.silo_id || !post.id) return;
+      const activeSiloId = post.silo_id || meta.siloId || "";
+      if (!activeSiloId || !post.id) return;
 
       try {
-        const response = await fetch(`/api/admin/silo-posts?siloId=${post.silo_id}&postId=${post.id}`);
+        const response = await fetch(`/api/admin/silo-posts?siloId=${activeSiloId}&postId=${post.id}`);
         if (!response.ok) return;
 
         const data = await response.json();
-        if (data?.role || typeof data?.position === "number") {
-          updateMeta({
-            siloRole: data.role || undefined,
-            siloPosition: data.position || undefined,
-          });
-        }
+        const role = data?.role || metaRef.current.siloRole || "SUPPORT";
+        const resolvedOrder =
+          role === "PILLAR" || role === "AUX"
+            ? 0
+            : typeof data?.silo_order === "number" && Number.isFinite(data.silo_order)
+              ? Math.max(0, Math.trunc(data.silo_order))
+              : 0;
+        const resolvedGroup = normalizeSiloGroup(data?.silo_group);
+        const showInSiloMenu =
+          role === "AUX" ? false : typeof data?.show_in_silo_menu === "boolean" ? data.show_in_silo_menu : true;
+
+        updateMeta({
+          siloRole: role,
+          siloPosition:
+            typeof data?.position === "number" && Number.isFinite(data.position)
+              ? Math.max(1, Math.trunc(data.position))
+              : undefined,
+          siloOrder: resolvedOrder,
+          siloGroupOrder: resolvedOrder,
+          siloGroup: role === "PILLAR" || role === "AUX" ? null : resolvedGroup,
+          showInSiloMenu,
+        });
       } catch (error) {
         console.error("Erro ao carregar hierarquia do silo:", error);
       }
@@ -1039,6 +1132,7 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     (patch: MetaPatch) => {
       if (typeof patch.slug === "string") setSlugTouched(true);
       if (typeof patch.metaTitle === "string") setMetaTitleTouched(true);
+      metaRef.current = { ...metaRef.current, ...patch };
       updateMeta(patch);
     },
     [updateMeta]
@@ -1640,38 +1734,72 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     [editor]
   );
 
-  const onSave = useCallback(
-    async (nextStatus?: EditorMeta["status"]) => {
+  const savePost = useCallback(
+    async (
+      nextStatus?: EditorMeta["status"],
+      options?: {
+        forceReplacePillar?: boolean;
+        suppressConflictModal?: boolean;
+      }
+    ) => {
       const statusToSave = nextStatus ?? metaRef.current.status;
       const canonicalPath = buildPostCanonicalPath(siloSlug, metaRef.current.slug);
+      const role = metaRef.current.siloRole ?? "SUPPORT";
+      const isPillarRole = role === "PILLAR";
+      const isAuxRole = role === "AUX";
 
-        const currentJson = editor ? editor.getJSON() : docJson;
-        const currentHtml = editor ? editor.getHTML() : docHtml;
-        const enrichedJson =
-          currentJson && typeof currentJson === "object"
-            ? {
-                ...currentJson,
-                meta: {
-                  ...(currentJson.meta ?? {}),
-                  authorLinks: metaRef.current.authorLinks,
-                  manualEdits: true,
-                  lastEditedAt: new Date().toISOString(),
-                },
-              }
-            : { type: "doc", content: [], meta: { authorLinks: metaRef.current.authorLinks } };
+      const currentJson = editor ? editor.getJSON() : docJson;
+      const currentHtml = editor ? editor.getHTML() : docHtml;
+      const enrichedJson =
+        currentJson && typeof currentJson === "object"
+          ? {
+              ...currentJson,
+              meta: {
+                ...(currentJson.meta ?? {}),
+                authorLinks: metaRef.current.authorLinks,
+                manualEdits: true,
+                lastEditedAt: new Date().toISOString(),
+              },
+            }
+          : { type: "doc", content: [], meta: { authorLinks: metaRef.current.authorLinks } };
 
-          const safeContentJson = JSON.parse(JSON.stringify(enrichedJson ?? null));
-          const payload = {
-            id: post.id,
-            silo_id: metaRef.current.siloId || post.silo_id || null,
-        silo_role: metaRef.current.siloRole || null,
-        silo_position: metaRef.current.siloPosition || null,
+      const safeContentJson = JSON.parse(JSON.stringify(enrichedJson ?? null));
+      const computedSiloOrder =
+        typeof metaRef.current.siloOrder === "number" && Number.isFinite(metaRef.current.siloOrder)
+          ? Math.max(0, Math.trunc(metaRef.current.siloOrder))
+          : typeof metaRef.current.siloGroupOrder === "number" && Number.isFinite(metaRef.current.siloGroupOrder)
+            ? Math.max(0, Math.trunc(metaRef.current.siloGroupOrder))
+            : 0;
+      const siloOrder = isPillarRole || isAuxRole ? 0 : computedSiloOrder;
+      const showInSiloMenu =
+        isPillarRole
+          ? true
+          : isAuxRole
+            ? false
+            : typeof metaRef.current.showInSiloMenu === "boolean"
+              ? metaRef.current.showInSiloMenu
+              : true;
+      const siloId = metaRef.current.siloId || post.silo_id || "";
+      if (!siloId) {
+        throw new Error("Selecione um silo no painel Organizacao antes de salvar.");
+      }
+
+      const payload = {
+        id: post.id,
+        silo_id: siloId,
+        silo_role: role,
+        silo_position: isPillarRole ? null : metaRef.current.siloPosition || null,
         title: metaRef.current.title,
         seo_title: metaRef.current.metaTitle || metaRef.current.title,
         meta_title: metaRef.current.metaTitle || metaRef.current.title,
         slug: metaRef.current.slug,
         target_keyword: metaRef.current.targetKeyword,
         supporting_keywords: metaRef.current.supportingKeywords ?? [],
+        silo_group: isPillarRole || isAuxRole ? null : metaRef.current.siloGroup ?? null,
+        silo_order: siloOrder,
+        silo_group_order: siloOrder,
+        show_in_silo_menu: showInSiloMenu,
+        replace_existing_pillar: Boolean(options?.forceReplacePillar || metaRef.current.replaceExistingPillar),
         meta_description: metaRef.current.metaDescription || null,
         canonical_path: canonicalPath,
         entities: metaRef.current.entities ?? [],
@@ -1693,8 +1821,8 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
         disclaimer: metaRef.current.disclaimer || null,
         scheduled_at: toIsoString(metaRef.current.scheduledAt) ?? null,
         status: statusToSave,
-          content_json: safeContentJson,
-          content_html: currentHtml,
+        content_json: safeContentJson,
+        content_html: currentHtml,
         amazon_products: extractAffiliateProducts(enrichedJson),
       };
 
@@ -1703,8 +1831,31 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
         await saveEditorPost(payload);
         setLastSavedAt(new Date());
         dirtyRef.current = false;
-        if (nextStatus) updateMeta({ status: nextStatus });
+        setPillarConflictPrompt(null);
+
+        const patch: MetaPatch = {
+          replaceExistingPillar: false,
+        };
+        if (isPillarRole || isAuxRole) {
+          patch.siloGroup = null;
+          patch.siloOrder = 0;
+          patch.siloGroupOrder = 0;
+          patch.showInSiloMenu = isPillarRole ? true : false;
+        }
+        if (nextStatus) patch.status = nextStatus;
+        updateMeta(patch);
       } catch (error: any) {
+        const conflict = parsePillarConflictError(error);
+        if (conflict) {
+          if (!options?.suppressConflictModal) {
+            setPillarConflictPrompt({
+              ...conflict,
+              pendingStatus: nextStatus,
+            });
+          }
+          return;
+        }
+
         console.error("Falha ao salvar post", error);
         const message = typeof error?.message === "string" ? error.message : "Nao foi possivel salvar o rascunho.";
         alert(message);
@@ -1713,7 +1864,14 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
         setSaving(false);
       }
     },
-    [docHtml, docJson, post.id, post.silo_id, siloSlug]
+    [docHtml, docJson, editor, post.id, post.silo_id, siloSlug]
+  );
+
+  const onSave = useCallback(
+    async (nextStatus?: EditorMeta["status"]) => {
+      await savePost(nextStatus, { suppressConflictModal: false });
+    },
+    [savePost]
   );
 
   useEffect(() => {
@@ -1723,13 +1881,36 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
     if (saving) return;
     if (!dirtyRef.current) return;
     autoTimer.current = setTimeout(() => {
-      void onSave();
+      void savePost(undefined, { suppressConflictModal: true }).catch(() => undefined);
       dirtyRef.current = false;
     }, 12000);
     return () => {
       if (autoTimer.current) clearTimeout(autoTimer.current);
     };
-  }, [docHtml, docJson, meta, onSave, saving]);
+  }, [docHtml, docJson, meta, savePost, saving]);
+
+  const dismissPillarConflictPrompt = useCallback(() => {
+    if (resolvingPillarConflict) return;
+    setPillarConflictPrompt(null);
+    updateMeta({ replaceExistingPillar: false });
+  }, [resolvingPillarConflict, updateMeta]);
+
+  const confirmPillarReplacement = useCallback(async () => {
+    if (!pillarConflictPrompt || resolvingPillarConflict) return;
+    setResolvingPillarConflict(true);
+    try {
+      await savePost(pillarConflictPrompt.pendingStatus, {
+        forceReplacePillar: true,
+        suppressConflictModal: true,
+      });
+      setPillarConflictPrompt(null);
+      updateMeta({ replaceExistingPillar: false });
+    } catch {
+      return;
+    } finally {
+      setResolvingPillarConflict(false);
+    }
+  }, [pillarConflictPrompt, resolvingPillarConflict, savePost, updateMeta]);
 
   const openHeroPicker = useCallback(() => heroInputRef.current?.click(), []);
   const openMediaPicker = useCallback(() => bodyInputRef.current?.click(), []);
@@ -1880,6 +2061,43 @@ export function AdvancedEditor({ post, silos: initialSilos = [] }: Props) {
             void uploadAndInsertImage(file);
           }}
         />
+
+        {pillarConflictPrompt ? (
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/55 p-4">
+            <div className="w-full max-w-lg rounded-xl border border-(--border) bg-(--surface) p-5 shadow-2xl">
+              <h3 className="text-base font-semibold text-(--text)">Substituir pilar do silo?</h3>
+              <p className="mt-2 text-sm text-(--muted)">
+                Ja existe um pilar em <strong>{currentSilo?.name ?? "este silo"}</strong>. Ao confirmar, o pilar atual
+                vira <strong>SUPORTE</strong> e este post sera salvo como <strong>PILAR</strong>.
+              </p>
+              <div className="mt-3 rounded-md border border-(--border) bg-(--surface-muted) p-3 text-sm">
+                <p className="font-semibold text-(--text)">{pillarConflictPrompt.current_pillar.title}</p>
+                <p className="mt-1 text-xs text-(--muted)">
+                  Grupo: {pillarConflictPrompt.current_pillar.silo_group ?? "sem grupo"} | Ordem:{" "}
+                  {pillarConflictPrompt.current_pillar.silo_order ?? 0}
+                </p>
+              </div>
+              <div className="mt-4 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={dismissPillarConflictPrompt}
+                  disabled={resolvingPillarConflict}
+                  className="rounded-md border border-(--border) bg-(--surface-muted) px-3 py-2 text-xs font-semibold text-(--text) hover:border-(--brand-hot) disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void confirmPillarReplacement()}
+                  disabled={resolvingPillarConflict}
+                  className="rounded-md bg-(--brand-hot) px-3 py-2 text-xs font-semibold text-(--paper) hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {resolvingPillarConflict ? "Substituindo..." : "Substituir e salvar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </EditorProvider>
   );

@@ -24,10 +24,33 @@ function formatDate(value?: string | null) {
 }
 
 type HierarchyRole = "PILLAR" | "SUPPORT" | "AUX";
-type HierarchyDisplay = { role: HierarchyRole; position: number; label: string };
+type HierarchyDisplay = { role: HierarchyRole; position: number | null; label: string };
+
+function normalizeHierarchyRole(value: unknown): HierarchyRole | null {
+  if (typeof value !== "string") return null;
+  const upper = value.toUpperCase();
+  if (upper === "PILLAR" || upper === "SUPPORT" || upper === "AUX") {
+    return upper;
+  }
+  return null;
+}
+
+function normalizeHierarchyPosition(value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const normalized = Math.trunc(value);
+  return normalized > 0 ? normalized : null;
+}
 
 function buildHierarchyDisplayMap(
-  posts: Array<{ id: string; silo_id: string | null; title: string; pillar_rank?: number | null }>,
+  posts: Array<{
+    id: string;
+    silo_id: string | null;
+    title: string;
+    pillar_rank?: number | null;
+    silo_role?: HierarchyRole | null;
+    silo_order?: number | null;
+    silo_group_order?: number | null;
+  }>,
   hierarchyRows: Array<{ post_id: string; silo_id: string; role: HierarchyRole | null; position: number | null }>
 ) {
   const displayMap = new Map<string, HierarchyDisplay>();
@@ -36,57 +59,27 @@ function buildHierarchyDisplayMap(
     hierarchyByPost.set(row.post_id, { role: row.role, position: row.position });
   });
 
-  const grouped = new Map<string, typeof posts>();
   posts.forEach((post) => {
-    const key = post.silo_id ?? "__no_silo__";
-    const list = grouped.get(key) ?? [];
-    list.push(post);
-    grouped.set(key, list);
-  });
-
-  const rankPosition = (value?: number | null) =>
-    typeof value === "number" && Number.isFinite(value) && value > 0 ? value : Number.MAX_SAFE_INTEGER;
-  const sortByPositionThenTitle = (
-    a: { id: string; title: string },
-    b: { id: string; title: string }
-  ) => {
-    const aPos = rankPosition(hierarchyByPost.get(a.id)?.position);
-    const bPos = rankPosition(hierarchyByPost.get(b.id)?.position);
-    if (aPos !== bPos) return aPos - bPos;
-    return a.title.localeCompare(b.title, "pt-BR");
-  };
-
-  grouped.forEach((groupPosts, groupKey) => {
-    if (groupKey === "__no_silo__") return;
-
-    const explicitPillar = groupPosts
-      .filter((post) => hierarchyByPost.get(post.id)?.role === "PILLAR")
-      .sort(sortByPositionThenTitle)[0];
-    const rankedPillar = groupPosts
-      .filter((post) => post.pillar_rank === 1)
-      .sort(sortByPositionThenTitle)[0];
-    const fallbackPillar = [...groupPosts].sort(sortByPositionThenTitle)[0];
-    const pillarId = explicitPillar?.id ?? rankedPillar?.id ?? fallbackPillar?.id ?? null;
-
-    if (pillarId) {
-      displayMap.set(pillarId, { role: "PILLAR", position: 1, label: "Pilar" });
+    const hierarchy = hierarchyByPost.get(post.id);
+    if (!post.silo_id && !hierarchy) {
+      return;
     }
-
-    const supports = groupPosts
-      .filter((post) => post.id !== pillarId && hierarchyByPost.get(post.id)?.role !== "AUX")
-      .sort(sortByPositionThenTitle);
-    supports.forEach((post, index) => {
-      const position = index + 1;
-      displayMap.set(post.id, { role: "SUPPORT", position, label: `Suporte ${position}` });
-    });
-
-    const auxList = groupPosts
-      .filter((post) => hierarchyByPost.get(post.id)?.role === "AUX")
-      .sort(sortByPositionThenTitle);
-    auxList.forEach((post, index) => {
-      const position = index + 1;
-      displayMap.set(post.id, { role: "AUX", position, label: `Aux ${position}` });
-    });
+    const role =
+      normalizeHierarchyRole(hierarchy?.role) ??
+      normalizeHierarchyRole(post.silo_role) ??
+      (post.pillar_rank === 1 ? "PILLAR" : "SUPPORT");
+    const position = role === "PILLAR" ? 1 : normalizeHierarchyPosition(hierarchy?.position);
+    const label =
+      role === "PILLAR"
+        ? "Pilar"
+        : role === "AUX"
+          ? typeof position === "number"
+            ? `Aux ${position}`
+            : "Aux"
+          : typeof position === "number"
+            ? `Suporte ${position}`
+            : "Suporte";
+    displayMap.set(post.id, { role, position, label });
   });
 
   return displayMap;
@@ -183,7 +176,7 @@ export default async function AdminPage({
               <th className="px-4 py-3">Capa</th>
               <th className="px-4 py-3">Titulo</th>
               <th className="px-4 py-3">Silo</th>
-              <th className="px-4 py-3">Hierarquia</th>
+              <th className="px-4 py-3">Papel / numero</th>
               <th className="px-4 py-3">Atualizado</th>
               <th className="px-4 py-3">Agendado</th>
               <th className="px-4 py-3">Acoes</th>
@@ -201,6 +194,7 @@ export default async function AdminPage({
                 const statusValue = p.status ?? (p.published ? "published" : "draft");
                 const statusLabel = statusLabels[statusValue] ?? "Rascunho";
                 const siloSlug = p.silo?.slug ?? "";
+                const previewHref = `/admin/preview/${p.id}`;
                 const publicHref = siloSlug ? `/${siloSlug}/${p.slug}` : `/${p.slug}`;
                 const hierarchy = hierarchyMap.get(p.id);
 
@@ -227,7 +221,9 @@ export default async function AdminPage({
                       {hierarchy ? (
                         <div className="leading-tight">
                           <div className="text-(--text)">{hierarchy.label}</div>
-                          <div className="text-[11px] uppercase text-(--muted-2)">#{hierarchy.position}</div>
+                          <div className="text-[11px] uppercase text-(--muted-2)">
+                            {typeof hierarchy.position === "number" ? `#${hierarchy.position}` : "Sem posicao"}
+                          </div>
                         </div>
                       ) : (
                         "-"
@@ -245,12 +241,22 @@ export default async function AdminPage({
                         </Link>
                         <Link
                           className="inline-flex rounded-xl border border-(--border) bg-(--surface-muted) px-3 py-2 text-xs hover:bg-(--brand-primary)"
-                          href={publicHref}
+                          href={previewHref}
                           target="_blank"
                           rel="noreferrer"
                         >
                           Ver pagina
                         </Link>
+                        {p.published ? (
+                          <Link
+                            className="inline-flex rounded-xl border border-(--border) bg-(--surface-muted) px-3 py-2 text-xs hover:bg-(--brand-primary)"
+                            href={publicHref}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            URL publica
+                          </Link>
+                        ) : null}
                         <form action={setPublishState}>
                           <input type="hidden" name="id" value={p.id} />
                           <input type="hidden" name="published" value={p.published ? "false" : "true"} />

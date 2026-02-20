@@ -128,6 +128,9 @@ export function useContentGuardian(
       // 4. Links Analysis
       const internalLinks = links.filter((l) => ["internal", "mention", "about"].includes(l.type));
       const externalLinks = links.filter((l) => l.type === "external" || l.type === "affiliate");
+      const normalizedSiloRole = (meta.siloRole ?? "SUPPORT").toUpperCase();
+      const isPillarRole = normalizedSiloRole === "PILLAR";
+      const enforceEarlyInternalLink = normalizedSiloRole === "SUPPORT" || normalizedSiloRole === "AUX";
 
       // Internal links in first 20%
       const first20PercentLimit = text.length * 0.2;
@@ -210,8 +213,20 @@ export function useContentGuardian(
 
       // Rule: Internal Links Early
       if (internalLinksEarlyCount === 0 && wordCount > 200) {
-        newIssues.push({ id: "links-early", level: "warn", message: "Adicione link interno no início do texto." });
-        scoreDeduction += 4;
+        if (enforceEarlyInternalLink) {
+          newIssues.push({
+            id: "links-early",
+            level: "warn",
+            message: "Adicione link interno no inicio do texto (obrigatorio para suporte/apoio).",
+          });
+          scoreDeduction += 4;
+        } else if (isPillarRole) {
+          newIssues.push({
+            id: "links-early-pillar",
+            level: "warn",
+            message: "Recomendado adicionar link interno no inicio do pilar quando houver posts relacionados.",
+          });
+        }
       }
 
       // Rule: Amazon Sponsored

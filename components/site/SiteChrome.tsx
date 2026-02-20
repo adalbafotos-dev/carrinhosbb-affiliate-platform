@@ -3,12 +3,13 @@
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { useSelectedLayoutSegments } from "next/navigation";
-import { SiteHeader } from "@/components/site/SiteHeader";
+import { SiteHeader, type SiteHeaderLink } from "@/components/site/SiteHeader";
 import { SiteFooter } from "@/components/site/SiteFooter";
 
-export function SiteChrome({ children }: { children: ReactNode }) {
+export function SiteChrome({ children, headerLinks }: { children: ReactNode; headerLinks?: SiteHeaderLink[] }) {
   const segments = useSelectedLayoutSegments();
-  const isAdmin = segments[0] === "admin";
+  const isAdminPreview = segments[0] === "admin" && segments[1] === "preview";
+  const isAdmin = segments[0] === "admin" && !isAdminPreview;
   const isHome = !isAdmin && segments.length === 0;
 
   useEffect(() => {
@@ -63,7 +64,7 @@ export function SiteChrome({ children }: { children: ReactNode }) {
   return (
     <>
       <div className={isHome ? "home-hero-shell" : undefined}>
-        <SiteHeader />
+        <SiteHeader links={headerLinks} />
         <main className={`mx-auto w-full max-w-6xl px-4 pb-10 ${isHome ? "pt-0" : "pt-10"}`}>{children}</main>
       </div>
       <SiteFooter />

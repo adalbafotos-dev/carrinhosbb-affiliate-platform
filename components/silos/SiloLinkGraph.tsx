@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -80,11 +80,11 @@ const buildAuditMap = (audits: any[] = []) => {
     if (raw === "ADD_INTERNAL_LINK") return "ADD_INTERNAL_LINK";
     return null;
   };
-  return audits.reduce<Record<string, LinkAudit>>((acc, audit: any) => {
-    const key = String(audit.occurrence_id ?? audit.occurrenceId ?? "");
-    if (!key) return acc;
-    const score = Number(audit.score);
-    acc[key] = {
+    return audits.reduce<Record<string, LinkAudit>>((acc, audit: any) => {
+        const key = String(audit.occurrence_id ?? audit.occurrenceId ?? "");
+        if (!key) return acc;
+        const score = Number(audit.score);
+        acc[key] = {
       id: typeof audit.id === "string" ? audit.id : undefined,
       occurrence_id: String(audit.occurrence_id ?? audit.occurrenceId ?? key),
       score: Number.isFinite(score) ? score : 0,
@@ -96,9 +96,65 @@ const buildAuditMap = (audits: any[] = []) => {
       recommendation: audit.recommendation ?? null,
       spam_risk: typeof audit.spam_risk === "number" ? audit.spam_risk : null,
       intent_match: typeof audit.intent_match === "number" ? audit.intent_match : null,
+      source_post_id: audit.source_post_id ? String(audit.source_post_id) : null,
+      target_post_id: audit.target_post_id ? String(audit.target_post_id) : null,
     };
     return acc;
   }, {});
+};
+
+const normalizeLinkType = (raw: unknown): LinkOccurrence["link_type"] => {
+  if (!raw) return null;
+  const upper = String(raw).toUpperCase();
+  if (upper === "INTERNAL" || upper === "EXTERNAL" || upper === "AFFILIATE") {
+    return upper as LinkOccurrence["link_type"];
+  }
+  if (upper === "AMAZON") return "AFFILIATE";
+  return null;
+};
+
+const normalizeOccurrence = (occ: any, fallbackSiloId: string): LinkOccurrence => ({
+  id: String(occ?.id ?? ""),
+  silo_id: String(occ?.silo_id ?? fallbackSiloId),
+  source_post_id: String(occ?.source_post_id ?? ""),
+  target_post_id: occ?.target_post_id ? String(occ.target_post_id) : null,
+  anchor_text: occ?.anchor_text ?? "[Sem texto]",
+  context_snippet: occ?.context_snippet ?? null,
+  start_index: occ?.start_index ?? null,
+  end_index: occ?.end_index ?? null,
+  occurrence_key: occ?.occurrence_key ?? null,
+  href_normalized: occ?.href_normalized ?? "",
+  position_bucket: occ?.position_bucket ?? null,
+  link_type: normalizeLinkType(occ?.link_type),
+  is_nofollow: Boolean(occ?.is_nofollow),
+  is_sponsored: Boolean(occ?.is_sponsored),
+  is_ugc: Boolean(occ?.is_ugc),
+  is_blank: Boolean(occ?.is_blank),
+});
+
+const buildLinkEdgesFromOccurrences = (occurrences: LinkOccurrence[]): LinkOccurrenceEdge[] => {
+  const map = new Map<string, LinkOccurrenceEdge>();
+  occurrences.forEach((occ) => {
+    const sourceId = String(occ.source_post_id ?? "");
+    const targetId = occ.target_post_id ? String(occ.target_post_id) : "";
+    const occurrenceId = String(occ.id ?? "");
+    const linkType = normalizeLinkType(occ.link_type) ?? "INTERNAL";
+    if (!sourceId || !targetId || !occurrenceId) return;
+    if (linkType !== "INTERNAL") return;
+    const key = `${sourceId}::${targetId}`;
+    const existing = map.get(key);
+    if (!existing) {
+      map.set(key, {
+        id: `edge-${sourceId}-${targetId}`,
+        source_post_id: sourceId,
+        target_post_id: targetId,
+        occurrence_ids: [occurrenceId],
+      });
+      return;
+    }
+    existing.occurrence_ids.push(occurrenceId);
+  });
+  return Array.from(map.values());
 };
 
 
@@ -328,10 +384,27 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
   const [selectedOccurrenceId, setSelectedOccurrenceId] = useState<string | null>(null);
   const [selectedOccurrenceFallback, setSelectedOccurrenceFallback] = useState<LinkOccurrence | null>(null);
   const [showPanel, setShowPanel] = useState(false);
-  const [auditsByOccurrenceIdState, setAuditsByOccurrenceIdState] = useState<Record<string, LinkAudit>>(
-    auditsByOccurrenceId ?? buildAuditMap(linkAudits || [])
+  const [auxNodeXById, setAuxNodeXById] = useState<Record<string, number>>({});
+  const [linkOccurrencesState, setLinkOccurrencesState] = useState<LinkOccurrence[]>(() =>
+    (linkOccurrences ?? []).map((occ) => normalizeOccurrence(occ, silo.id))
   );
+  const [linkEdgesState, setLinkEdgesState] = useState<LinkOccurrenceEdge[]>(() => {
+    const normalized = (linkOccurrences ?? []).map((occ) => normalizeOccurrence(occ, silo.id));
+    if (linkEdges && linkEdges.length > 0) return linkEdges;
+    return buildLinkEdgesFromOccurrences(normalized);
+  });
+  const [auditsByOccurrenceIdState, setAuditsByOccurrenceIdState] = useState<Record<string, LinkAudit>>(() => {
+    const fromRows = buildAuditMap(linkAudits || []);
+    if (!auditsByOccurrenceId) return fromRows;
+    const fromProps = Object.entries(auditsByOccurrenceId).reduce<Record<string, LinkAudit>>((acc, [key, value]) => {
+      const normalized = buildAuditMap([{ ...value, occurrence_id: value?.occurrence_id ?? key }])[key];
+      if (normalized) acc[key] = normalized;
+      return acc;
+    }, {});
+    return { ...fromRows, ...fromProps };
+  });
   const [siloAuditState, setSiloAuditState] = useState<SiloAudit | null>(siloAudit || null);
+  const hasAutoAuditRunRef = useRef(false);
 
   const [isAuditing, startAudit] = useTransition();
 
@@ -343,14 +416,6 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
   const postsById = useMemo(() => new Map(resolvedPosts.map((post) => [post.id, post])), [resolvedPosts]);
   const linkAuditsState = useMemo(() => Object.values(auditsByOccurrenceIdState), [auditsByOccurrenceIdState]);
   const auditsMap = useMemo(() => new Map(Object.entries(auditsByOccurrenceIdState)), [auditsByOccurrenceIdState]);
-
-  useEffect(() => {
-    if (auditsByOccurrenceId) {
-      setAuditsByOccurrenceIdState(auditsByOccurrenceId);
-    } else {
-      setAuditsByOccurrenceIdState(buildAuditMap(linkAudits || []));
-    }
-  }, [auditsByOccurrenceId, linkAudits]);
 
   useEffect(() => {
     setSiloAuditState(siloAudit || null);
@@ -381,15 +446,15 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
   }, [resolvedPosts, filterOrphans, searchTerm, metricsMap, layers]);
 
   const normalizedLinkEdges = useMemo<LinkOccurrenceEdge[]>(() => {
-    if (linkEdges && linkEdges.length > 0) {
-      return linkEdges.map((edge) => ({
+    if (linkEdgesState && linkEdgesState.length > 0) {
+      return linkEdgesState.map((edge) => ({
         ...edge,
         occurrence_ids: (edge.occurrence_ids || []).map((id) => String(id)),
       }));
     }
 
     const map = new Map<string, LinkOccurrenceEdge>();
-    (linkOccurrences || []).forEach((occ) => {
+    (linkOccurrencesState || []).forEach((occ) => {
       if (!occ.target_post_id) return;
       if (String(occ.link_type ?? "INTERNAL") !== "INTERNAL") return;
       const sourceId = String(occ.source_post_id ?? "");
@@ -410,7 +475,7 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
       existing.occurrence_ids.push(occurrenceId);
     });
     return Array.from(map.values());
-  }, [linkEdges, linkOccurrences]);
+  }, [linkEdgesState, linkOccurrencesState]);
 
   const nodes = useMemo<Node<PostCardData>[]>(() => {
     const layerGroups = new Map<number, string[]>();
@@ -424,7 +489,8 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
     const topOffset = 40;
     const nodeWidth = 300;
     const pillarToSupportGap = 210;
-    const supportToNextGap = 130;
+    // Keep consistent vertical spacing between support and aux rows.
+    const supportToNextGap = pillarToSupportGap;
 
     const getLayerY = (layer: number) => {
       if (layer <= 0) return topOffset;
@@ -438,7 +504,11 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
         const post = postsById.get(postId);
         if (!post) return;
         const metric = metricsMap.get(postId);
-        const x = (index - (count - 1) / 2) * nodeWidth;
+        const baseX = (index - (count - 1) / 2) * nodeWidth;
+        const x =
+          post.role === "AUX" && typeof auxNodeXById[postId] === "number"
+            ? auxNodeXById[postId]
+            : baseX;
         const y = getLayerY(layer);
 
         // Logica de opacidade
@@ -475,13 +545,14 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
             isDimmed,
           },
           type: "postCard",
+          draggable: post.role === "AUX",
           sourcePosition: Position.Bottom,
           targetPosition: Position.Top,
         });
       });
     });
     return nodesList;
-  }, [filteredPosts, layers, pillarId, postsById, metricsMap, selectedNodeId, selectedEdgeId]);
+  }, [filteredPosts, layers, pillarId, postsById, metricsMap, selectedNodeId, selectedEdgeId, auxNodeXById]);
 
   const { edges, hiddenEdgeCounts, occurrenceToEdgeId } = useMemo(() => {
     const postIdSet = new Set(filteredPosts.map((p) => p.id));
@@ -636,7 +707,7 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
       occurrenceIds: (edge as any)?.data?.occurrenceIds?.slice(0, 3) ?? [],
       worstOccurrenceId: (edge as any)?.data?.worstOccurrenceId ?? null,
     }));
-    const joinedAuditsCount = (linkOccurrences || []).filter((occ) => auditsMap.has(String(occ.id ?? ""))).length;
+    const joinedAuditsCount = (linkOccurrencesState || []).filter((occ) => auditsMap.has(String(occ.id ?? ""))).length;
     console.log("[SILO-GRAPH] edges:", {
       totalEdges,
       edgesWithOccurrenceIds,
@@ -647,10 +718,10 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
       sampleAuditOccurrenceIds,
       joinedAuditsCount,
       sampleEdges,
-      linkOccurrences: linkOccurrences?.length || 0,
+      linkOccurrences: linkOccurrencesState?.length || 0,
       linkAudits: linkAuditsState?.length || 0,
     });
-  }, [edges, linkOccurrences, auditsMap, linkAuditsState]);
+  }, [edges, linkOccurrencesState, auditsMap, linkAuditsState]);
 
   const handleNodeClick = (_: any, node: Node) => {
     setSelectedNodeId(node.id === selectedNodeId ? null : node.id);
@@ -659,36 +730,81 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
     setSelectedOccurrenceFallback(null);
     if (node.id !== selectedNodeId) setShowPanel(true);
   };
+  const handleNodeDrag = (_: any, node: Node<PostCardData>) => {
+    if (node.data?.role !== "AUX") return;
+    setAuxNodeXById((prev) => {
+      const nextX = node.position.x;
+      const currentX = prev[node.id];
+      if (typeof currentX === "number" && Math.abs(currentX - nextX) < 0.5) return prev;
+      return { ...prev, [node.id]: nextX };
+    });
+  };
   const handleEdgeClick = (_: any, edge: Edge) => {
     setSelectedEdgeId(edge.id);
     setSelectedNodeId(null);
     const occId = (edge.data as any)?.worstOccurrenceId ?? (edge.data as any)?.occurrenceId ?? null;
     setSelectedOccurrenceId(occId);
-    const fallback = (linkOccurrences || []).find((occ) => String(occ.id ?? "") === String(occId ?? ""));
+    const fallback = (linkOccurrencesState || []).find((occ) => String(occ.id ?? "") === String(occId ?? ""));
     setSelectedOccurrenceFallback(fallback ?? null);
     setShowPanel(true);
   };
+  const applyAuditSnapshot = (res: any) => {
+    if (res?.linkAudits) {
+      setAuditsByOccurrenceIdState(buildAuditMap(res.linkAudits));
+    }
+    if (Array.isArray(res?.occurrences)) {
+      const normalizedOccurrences = res.occurrences.map((occ: any) => normalizeOccurrence(occ, silo.id));
+      setLinkOccurrencesState(normalizedOccurrences);
+
+      if (Array.isArray(res?.linkEdges) && res.linkEdges.length > 0) {
+        setLinkEdgesState(
+          res.linkEdges.map((edge: any) => ({
+            id: String(edge?.id ?? `edge-${edge?.source_post_id}-${edge?.target_post_id}`),
+            source_post_id: String(edge?.source_post_id ?? ""),
+            target_post_id: String(edge?.target_post_id ?? ""),
+            occurrence_ids: Array.isArray(edge?.occurrence_ids)
+              ? edge.occurrence_ids.map((id: any) => String(id))
+              : [],
+          }))
+        );
+      } else {
+        setLinkEdgesState(buildLinkEdgesFromOccurrences(normalizedOccurrences));
+      }
+    }
+    if (res?.siloAudit) {
+      setSiloAuditState(res.siloAudit);
+    }
+  };
+
+  const runAudit = async (forceAudit: boolean, options?: { silent?: boolean; skipAI?: boolean }) => {
+    const res = await auditSiloAction({
+      siloId: silo.id,
+      siloSlug: silo.slug,
+      force: forceAudit,
+      skipAI: options?.skipAI ?? true,
+    });
+
+    console.log("[SILO-AUDIT] response:", res);
+    if (res?.success) {
+      applyAuditSnapshot(res);
+    }
+
+    if (!options?.silent && res?.aiStatus === "failed") {
+      alert("Auditoria completa, mas a IA estava indisponivel. Resultados baseados em regras padrao.");
+    }
+  };
+
+  useEffect(() => {
+    if (hasAutoAuditRunRef.current) return;
+    hasAutoAuditRunRef.current = true;
+    startAudit(async () => {
+      await runAudit(false, { silent: true, skipAI: true });
+    });
+  }, [silo.id, silo.slug]);
+
   const handleAudit = () => {
     startAudit(async () => {
-      const res = await auditSiloAction({
-        siloId: silo.id,
-        siloSlug: silo.slug,
-        force: false
-      });
-
-      console.log("[SILO-AUDIT] response:", res);
-
-      if (res?.linkAudits) {
-        setAuditsByOccurrenceIdState(buildAuditMap(res.linkAudits));
-      }
-      if (res?.siloAudit) {
-        setSiloAuditState(res.siloAudit);
-      }
-
-      if (res?.aiStatus === 'failed') {
-        // Toast nativo simples
-        alert("Auditoria completa, mas a IA estava indisponivel. Resultados baseados em regras padrao.");
-      }
+      await runAudit(true, { silent: false, skipAI: true });
     });
   };
 
@@ -754,6 +870,8 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onNodeClick={handleNodeClick}
+            onNodeDrag={handleNodeDrag}
+            onNodeDragStop={handleNodeDrag}
             onEdgeClick={handleEdgeClick}
             fitView
             attributionPosition="bottom-right"
@@ -770,7 +888,7 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
             siloName={silo.name}
             posts={resolvedPosts}
             metrics={metrics}
-            linkOccurrences={linkOccurrences}
+            linkOccurrences={linkOccurrencesState}
             linkAudits={linkAuditsState}
             auditsByOccurrenceId={auditsByOccurrenceIdState}
             siloAudit={siloAuditState}
@@ -779,7 +897,13 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
             selectedOccurrenceId={selectedOccurrenceId}
             selectedOccurrenceFallback={selectedOccurrenceFallback}
             hiddenEdgeCounts={hiddenEdgeCounts}
-            onClose={() => setShowPanel(false)}
+            onClose={() => {
+              setShowPanel(false);
+              setSelectedNodeId(null);
+              setSelectedEdgeId(null);
+              setSelectedOccurrenceId(null);
+              setSelectedOccurrenceFallback(null);
+            }}
             onSelectNode={setSelectedNodeId}
             onSelectOccurrence={(occurrenceId) => {
               setSelectedOccurrenceId(occurrenceId);
@@ -787,7 +911,7 @@ export function SiloLinkGraph({ silo, posts, metrics, linkOccurrences, linkEdges
               setSelectedEdgeId(nextEdgeId);
               setSelectedNodeId(null);
               setShowPanel(true);
-              const fallback = (linkOccurrences || []).find((occ) => String(occ.id ?? "") === String(occurrenceId ?? ""));
+              const fallback = (linkOccurrencesState || []).find((occ) => String(occ.id ?? "") === String(occurrenceId ?? ""));
               setSelectedOccurrenceFallback(fallback ?? null);
             }}
           />

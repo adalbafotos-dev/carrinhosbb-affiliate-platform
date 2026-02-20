@@ -1,8 +1,15 @@
 import { getPublicSupabase } from "@/lib/supabase/public";
-import type { Post, PostLink, PostWithSilo, Silo, SiloBatch, SiloBatchPost } from "@/lib/types";
+import type { Post, PostLink, PostWithSilo, Silo, SiloBatch, SiloBatchPost, SiloGroup } from "@/lib/types";
 import type { SiloPost } from "@/lib/types/silo";
 import { resolveDefaultEeat } from "@/lib/editor/defaultEeat";
 import { isUuid } from "@/lib/uuid";
+import {
+  buildSiloGroupKeywords,
+  getDefaultSiloGroupDefinitions,
+  normalizeSiloGroup,
+  normalizeSiloGroupKey,
+  normalizeSiloGroupLabel,
+} from "@/lib/silo/groups";
 
 function hasPublicEnv() {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -31,12 +38,29 @@ function getMissingColumnFromError(error: any): string | null {
   return null;
 }
 
+function isMissingRelationError(error: any): boolean {
+  if (!error) return false;
+  const code = String(error?.code ?? "").toUpperCase();
+  if (code === "42P01" || code === "PGRST205") return true;
+
+  const message = [error?.message, error?.details, error?.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (!message) return false;
+  if (message.includes("could not find the table")) return true;
+  if (message.includes("relation") && message.includes("does not exist")) return true;
+  if (message.includes("table") && message.includes("does not exist")) return true;
+  return false;
+}
+
 function handleDbError(error: any) {
   if (error?.code === "23505") {
     if (error.details?.includes("key (slug)")) {
-      throw new Error("Já existe um item com este slug. Por favor, escolha outro.");
+      throw new Error("JÃ¡ existe um item com este slug. Por favor, escolha outro.");
     }
-    throw new Error("Este registro já existe (slug ou outro campo único duplicado).");
+    throw new Error("Este registro jÃ¡ existe (slug ou outro campo Ãºnico duplicado).");
   }
   throw error;
 }
@@ -49,6 +73,11 @@ const REQUIRED_POST_COLUMNS = [
   "canonical_path",
   "entities",
   "supporting_keywords",
+  "silo_role",
+  "silo_group",
+  "silo_order",
+  "silo_group_order",
+  "show_in_silo_menu",
   "hero_image_url",
   "hero_image_alt",
   "og_image_url",
@@ -93,15 +122,271 @@ export async function detectMissingPostColumns(): Promise<string[]> {
   return Array.from(missing);
 }
 
+type NormalizedSiloGroupsResult = {
+  rows: SiloGroup[];
+  missingTable: boolean;
+  usedFallback: boolean;
+};
+
+function buildDefaultSiloGroupsFallback(siloId: string): SiloGroup[] {
+  const now = new Date().toISOString();
+  return getDefaultSiloGroupDefinitions().map((group) => ({
+    id: `default-${siloId}-${group.key}`,
+    silo_id: siloId,
+    key: group.key,
+    label: group.label,
+    menu_order: typeof group.menu_order === "number" ? group.menu_order : 0,
+    keywords: buildSiloGroupKeywords(group),
+    created_at: now,
+    updated_at: now,
+  }));
+}
+
+function normalizeSiloGroupRow(row: any, siloIdFallback: string): SiloGroup | null {
+  const key = normalizeSiloGroup(row?.key);
+  if (!key) return null;
+
+  const label = normalizeSiloGroupLabel(row?.label) ?? key;
+  const order =
+    typeof row?.menu_order === "number" && Number.isFinite(row.menu_order) ? Math.max(0, Math.trunc(row.menu_order)) : 0;
+  const keywords = Array.isArray(row?.keywords)
+    ? row.keywords.map((value: unknown) => String(value).trim()).filter(Boolean)
+    : buildSiloGroupKeywords({ key, label, keywords: [] });
+
+  return {
+    id: String(row?.id ?? `default-${siloIdFallback}-${key}`),
+    silo_id: String(row?.silo_id ?? siloIdFallback),
+    key,
+    label,
+    menu_order: order,
+    keywords,
+    created_at: String(row?.created_at ?? new Date().toISOString()),
+    updated_at: String(row?.updated_at ?? new Date().toISOString()),
+  };
+}
+
+async function listSiloGroupsInternal(
+  supabase: any,
+  siloId: string
+): Promise<NormalizedSiloGroupsResult> {
+  const queryWithKeywords = () =>
+    supabase
+      .from("silo_groups")
+      .select("id,silo_id,key,label,menu_order,keywords,created_at,updated_at")
+      .eq("silo_id", siloId)
+      .order("menu_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
+  const queryWithoutKeywords = () =>
+    supabase
+      .from("silo_groups")
+      .select("id,silo_id,key,label,menu_order,created_at,updated_at")
+      .eq("silo_id", siloId)
+      .order("menu_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
+  let { data, error } = await queryWithKeywords();
+  const missingColumn = getMissingColumnFromError(error);
+
+  if (missingColumn === "keywords") {
+    const fallback = await queryWithoutKeywords();
+    data = fallback.data;
+    error = fallback.error;
+  }
+
+  if (error) {
+    if (isMissingRelationError(error)) {
+      return { rows: buildDefaultSiloGroupsFallback(siloId), missingTable: true, usedFallback: true };
+    }
+    throw error;
+  }
+
+  const rows = (data ?? [])
+    .map((row: any) => normalizeSiloGroupRow(row, siloId))
+    .filter(Boolean) as SiloGroup[];
+
+  return {
+    rows: rows.length > 0 ? rows : buildDefaultSiloGroupsFallback(siloId),
+    missingTable: false,
+    usedFallback: rows.length === 0,
+  };
+}
+
+async function insertDefaultSiloGroupsInternal(supabase: any, siloId: string): Promise<void> {
+  const defaults = getDefaultSiloGroupDefinitions().map((group, index) => ({
+    silo_id: siloId,
+    key: group.key,
+    label: group.label,
+    menu_order: typeof group.menu_order === "number" ? group.menu_order : (index + 1) * 10,
+    keywords: buildSiloGroupKeywords(group),
+  }));
+
+  const { error } = await supabase.from("silo_groups").upsert(defaults, {
+    onConflict: "silo_id,key",
+    ignoreDuplicates: true,
+  });
+  if (error) {
+    if (isMissingRelationError(error)) return;
+    const missingColumn = getMissingColumnFromError(error);
+    if (missingColumn === "keywords") {
+      const lightweightDefaults = defaults.map(({ keywords: _, ...item }) => item);
+      const { error: lightweightError } = await supabase.from("silo_groups").upsert(lightweightDefaults, {
+        onConflict: "silo_id,key",
+        ignoreDuplicates: true,
+      });
+      if (lightweightError && !isMissingRelationError(lightweightError)) throw lightweightError;
+      return;
+    }
+    throw error;
+  }
+}
+
+export async function getPublicSiloGroupsBySiloId(siloId: string): Promise<SiloGroup[]> {
+  if (!isUuid(siloId)) return [];
+  if (!hasPublicEnv()) return buildDefaultSiloGroupsFallback(siloId);
+  const supabase = getPublicSupabase();
+  const { rows } = await listSiloGroupsInternal(supabase, siloId);
+  return rows;
+}
+
+export async function adminListSiloGroupsBySiloId(
+  siloId: string,
+  args: { ensureDefaults?: boolean } = {}
+): Promise<SiloGroup[]> {
+  if (!isUuid(siloId)) return [];
+  const supabase = await getAdminSupabaseClient();
+  const ensureDefaults = args.ensureDefaults ?? true;
+
+  let result = await listSiloGroupsInternal(supabase, siloId);
+  if (result.missingTable || !ensureDefaults || !result.usedFallback) {
+    return result.rows;
+  }
+
+  await insertDefaultSiloGroupsInternal(supabase, siloId);
+  result = await listSiloGroupsInternal(supabase, siloId);
+  return result.rows;
+}
+
+export async function adminCreateSiloGroup(args: { silo_id: string; label: string }): Promise<SiloGroup> {
+  if (!isUuid(args.silo_id)) {
+    throw new Error("SILO_INVALID_ID");
+  }
+
+  const label = normalizeSiloGroupLabel(args.label);
+  if (!label) {
+    throw new Error("SILO_GROUP_LABEL_REQUIRED");
+  }
+
+  const supabase = await getAdminSupabaseClient();
+  const existing = await adminListSiloGroupsBySiloId(args.silo_id, { ensureDefaults: true });
+  const keyBase = normalizeSiloGroupKey(label);
+  if (!keyBase) {
+    throw new Error("SILO_GROUP_INVALID_KEY");
+  }
+
+  const keySet = new Set(existing.map((item) => item.key));
+  let key = keyBase;
+  let attempt = 2;
+  while (keySet.has(key)) {
+    key = `${keyBase}_${attempt}`;
+    attempt += 1;
+  }
+
+  const nextOrder = existing.length > 0 ? Math.max(...existing.map((group) => group.menu_order)) + 10 : 10;
+  const payload = {
+    silo_id: args.silo_id,
+    key,
+    label,
+    menu_order: nextOrder,
+    keywords: buildSiloGroupKeywords({ key, label, keywords: [] }),
+  };
+
+  const query = () =>
+    supabase
+      .from("silo_groups")
+      .insert(payload)
+      .select("id,silo_id,key,label,menu_order,keywords,created_at,updated_at")
+      .maybeSingle();
+  let data: any = null;
+  let error: any = null;
+  {
+    const result = await query();
+    data = result.data;
+    error = result.error;
+  }
+  const missingColumn = getMissingColumnFromError(error);
+  if (missingColumn === "keywords") {
+    const { keywords: _, ...lightweightPayload } = payload;
+    const fallbackQuery = await supabase
+      .from("silo_groups")
+      .insert(lightweightPayload)
+      .select("id,silo_id,key,label,menu_order,created_at,updated_at")
+      .maybeSingle();
+    data = fallbackQuery.data;
+    error = fallbackQuery.error;
+  }
+
+  if (error) {
+    if (isMissingRelationError(error)) throw new Error("SILO_GROUPS_TABLE_MISSING");
+    throw handleDbError(error);
+  }
+  if (!data) throw new Error("SILO_GROUP_CREATE_FAILED");
+
+  const normalized = normalizeSiloGroupRow(data, args.silo_id);
+  if (!normalized) throw new Error("SILO_GROUP_CREATE_FAILED");
+  return normalized;
+}
+
+export async function adminUpdateSiloGroups(
+  siloId: string,
+  groups: Array<{ id: string; label: string; menu_order: number }>
+): Promise<void> {
+  if (!isUuid(siloId)) throw new Error("SILO_INVALID_ID");
+  const supabase = await getAdminSupabaseClient();
+
+  for (const group of groups) {
+    const label = normalizeSiloGroupLabel(group.label);
+    if (!label) continue;
+    const menuOrder =
+      typeof group.menu_order === "number" && Number.isFinite(group.menu_order)
+        ? Math.max(0, Math.trunc(group.menu_order))
+        : 0;
+
+    const { error } = await supabase
+      .from("silo_groups")
+      .update({
+        label,
+        menu_order: menuOrder,
+      })
+      .eq("id", group.id)
+      .eq("silo_id", siloId);
+
+    if (error) {
+      if (isMissingRelationError(error)) throw new Error("SILO_GROUPS_TABLE_MISSING");
+      throw error;
+    }
+  }
+}
+
 // --- Public (uses anon key, published only) ---
 
 export async function getPublicSilos(): Promise<Silo[]> {
   if (!hasPublicEnv()) return [];
   const supabase = getPublicSupabase();
-  const { data, error } = await supabase
-    .from("silos")
-    .select("*")
-    .order("created_at", { ascending: true });
+  const baseQuery = () =>
+    supabase
+      .from("silos")
+      .select("*")
+      .order("menu_order", { ascending: true })
+      .order("created_at", { ascending: true });
+
+  const { data, error } = await baseQuery().eq("is_active", true);
+  const missingColumn = getMissingColumnFromError(error);
+  if (missingColumn === "is_active") {
+    const { data: fallback, error: fallbackError } = await baseQuery();
+    if (fallbackError) throw fallbackError;
+    return (fallback ?? []) as Silo[];
+  }
   if (error) throw error;
   return (data ?? []) as Silo[];
 }
@@ -109,11 +394,14 @@ export async function getPublicSilos(): Promise<Silo[]> {
 export async function getPublicSiloBySlug(slug: string): Promise<Silo | null> {
   if (!hasPublicEnv()) return null;
   const supabase = getPublicSupabase();
-  const { data, error } = await supabase
-    .from("silos")
-    .select("*")
-    .eq("slug", slug)
-    .maybeSingle();
+  const baseQuery = () => supabase.from("silos").select("*").eq("slug", slug);
+  const { data, error } = await baseQuery().eq("is_active", true).maybeSingle();
+  const missingColumn = getMissingColumnFromError(error);
+  if (missingColumn === "is_active") {
+    const { data: fallback, error: fallbackError } = await baseQuery().maybeSingle();
+    if (fallbackError) throw fallbackError;
+    return (fallback ?? null) as Silo | null;
+  }
   if (error) throw error;
   return (data ?? null) as Silo | null;
 }
@@ -295,6 +583,11 @@ export async function adminCreatePost(args: {
   slug: string;
   target_keyword: string;
   supporting_keywords?: string[] | null;
+  silo_role?: "PILLAR" | "SUPPORT" | "AUX" | null;
+  silo_group?: string | null;
+  silo_order?: number | null;
+  silo_group_order?: number | null;
+  show_in_silo_menu?: boolean | null;
   meta_description?: string | null;
   canonical_path?: string | null;
   entities?: string[] | null;
@@ -353,6 +646,21 @@ export async function adminCreatePost(args: {
     slug: args.slug,
     target_keyword: args.target_keyword,
     supporting_keywords: args.supporting_keywords ?? [],
+    silo_role: args.silo_role ?? null,
+    silo_group: args.silo_group ?? null,
+    silo_order:
+      typeof args.silo_order === "number" && Number.isFinite(args.silo_order)
+        ? Math.max(0, Math.trunc(args.silo_order))
+        : typeof args.silo_group_order === "number" && Number.isFinite(args.silo_group_order)
+          ? Math.max(0, Math.trunc(args.silo_group_order))
+          : 0,
+    silo_group_order:
+      typeof args.silo_group_order === "number" && Number.isFinite(args.silo_group_order)
+        ? Math.max(0, Math.trunc(args.silo_group_order))
+        : typeof args.silo_order === "number" && Number.isFinite(args.silo_order)
+          ? Math.max(0, Math.trunc(args.silo_order))
+        : 0,
+    show_in_silo_menu: typeof args.show_in_silo_menu === "boolean" ? args.show_in_silo_menu : true,
     meta_description: args.meta_description ?? null,
     canonical_path: args.canonical_path ?? null,
     entities: args.entities ?? [],
@@ -400,7 +708,7 @@ export async function adminCreatePost(args: {
     const missingColumn = getMissingColumnFromError(error);
     if (missingColumn && missingColumn in body) {
       throw new Error(
-        `Coluna ausente em posts (${missingColumn}). Rode a migration supabase/migrations/20260122_01_add_post_editor_fields.sql e NOTIFY pgrst, 'reload schema';`
+        `Coluna ausente em posts (${missingColumn}). Rode as migrations em supabase/migrations e execute NOTIFY pgrst, 'reload schema';`
       );
     }
 
@@ -423,6 +731,11 @@ export async function adminCreateDraftPost(args: {
   slug: string;
   target_keyword: string;
   supporting_keywords?: string[] | null;
+  silo_role?: "PILLAR" | "SUPPORT" | "AUX" | null;
+  silo_group?: string | null;
+  silo_order?: number | null;
+  silo_group_order?: number | null;
+  show_in_silo_menu?: boolean | null;
   meta_description?: string | null;
   entities?: string[] | null;
   author_name?: string | null;
@@ -469,6 +782,11 @@ export async function adminUpdatePost(args: {
   slug?: string;
   target_keyword?: string;
   supporting_keywords?: string[] | null;
+  silo_role?: "PILLAR" | "SUPPORT" | "AUX" | null;
+  silo_group?: string | null;
+  silo_order?: number | null;
+  silo_group_order?: number | null;
+  show_in_silo_menu?: boolean | null;
   meta_description?: string | null;
   canonical_path?: string | null;
   entities?: string[] | null;
@@ -510,6 +828,21 @@ export async function adminUpdatePost(args: {
   if (typeof args.slug !== "undefined") update.slug = args.slug;
   if (typeof args.target_keyword !== "undefined") update.target_keyword = args.target_keyword;
   if (typeof args.supporting_keywords !== "undefined") update.supporting_keywords = args.supporting_keywords ?? [];
+  if (typeof args.silo_role !== "undefined") update.silo_role = args.silo_role;
+  if (typeof args.silo_group !== "undefined") update.silo_group = args.silo_group;
+  if (typeof args.silo_order !== "undefined") {
+    update.silo_order =
+      typeof args.silo_order === "number" && Number.isFinite(args.silo_order)
+        ? Math.max(0, Math.trunc(args.silo_order))
+        : 0;
+  }
+  if (typeof args.silo_group_order !== "undefined") {
+    update.silo_group_order =
+      typeof args.silo_group_order === "number" && Number.isFinite(args.silo_group_order)
+        ? Math.max(0, Math.trunc(args.silo_group_order))
+        : 0;
+  }
+  if (typeof args.show_in_silo_menu !== "undefined") update.show_in_silo_menu = args.show_in_silo_menu;
   if (typeof args.meta_description !== "undefined") update.meta_description = args.meta_description;
   if (typeof args.canonical_path !== "undefined") update.canonical_path = args.canonical_path;
   if (typeof args.entities !== "undefined") update.entities = args.entities;
@@ -545,21 +878,31 @@ export async function adminUpdatePost(args: {
   if (typeof args.content_html !== "undefined") update.content_html = args.content_html;
   if (typeof args.amazon_products !== "undefined") update.amazon_products = args.amazon_products ?? [];
 
-  const { error } = await supabase
-    .from("posts")
-    .update(update)
-    .eq("id", args.id);
+  let body: Record<string, any> = { ...update };
+  for (let i = 0; i < 10; i++) {
+    const { error } = await supabase
+      .from("posts")
+      .update(body)
+      .eq("id", args.id);
 
-  if (error) {
+    if (!error) return;
+
     const missingColumn = getMissingColumnFromError(error);
-    if (missingColumn && missingColumn in update) {
-      const { [missingColumn]: _, ...rest } = update;
-      const { error: retryError } = await supabase.from("posts").update(rest).eq("id", args.id);
-      if (retryError) throw retryError;
-      return;
+    if (missingColumn && missingColumn in body) {
+      const { [missingColumn]: _, ...rest } = body;
+      body = rest;
+      if (Object.keys(body).length === 0) return;
+      continue;
     }
+
     throw error;
   }
+
+  const { error: lastError } = await supabase
+    .from("posts")
+    .update(body)
+    .eq("id", args.id);
+  if (lastError) throw lastError;
 }
 
 export async function adminPublishPost(args: { id: string; published: boolean }): Promise<void> {
@@ -629,6 +972,14 @@ export async function adminCreateSilo(args: {
 
   if (error) throw handleDbError(error);
   if (!data) throw new Error("Falha ao criar o silo.");
+  try {
+    await insertDefaultSiloGroupsInternal(supabase, data.id);
+  } catch (groupError) {
+    console.warn("[silo-groups] failed to seed defaults for new silo", {
+      siloId: data.id,
+      error: groupError,
+    });
+  }
   return data as Silo;
 }
 

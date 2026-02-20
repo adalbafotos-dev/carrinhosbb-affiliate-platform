@@ -55,6 +55,11 @@ export type EditorMeta = {
   siloId: string;
   siloRole?: "PILLAR" | "SUPPORT" | "AUX";
   siloPosition?: number;
+  siloOrder?: number;
+  siloGroup?: string | null;
+  siloGroupOrder?: number;
+  showInSiloMenu?: boolean;
+  replaceExistingPillar?: boolean;
   amazonProducts: any[];
 };
 

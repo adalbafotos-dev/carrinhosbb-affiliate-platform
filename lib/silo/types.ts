@@ -47,6 +47,8 @@ export type SiloIssue = {
 export type LinkAudit = {
     id?: string;
     occurrence_id: string;
+    source_post_id?: string | null;
+    target_post_id?: string | null;
     score: number;
     label: "STRONG" | "OK" | "WEAK";
     reasons: string[];

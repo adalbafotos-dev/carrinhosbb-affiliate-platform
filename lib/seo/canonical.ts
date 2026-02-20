@@ -46,4 +46,3 @@ export function buildCanonicalUrl(siteUrl: string, canonicalPath: string): strin
   const path = normalizeCanonicalPath(canonicalPath) ?? "/";
   return path === "/" ? `${base}/` : `${base}${path}`;
 }
-

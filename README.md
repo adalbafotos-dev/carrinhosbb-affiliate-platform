@@ -1,80 +1,61 @@
-﻿# Plataforma de Nicho (Unhas/Manicure) -- Next.js 16 + Supabase + Tiptap
+# Bebê na Rota -- Affiliate Platform (Next.js + Supabase + Tiptap)
 
-Este repositorio e um *starter* pronto para:
-- Blog em arquitetura de **silos** (`/silo/post`) com **SSG + ISR** (`revalidate: 3600`)
-- CMS interno em `/admin` com **Tiptap** (focado em construtor de reviews)
-- Integracao preparada para **Amazon Associates** (links com `rel="sponsored"`)
+Base de site multi-silo com CMS interno para publicar guias e comparativos.
 
-> Importante: a area `/admin` usa senha simples via cookie httpOnly. Em producao, troque por um fluxo de login completo.
+## O que já vem pronto
+- Arquitetura de silos (`/silo/post`) com SSG + ISR
+- CMS em `/admin` com editor Tiptap
+- Fluxo de links internos, auditoria e importação de conteúdo
+- Estrutura para links de afiliados Amazon
 
-## Stack (fixa)
-- Next.js 16.0.7 (App Router, Server Actions)
-- React 19.2.1
-- Tailwind CSS 4.1.17
-- Supabase (PostgreSQL)
-- Tiptap (Headless, React)
-- Lucide React
-- Deploy: Vercel
+## Stack
+- Next.js 16 (App Router)
+- React 19
+- Tailwind CSS 4
+- Supabase (Postgres + Storage)
+- Tiptap
 
-## 1) Pre-requisitos
-- Node.js 20+ (recomendado)
-- Conta no Supabase
-
-## 2) Configuracao do Supabase
-
-1. Crie um projeto no Supabase.
-2. No SQL Editor do Supabase, execute:
-   - `supabase/schema.sql`
-3. Garanta o bucket publico `media` no Storage (migracao ja cria se nao existir).
-
-## 3) Variaveis de ambiente
-
-Crie um arquivo `.env.local` e preencha:
-
+## Variáveis de ambiente
+Configure em `.env.local`:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY` (somente servidor)
-- `ADMIN_PASSWORD` (senha para /admin/login)
-- `ADMIN_DISABLE_AUTH=1` (opcional, libera /admin apenas em ambiente local)
-- `ADMIN_UPLOAD_MAX_MB` (opcional, limite de upload no admin; default 6)
-- `SITE_URL` (ex.: https://seusite.com.br)
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ADMIN_PASSWORD`
+- `ADMIN_DISABLE_AUTH=1` (opcional para ambiente local)
+- `SITE_URL` (opcional; canonical padrão usa `https://bebenarota.com.br`)
 
-## 4) Seed inicial (silos + posts)
+## Banco de dados
+1. Execute `supabase/schema.sql` no projeto Supabase.
+2. Rode o seed:
 
-Apos criar as tabelas, rode:
 ```bash
 pnpm install
 pnpm seed
 ```
 
-O seed usa o JSON em `supabase/seed.json` e cria rascunhos + 1 publicado para smoke test.
+O seed atual cria:
+- 1 silo público: `mobilidade-e-passeio`
+- 7 posts base de carrinho de bebê
+- Desativação automática de silos legados fora do seed
 
-## 5) Rodar local
+## Rodar local
 ```bash
 pnpm dev
 ```
-- Site: http://localhost:3000
-- Admin: http://localhost:3000/admin (use /admin/login e ADMIN_PASSWORD)
 
-## 6) Deploy na Vercel
-- Adicione as mesmas variaveis de ambiente no projeto da Vercel.
-- Faca deploy normalmente.
+- Site: `http://localhost:3000`
+- Admin: `http://localhost:3000/admin`
 
-## 7) Estrutura de rotas
-- Home: `/`
-- Silo: `/{silo}`
-- Post: `/{silo}/{slug}`
-- Admin: `/admin`
-- Novo post: `/admin/new`
-- Editor: `/admin/editor/{postId}`
-- Login admin: `/admin/login`
+## Rotas públicas principais
+- `/`
+- `/mobilidade-e-passeio`
+- `/sobre`
+- `/politica-editorial`
+- `/politica-de-privacidade`
+- `/afiliados`
+- `/contato`
 
-## 8) Testes
-Para rodar os testes automatizados:
+## Testes
 ```bash
 pnpm test
 ```
-
-## 9) Compliance (Amazon Associates)
-- O site inclui um componente de aviso para afiliados no rodape.
-- O editor facilita inserir links com `nofollow` e `sponsored`.

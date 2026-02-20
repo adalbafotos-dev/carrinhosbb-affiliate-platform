@@ -1,3 +1,4 @@
+import { AMAZON_AFFILIATE_DISCLOSURE, SITE_URL } from "@/lib/site";
 import { ANA_LINDA_PROFILE } from "@/lib/site/collaborators";
 
 export const DEFAULT_EEAT_AUTHOR = {
@@ -5,11 +6,10 @@ export const DEFAULT_EEAT_AUTHOR = {
   expertName: ANA_LINDA_PROFILE.name,
   expertRole: ANA_LINDA_PROFILE.siteRole,
   expertBio: ANA_LINDA_PROFILE.shortBio,
-  expertCredentials: `Manicure e professora desde ${ANA_LINDA_PROFILE.experienceSince}`,
+  expertCredentials: `Autora e editora ativa desde ${ANA_LINDA_PROFILE.experienceSince}`,
   reviewedBy: ANA_LINDA_PROFILE.name,
-  disclaimer:
-    "Este conteúdo pode conter links de afiliado. Como Associado da Amazon, o Lindisse pode receber comissão por compras qualificadas, sem custo adicional para você.",
-  authorLinks: [...ANA_LINDA_PROFILE.links.map((link) => link.href), "https://lindisse.com.br/colaboradores"],
+  disclaimer: AMAZON_AFFILIATE_DISCLOSURE,
+  authorLinks: [...ANA_LINDA_PROFILE.links.map((link) => link.href), `${SITE_URL}/sobre`],
 } as const;
 
 function normalizeText(value: string | null | undefined) {
@@ -53,3 +53,4 @@ export function resolveDefaultEeat(input: {
     authorLinks: authorLinks.length ? authorLinks : [...DEFAULT_EEAT_AUTHOR.authorLinks],
   };
 }
+

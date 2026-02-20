@@ -7,7 +7,7 @@ export function PostCard({ post }: { post: PostWithSilo }) {
   return (
     <Link
       href={href}
-      className="group block rounded-2xl border border-(--border) bg-(--paper) p-5 transition hover:bg-(--surface-muted)"
+      className="brand-card group block rounded-2xl p-5 transition hover:brightness-95"
     >
       <div className="flex items-start justify-between gap-4">
         <div>

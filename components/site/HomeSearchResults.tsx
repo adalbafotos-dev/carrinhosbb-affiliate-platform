@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
+import { BrandBeamCard } from "@/components/site/BrandBeamCard";
+import { BorderBeam } from "@/components/ui/border-beam";
 import type { PostWithSilo } from "@/lib/types";
 
 type HomeSearchResultsProps = {
@@ -43,20 +45,20 @@ export function HomeSearchResults({ posts, maxResults = 10 }: HomeSearchResultsP
 
   return (
     <section className="space-y-4">
-      <div className="rounded-3xl border border-[rgba(165,119,100,0.24)] bg-[linear-gradient(150deg,rgba(255,255,255,0.97)_0%,rgba(255,247,230,0.93)_56%,rgba(241,188,153,0.28)_100%)] p-6 shadow-[0_12px_28px_-20px_rgba(165,119,100,0.36)]">
+      <BrandBeamCard as="div" className="rounded-3xl p-6">
         <p className="text-xs uppercase tracking-wide text-(--muted-2)">Busca</p>
         <h2 className="mt-2 text-2xl font-semibold text-(--ink)">Resultados para &quot;{query}&quot;</h2>
         <p className="mt-2 text-sm text-(--muted)">{results.length} resultado(s) encontrado(s) nos guias mais recentes.</p>
-      </div>
+      </BrandBeamCard>
 
       {results.length === 0 ? (
-        <div className="rounded-2xl border border-[rgba(165,119,100,0.24)] bg-[linear-gradient(154deg,rgba(255,255,255,0.97)_0%,rgba(255,247,230,0.92)_62%,rgba(241,188,153,0.22)_100%)] p-5 text-sm text-(--muted)">
-          Nenhum resultado por enquanto. Tente termos mais amplos como &quot;cabine&quot;, &quot;gel&quot; ou
-          &quot;alongamento&quot;.
-        </div>
+        <BrandBeamCard as="div" className="rounded-2xl p-5 text-sm text-(--muted)">
+          Nenhum resultado por enquanto. Tente termos mais amplos como &quot;carrinho&quot;, &quot;passeio&quot; ou
+          &quot;mobilidade&quot;.
+        </BrandBeamCard>
       ) : (
         <div className="stagger-grid grid gap-5 md:grid-cols-2">
-          {results.map((post) => {
+          {results.map((post, index) => {
             const cover = resolvePostCover(post);
             const coverAlt = post.hero_image_alt || post.title;
             const href = post.silo ? `/${post.silo.slug}/${post.slug}` : "#";
@@ -65,7 +67,7 @@ export function HomeSearchResults({ posts, maxResults = 10 }: HomeSearchResultsP
               <Link
                 key={post.id}
                 href={href}
-                className="group flex h-full flex-col overflow-hidden rounded-2xl border border-[rgba(165,119,100,0.24)] bg-[linear-gradient(160deg,rgba(255,255,255,0.98)_0%,rgba(255,249,237,0.94)_60%,rgba(241,188,153,0.24)_100%)] shadow-[0_12px_28px_-22px_rgba(165,119,100,0.38)] transition hover:-translate-y-0.5 hover:shadow-[0_16px_32px_-20px_rgba(165,119,100,0.46)]"
+                className="brand-card group relative flex h-full flex-col overflow-hidden rounded-2xl transition hover:-translate-y-0.5 hover:brightness-95"
               >
                 <div className="relative aspect-[16/9] overflow-hidden border-b border-[rgba(165,119,100,0.2)] bg-[rgba(255,248,234,0.8)]">
                   {cover ? (
@@ -92,6 +94,24 @@ export function HomeSearchResults({ posts, maxResults = 10 }: HomeSearchResultsP
                     Abrir guia
                   </span>
                 </div>
+                <BorderBeam
+                  size={400}
+                  duration={6}
+                  delay={index % 4}
+                  colorFrom="transparent"
+                  colorTo="#136863"
+                  borderWidth={1}
+                  className="from-transparent to-transparent"
+                />
+                <BorderBeam
+                  size={400}
+                  duration={6}
+                  delay={(index % 4) + 3}
+                  colorFrom="transparent"
+                  colorTo="#136863"
+                  borderWidth={2}
+                  className="from-transparent to-transparent"
+                />
               </Link>
             );
           })}
@@ -100,3 +120,4 @@ export function HomeSearchResults({ posts, maxResults = 10 }: HomeSearchResultsP
     </section>
   );
 }
+

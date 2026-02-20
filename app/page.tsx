@@ -1,104 +1,79 @@
-import Link from "next/link";
-import Image from "next/image";
+﻿import Link from "next/link";
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { listLatestPublicPosts } from "@/lib/db";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { SiloNarrativeCarousel } from "@/components/site/SiloNarrativeCarousel";
+import { BrandBeamCard } from "@/components/site/BrandBeamCard";
 import { HomeSearchResults } from "@/components/site/HomeSearchResults";
 import { resolveSiteUrl } from "@/lib/site/url";
-import { ANA_LINDA_PROFILE } from "@/lib/site/collaborators";
+import { SITE_BRAND_TAGLINE, SITE_DESCRIPTION, SITE_NAME } from "@/lib/site";
 
 export const revalidate = 3600;
 
 const siteUrl = resolveSiteUrl();
-const homeSocialImage = "/unhas-francesinhas-criativas-e-coloridas.webp";
+const homeSocialImage = "/favicon.ico";
 const twitterSite = process.env.NEXT_PUBLIC_TWITTER_SITE?.trim() || undefined;
 
 export const metadata: Metadata = {
-  title: "Analises e Comparativos de Materiais para Unhas de Gel e Fibra | Lindisse",
-  description:
-    "Analises tecnicas de materiais e equipamentos para unhas de gel, fibra e nail design. Criterios claros, comparativos e recomendacoes para decisoes de compra seguras.",
+  title: SITE_BRAND_TAGLINE,
+  description: SITE_DESCRIPTION,
   alternates: {
     canonical: "/",
   },
   openGraph: {
     type: "website",
     url: siteUrl,
-    siteName: "Lindisse",
+    siteName: SITE_NAME,
     locale: "pt_BR",
-    title: "Analises e Comparativos de Materiais para Unhas (Gel e Fibra)",
-    description:
-      "Criterios claros, comparativos e recomendacoes seguras para escolher materiais e equipamentos com mais confianca.",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
     images: [
       {
         url: homeSocialImage,
-        alt: "Materiais e equipamentos para unhas de gel e fibra em bancada de manicure",
+        alt: `${SITE_NAME} - guias e comparativos para bebê`,
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
     site: twitterSite,
-    title: "Analises de materiais para unhas (gel e fibra)",
-    description: "Comparativos e criterios claros para decidir com seguranca.",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
     images: [homeSocialImage],
   },
 };
 
-const fallbackAffiliateShowcase = [
+const WHAT_YOU_FIND = [
   {
-    id: "sun5-48w",
-    title: "Cabine Led/uv Sun5 Digital 48w Unhas Gel Acrigel, Branca Bivolt 110v - 220v",
-    image: "/Cabine Led uv Sun5 Digital 48w Unhas Gel Acrigel, Branca Bivolt 110v - 220v.webp",
-    href: "https://amzn.to/462V1GM",
+    title: "Guias acolhedores e práticos",
+    description: "O que olhar, como escolher e para quem cada opção faz sentido.",
   },
   {
-    id: "kit-gel-acrigel",
-    title: "Kit Unhas Gel Acrigel Alongamento Cabine Completo",
-    image: "/Kit Unhas Gel Acrigel Alongamento Cabine Completo.webp",
-    href: "https://amzn.to/4ktOivm",
+    title: "Comparativos fáceis de entender",
+    description: "Tabelas e resumos por perfil e orçamento.",
   },
   {
-    id: "kit-completo-manicure",
-    title: "Kit Completo Manicure Unhas de Gel com Cabine Sun LED UV 48W e Lixadeira Elétrica Caneta Bivolt (Branco)",
-    image: "/Kit Completo Manicure Unhas de Gel com Cabine Sun LED UV 48W e Lixadeira Elétrica Caneta Bivolt.webp",
-    href: "https://amzn.to/3MisTJ5",
+    title: "Recomendações com responsabilidade",
+    description: "Quando vale investir e quando não precisa.",
   },
 ] as const;
 
-function HomeSectionIndicator({ iconSrc, label }: { iconSrc: string; label: string }) {
-  return (
-    <p className="session-indicator text-(--muted-2)">
-      <Image
-        src={iconSrc}
-        alt=""
-        aria-hidden
-        width={96}
-        height={96}
-        sizes="(min-width: 768px) 96px, 72px"
-        className="session-indicator-icon"
-      />
-      <span>{label}</span>
-    </p>
-  );
-}
 export default async function HomePage() {
   const rawPosts = await listLatestPublicPosts(48);
-  const recentPosts = rawPosts.slice(0, 8);
+  const latestPosts = rawPosts.slice(0, 8);
 
   const organizationLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "Lindisse",
+    name: SITE_NAME,
     url: siteUrl,
-    description: "Guias e reviews para nail designers, com foco em testes reais e decisões seguras de compra.",
+    description: SITE_DESCRIPTION,
   };
 
   const websiteLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "Lindisse",
+    name: SITE_NAME,
     url: siteUrl,
     potentialAction: {
       "@type": "SearchAction",
@@ -110,28 +85,33 @@ export default async function HomePage() {
   return (
     <div className="space-y-12 page-in">
       <section data-home-scroll className="relative flex min-h-[calc(100dvh-var(--home-header-height,136px))] items-center pt-6 pb-8 md:pt-10 md:pb-16">
-        <div className="relative z-10 mx-auto grid w-full max-w-6xl items-start gap-6 px-4 md:grid-cols-2 md:items-center">
-          <article className="relative rounded-3xl border border-[rgba(165,119,100,0.28)] bg-[linear-gradient(148deg,rgba(255,255,255,0.95)_0%,rgba(255,247,230,0.96)_52%,rgba(241,188,153,0.52)_100%)] p-6 shadow-[0_20px_44px_rgba(165,119,100,0.18)] md:p-8">
-            <h1 className="text-3xl font-semibold leading-tight md:text-5xl">
-              As Melhores Escolhas em Materiais para Unhas de Gel, Fibra e Nail Design
-            </h1>
-            <p className="mt-4 max-w-2xl text-base font-medium leading-relaxed text-(--muted) md:text-lg">
-              Análises técnicas, comparativos honestos e recomendações de quem entende, para você investir no
-              equipamento certo e evitar prejuízos.
+        <div className="relative z-10 mx-auto grid w-full max-w-6xl items-start gap-6 px-4">
+          <BrandBeamCard as="article" className="rounded-3xl p-6 md:p-8">
+            <h1 className="text-3xl font-semibold leading-tight text-(--ink) md:text-5xl">{SITE_NAME}</h1>
+            <p className="mt-4 max-w-4xl text-base font-medium leading-relaxed text-(--muted) md:text-lg">
+              Guias e comparativos para você escolher com calma, segurança e mais confiança na rotina com bebê.
             </p>
-          </article>
+            <p className="mt-4 max-w-4xl text-sm leading-relaxed text-(--muted)">
+              A rotina muda tudo. E, no meio de tanta opção, é normal ficar com dúvida. Aqui a gente te ajuda a decidir
+              com tranquilidade: o que realmente importa na prática, o que vale a pena e o que você pode ignorar sem
+              culpa. Um passo de cada vez, sem pressão e sem compra por impulso.
+            </p>
 
-          <div className="relative m-0 p-0">
-            <Image
-              src="/unhas-francesinhas-criativas-e-coloridas.webp"
-              alt="Unhas francesinhas criativas e coloridas"
-              width={1024}
-              height={683}
-              priority
-              sizes="(min-width: 768px) 46vw, 92vw"
-              className="m-0 h-auto w-full p-0 object-contain object-bottom align-bottom"
-            />
-          </div>
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/mobilidade-e-passeio"
+                className="inline-flex items-center justify-center rounded-xl bg-(--brand-hot) px-5 py-3 text-sm font-semibold text-white transition hover:brightness-95"
+              >
+                Começar por Mobilidade e Passeio
+              </Link>
+              <Link
+                href="#posts-mais-novos"
+                className="inline-flex items-center justify-center rounded-xl border border-[rgba(165,119,100,0.24)] bg-white/80 px-5 py-3 text-sm font-semibold text-(--ink) transition hover:border-(--brand-hot) hover:text-(--brand-hot)"
+              >
+                Ver os posts mais novos
+              </Link>
+            </div>
+          </BrandBeamCard>
         </div>
       </section>
 
@@ -139,215 +119,70 @@ export default async function HomePage() {
         <HomeSearchResults posts={rawPosts} />
       </Suspense>
 
-      <section data-home-scroll id="silos">
-        <SiloNarrativeCarousel />
-      </section>
+      <section data-home-scroll id="missao-visao" className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10">
+        <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">Missão e visão</h2>
 
-      <section data-home-scroll id="melhores" className="space-y-4">
-        <div className="flex flex-col gap-1">
-          <HomeSectionIndicator iconSrc="/maos-e-dedos01.webp" label="Conteúdo de monetização" />
-          <h2 className="text-2xl font-semibold text-(--ink)">Melhores escolhas do ano</h2>
-          <p className="text-sm text-(--muted)">
-            Guias comparativos de cabine UV/LED, géis e kits para você comprar com segurança e melhor custo-benefício.
-          </p>
+        <div className="grid gap-6 md:grid-cols-2">
+          <BrandBeamCard as="article" className="rounded-2xl p-5">
+            <h3 className="text-lg font-semibold text-(--ink)">Missão</h3>
+            <p className="mt-2 text-sm leading-relaxed text-(--muted)">
+              Ajudar famílias a fazerem escolhas mais seguras e conscientes para o dia a dia com bebê, com conteúdo
+              simples, direto e fácil de aplicar. Do tipo que reduz ansiedade e aumenta clareza.
+            </p>
+          </BrandBeamCard>
+
+          <BrandBeamCard as="article" className="rounded-2xl p-5">
+            <h3 className="text-lg font-semibold text-(--ink)">Visão</h3>
+            <p className="mt-2 text-sm leading-relaxed text-(--muted)">
+              Ser um guia confiável para quem quer comprar melhor, com comparativos e recomendações que respeitam a vida
+              real: orçamento, rotina, espaço em casa, deslocamento e aquele detalhe que só quem vive sabe.
+            </p>
+          </BrandBeamCard>
         </div>
 
-        <div className="space-y-2">
-          {fallbackAffiliateShowcase.map((offer) => (
-            <article
-              key={offer.id}
-              className="grid grid-cols-[80px_1fr] gap-3 rounded-xl border border-[rgba(165,119,100,0.16)] bg-[rgba(230,228,226,0.78)] p-2 sm:grid-cols-[80px_1fr_auto]"
-            >
-              <a
-                href={offer.href}
-                target="_blank"
-                rel="sponsored nofollow noopener noreferrer"
-                className="block h-20 w-20 overflow-hidden rounded-lg border border-[rgba(165,119,100,0.14)] bg-[rgba(255,255,255,0.58)]"
+        <ul className="grid gap-3 text-sm text-(--muted) md:grid-cols-3">
+          <BrandBeamCard as="li" className="rounded-xl p-4">Conteúdo pensado para a rotina de verdade.</BrandBeamCard>
+          <BrandBeamCard as="li" className="rounded-xl p-4">Comparativos que ajudam a decidir sem estresse.</BrandBeamCard>
+          <BrandBeamCard as="li" className="rounded-xl p-4">
+            Recomendações com critério e responsabilidade.
+          </BrandBeamCard>
+        </ul>
+      </section>
+
+      <section data-home-scroll id="sobre" className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10">
+        <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">Sobre o {SITE_NAME}</h2>
+        <p className="max-w-4xl text-sm leading-relaxed text-(--muted)">
+          O {SITE_NAME} nasceu para ser um lugar calmo no meio do barulho. Um cantinho de referência para quem quer
+          entender e escolher melhor itens de puericultura, começando por carrinhos e mobilidade.
+        </p>
+        <p className="max-w-4xl text-sm leading-relaxed text-(--muted)">
+          Aqui você vai encontrar guias e reviews com uma ideia simples: ajudar você a decidir com mais segurança e menos
+          dúvida. Sem complicar, sem prometer milagre e sem te empurrar coisa desnecessária.
+        </p>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          {WHAT_YOU_FIND.map((item) => (
+              <BrandBeamCard
+                as="article"
+                key={item.title}
+                className="rounded-2xl p-5"
               >
-                <Image
-                  src={offer.image}
-                  alt={offer.title}
-                  width={80}
-                  height={80}
-                  sizes="80px"
-                  className="h-20 w-20 object-contain p-1"
-                />
-              </a>
-
-              <div className="min-w-0 self-center">
-                <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-[rgba(43,44,48,0.86)]">
-                  {offer.title}
-                </h3>
-              </div>
-
-              <div className="col-span-2 sm:col-span-1 sm:self-center">
-                <a
-                  href={offer.href}
-                  target="_blank"
-                  rel="sponsored nofollow noopener noreferrer"
-                  className="inline-flex w-full items-center justify-center rounded-lg border border-[rgba(165,119,100,0.2)] bg-[rgba(241,188,153,0.24)] px-3 py-1.5 text-xs font-semibold text-[rgba(43,44,48,0.75)] transition hover:bg-[rgba(241,188,153,0.32)] sm:w-auto"
-                >
-                  Ver preco na Amazon
-                </a>
-              </div>
-            </article>
+              <h3 className="text-base font-semibold text-(--ink)">{item.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-(--muted)">{item.description}</p>
+            </BrandBeamCard>
           ))}
         </div>
       </section>
 
-      <section
-        data-home-scroll
-        id="manifesto"
-        className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10"
-      >
-        <HomeSectionIndicator iconSrc="/maos-e-dedos02.webp" label="Missão e Visão" />
-        <h2 className="max-w-4xl text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
-          Elevando o Padrão da Nail Designer Brasileira: Onde a Técnica Encontra a Química
-        </h2>
+      <section data-home-scroll id="posts-mais-novos" className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10">
+        <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">Posts mais novos</h2>
+        <p className="text-sm text-(--muted)">Conteúdos recentes para te ajudar a decidir com mais tranquilidade.</p>
 
-        <div className="grid gap-8 lg:grid-cols-[1.3fr_1fr]">
-          <article className="space-y-4 text-[17px] leading-relaxed text-(--muted)">
-            <p>
-              No Lindisse, nós não enxergamos unhas apenas como estética; nós enxergamos como uma ciência de precisão.
-              A nossa visão é clara: combater a desinformação que causa descolamentos precoces, alergias severas e
-              prejuízos na mesa de atendimento.
-            </p>
-            <p>
-              Acreditamos que uma Nail Designer de Elite não é apenas aquela que faz uma arte bonita, mas aquela que
-              domina a biossegurança, entende a polimerização dos polímeros e sabe escolher ferramentas que protegem a
-              saúde da lâmina ungueal da cliente.
-            </p>
-            <p>
-              Nossa missão é ser o seu laboratório de confiança. Nós dissecamos rótulos, testamos a potência real de
-              cabines UV/LED e analisamos a viscosidade de géis construtores para que você não precise gastar seu lucro
-              testando produtos ruins. Queremos que você tenha segurança para cobrar mais, sabendo que entrega um
-              alongamento com durabilidade, curvatura C simétrica e resistência mecânica superior.
-            </p>
-          </article>
-
-          <aside className="space-y-3 border-l border-[rgba(193,149,86,0.4)] pl-5 text-sm leading-relaxed text-(--muted) md:text-base">
-            <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">O que você vai dominar</p>
-            <p>
-              Biossegurança no atendimento · Polimerização correta · Escolha da cabine UV/LED · Viscosidade ideal do
-              gel · Curvatura C com resistência
-            </p>
-            <p className="text-xs font-semibold uppercase tracking-wide text-(--muted-2)">
-              O que muda no seu resultado
-            </p>
-            <p>
-              Menos manutenção precoce, mais durabilidade no alongamento e mais segurança para atender e cobrar melhor.
-            </p>
-          </aside>
-        </div>
-      </section>
-
-      <section
-        data-home-scroll
-        id="sobre-lindisse"
-        className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10"
-      >
-        <HomeSectionIndicator iconSrc="/maos-e-dedos03.webp" label="Sobre" />
-        <h2 className="max-w-3xl text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
-          A Curadoria Técnica que a Sua Mesa Exige
-        </h2>
-        <p className="max-w-4xl text-base leading-relaxed text-(--muted) md:text-lg">
-          A internet está cheia de "dicas rápidas", mas a sua profissão exige protocolos seguros. O Lindisse nasceu da
-          necessidade de filtrar o ruído do mercado e entregar análises fundamentadas em critérios técnicos, não em
-          "achismos" ou publicidade vazia.
-        </p>
-        <p className="max-w-4xl text-base leading-relaxed text-(--muted) md:text-lg">
-          Nós atuamos como um filtro de qualidade entre os milhares de produtos da Amazon e a sua bancada de trabalho.
-          Nossos guias e reviews são construídos com foco em três pilares inegociáveis:
-        </p>
-
-        <article className="rounded-2xl border border-[rgba(165,119,100,0.28)] bg-[linear-gradient(146deg,rgba(255,255,255,0.96)_0%,rgba(255,247,230,0.95)_56%,rgba(241,188,153,0.32)_100%)] p-4 shadow-[0_12px_28px_rgba(165,119,100,0.14)] sm:p-5">
-          <div className="grid gap-4 sm:grid-cols-[96px_minmax(0,1fr)] sm:items-center">
-            <Image
-              src={ANA_LINDA_PROFILE.image.src}
-              alt={ANA_LINDA_PROFILE.image.alt}
-              width={ANA_LINDA_PROFILE.image.width}
-              height={ANA_LINDA_PROFILE.image.height}
-              sizes="96px"
-              className="h-24 w-24 rounded-xl border border-[rgba(165,119,100,0.24)] bg-white/70 object-cover"
-            />
-            <div className="space-y-2">
-              <p className="inline-flex w-fit rounded-full border border-[rgba(165,119,100,0.24)] bg-white/72 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-[rgba(125,86,69,0.92)]">
-                Autora especialista
-              </p>
-              <h3 className="text-lg font-semibold text-(--ink)">{ANA_LINDA_PROFILE.name}</h3>
-              <p className="text-sm leading-relaxed text-(--muted)">{ANA_LINDA_PROFILE.expertBoxShort}</p>
-              <div className="flex flex-wrap gap-3 text-xs">
-                <Link
-                  href="/colaboradores"
-                  className="inline-flex items-center rounded-full border border-[rgba(165,119,100,0.24)] bg-white/78 px-3 py-1 font-semibold text-[rgba(212,92,67,0.95)] transition hover:bg-[rgba(241,188,153,0.24)]"
-                >
-                  Ver perfil completo
-                </Link>
-                {ANA_LINDA_PROFILE.links[0] ? (
-                  <a
-                    href={ANA_LINDA_PROFILE.links[0].href}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center rounded-full border border-[rgba(165,119,100,0.24)] bg-white/78 px-3 py-1 font-semibold text-[rgba(212,92,67,0.95)] transition hover:bg-[rgba(241,188,153,0.24)]"
-                  >
-                    {ANA_LINDA_PROFILE.links[0].label}
-                  </a>
-                ) : null}
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <div className="grid gap-6 md:grid-cols-3">
-          <article className="space-y-2">
-            <h3 className="text-lg font-semibold text-(--ink)">Clareza Técnica</h3>
-            <p className="text-sm leading-relaxed text-(--muted) md:text-base">
-              Traduzimos termos químicos complexos (como reações exotérmicas e fotoiniciadores) para a linguagem do
-              seu dia a dia, ajudando você a evitar géis que queimam excessivamente ou top coats que amarelam.
-            </p>
-          </article>
-
-          <article className="space-y-2">
-            <h3 className="text-lg font-semibold text-(--ink)">Conteúdo claro e prático</h3>
-            <p className="text-sm leading-relaxed text-(--muted) md:text-base">
-              Nada de recomendação vaga. Você entende o motivo de cada escolha com comparativos de torque de
-              micromotor, granulação de lixas e ergonomia de cabines para investir com confiança.
-            </p>
-          </article>
-
-          <article className="space-y-2">
-            <h3 className="text-lg font-semibold text-(--ink)">Recomendações Seguras</h3>
-            <p className="text-sm leading-relaxed text-(--muted) md:text-base">
-              Só indicamos produtos que passaram no teste de eficiência e segurança. Se um prep não equilibra o pH
-              corretamente ou se um primer ácido é agressivo demais, nós alertamos.
-            </p>
-          </article>
-        </div>
-
-        <p className="max-w-4xl text-base leading-relaxed text-(--muted) md:text-lg">
-          O foco é a integridade da unha natural e a longevidade do seu serviço. Aqui, você toma decisões baseadas em
-          dados, garantindo que cada centavo investido retorne em forma de clientes fiéis e agenda cheia.
-        </p>
-      </section>
-
-      <section
-        data-home-scroll
-        id="analises-recentes"
-        className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10"
-      >
-        <HomeSectionIndicator iconSrc="/maos-e-dedos04.webp" label="Posts mais Novos" />
-        <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
-          Análises Recentes e Atualizações do Mercado
-        </h2>
-
-        {recentPosts.length === 0 ? (
-          <p className="text-sm text-(--muted)">
-            Novas análises estão a caminho. Em breve você verá aqui os conteúdos mais recentes sobre produtos,
-            técnicas e tendências do mercado.
-          </p>
+        {latestPosts.length === 0 ? (
+          <p className="text-sm text-(--muted)">Novos conteúdos serão publicados em breve.</p>
         ) : (
           <ol className="divide-y divide-[rgba(193,149,86,0.36)]">
-            {recentPosts.map((post) => (
+            {latestPosts.map((post) => (
               <li key={post.id} className="py-4">
                 <Link
                   href={post.silo ? `/${post.silo.slug}/${post.slug}` : "#"}
@@ -356,13 +191,9 @@ export default async function HomePage() {
                   <div>
                     <p className="text-[11px] uppercase tracking-wide text-(--muted-2)">{post.silo?.name ?? "Guia"}</p>
                     <p className="mt-1 text-lg font-semibold text-(--ink)">{post.title}</p>
-                    <p className="mt-1 line-clamp-2 text-sm text-(--muted)">
-                      {post.meta_description || "Abrir análise para ver critérios, comparativos e recomendações."}
-                    </p>
+                    <p className="mt-1 line-clamp-2 text-sm text-(--muted)">{post.meta_description || "Abrir conteúdo"}</p>
                   </div>
-                  <p className="text-sm font-semibold text-(--brand-hot) transition group-hover:translate-x-0.5">
-                    Ler análise
-                  </p>
+                  <p className="text-sm font-semibold text-(--brand-hot) transition group-hover:translate-x-0.5">Ler guia</p>
                 </Link>
               </li>
             ))}
@@ -370,34 +201,25 @@ export default async function HomePage() {
         )}
       </section>
 
-      <section
-        data-home-scroll
-        id="cta-recomendacoes"
-        className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10"
-      >
-        <HomeSectionIndicator iconSrc="/maos-e-dedos05.webp" label="Saiba Mais" />
-        <div className="grid gap-6 md:grid-cols-[1.2fr_auto] md:items-end">
-          <div className="space-y-3 rounded-3xl border border-[rgba(165,119,100,0.28)] bg-[linear-gradient(148deg,rgba(255,255,255,0.95)_0%,rgba(255,247,230,0.98)_52%,rgba(241,188,153,0.5)_100%)] p-6 shadow-[0_16px_36px_rgba(165,119,100,0.16)] md:p-8">
-            <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">
-              Travada em alguma escolha técnica?
-            </h2>
-            <p className="text-base leading-relaxed text-(--muted) md:text-lg">
-              Não compre no escuro. Se você está em dúvida entre qual Cabine de 48W ou 72W escolher, ou qual Kit de
-              Fibra oferece o melhor custo-benefício para iniciantes, nós podemos te direcionar.
+      <section data-home-scroll id="cta" className="space-y-5 border-t border-[rgba(193,149,86,0.4)] pt-10">
+        <BrandBeamCard as="div" className="grid gap-6 rounded-3xl p-6 md:grid-cols-[1.2fr_auto] md:items-end md:p-8">
+          <div className="space-y-2">
+            <h2 className="text-3xl font-semibold leading-tight text-(--ink)">Quer uma ajuda para escolher com mais segurança?</h2>
+            <p className="text-base leading-relaxed text-(--muted)">
+              Se você está em dúvida, quer sugerir um tema ou quer que a gente cubra um tipo específico de carrinho
+              (viagem, compacto, custo-benefício, bebê de 1 ano...), manda sua pergunta. Às vezes a sua dúvida é
+              exatamente o próximo guia que muita gente precisa.
             </p>
-            <p className="text-sm leading-relaxed text-(--muted)">
-              Diga-nos qual o seu nível (Iniciante ou Master) e o que você busca resolver hoje (redução de tempo de
-              mesa, acabamento ou durabilidade). Nossos guias te levam direto ao produto certo na Amazon.
-            </p>
+            <p className="text-xs text-(--muted-2)">Você também pode sugerir um tema para o próximo artigo.</p>
           </div>
 
           <Link
-            href="/equipamentos/cabine-de-unha-profissional"
+            href="/contato"
             className="inline-flex h-fit items-center justify-center rounded-xl bg-(--brand-hot) px-6 py-3 text-sm font-semibold text-white transition hover:brightness-95"
           >
-            Ver Cabines Profissionais
+            Falar com a gente
           </Link>
-        </div>
+        </BrandBeamCard>
       </section>
 
       <JsonLd data={[organizationLd, websiteLd]} />

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Check, ExternalLink, Link as LinkIcon, Search, X } from "lucide-react";
@@ -89,7 +89,7 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
 
   const staticPages = useMemo(
     () => [
-      { title: "Sobre", href: "/#sobre-lindisse" },
+      { title: "Sobre", href: "/sobre" },
       { title: "Contato", href: "/contato" },
     ],
     []
@@ -219,7 +219,7 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
       setInternalScope("silo");
     }
     if (next === "about") {
-      setUrl("/#sobre-lindisse");
+      setUrl("/sobre");
       setAboutEntity(true);
       setMentionEntity(false);
     }
@@ -277,7 +277,8 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
       target: effectiveOpenInNewTab ? "_blank" : null,
       rel,
       "data-link-type": effectiveLinkType,
-      "data-post-id": effectiveLinkType === "mention" ? options.nextPostId ?? null : null,
+      "data-post-id":
+        effectiveLinkType === "internal" || effectiveLinkType === "mention" ? options.nextPostId ?? null : null,
       "data-entity-type": effectiveAbout ? "about" : effectiveMention ? "mention" : null,
       "data-entity": effectiveAbout ? "about" : effectiveMention ? "mention" : null,
     };
@@ -493,6 +494,7 @@ export function AdvancedLinkDialog({ open, onClose }: Props) {
                               displayText: selectedText || item.title,
                               nextLinkType: "internal",
                               forceInternalSilo: true,
+                              nextPostId: item.id,
                             });
                           }}
                           className="w-full rounded-md border border-(--border) px-3 py-2 text-left text-xs text-(--muted) hover:bg-(--surface-muted)"
@@ -639,3 +641,5 @@ function Toggle({
     </label>
   );
 }
+
+

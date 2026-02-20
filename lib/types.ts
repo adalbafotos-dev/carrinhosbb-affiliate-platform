@@ -11,6 +11,7 @@ export type Silo = {
   pillar_content_html?: string | null;
   menu_order?: number | null;
   is_active?: boolean | null;
+  show_in_navigation?: boolean | null;
   created_at: string;
 };
 
@@ -41,6 +42,11 @@ export type Post = {
   images?: any[] | null;
   intent?: "commercial" | "transactional" | "informational" | null | string;
   pillar_rank?: number | null;
+  silo_role?: "PILLAR" | "SUPPORT" | "AUX" | null;
+  silo_group?: string | null;
+  silo_order?: number | null;
+  silo_group_order?: number | null;
+  show_in_silo_menu?: boolean | null;
   is_featured?: boolean | null;
   author_name?: string | null;
   expert_name?: string | null;
@@ -59,6 +65,17 @@ export type Post = {
   raw_payload?: any | null;
   amazon_products: any | null;
   published: boolean | null;
+  updated_at: string;
+};
+
+export type SiloGroup = {
+  id: string;
+  silo_id: string;
+  key: string;
+  label: string;
+  menu_order: number;
+  keywords?: string[] | null;
+  created_at: string;
   updated_at: string;
 };
 

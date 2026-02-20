@@ -70,6 +70,7 @@ async function revalidatePostPaths(id: string) {
   const siloSlug = post.silo?.slug;
   if (siloSlug) {
     revalidatePath(`/${siloSlug}`);
+    revalidatePath(`/silos/${siloSlug}`);
     revalidatePath(`/${siloSlug}/${post.slug}`);
   }
 

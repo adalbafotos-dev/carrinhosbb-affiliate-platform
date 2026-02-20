@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Editor } from "@tiptap/react";
@@ -146,7 +146,7 @@ export function LinkDialog({ editor, open, onClose }: Props) {
       setOpenInNewTab(false);
     }
     if (next === "about") {
-      setUrl("/#sobre-lindisse");
+      setUrl("/sobre");
       setAboutEntity(true);
       setMentionEntity(false);
     }
@@ -417,3 +417,5 @@ function Toggle({
     </label>
   );
 }
+
+

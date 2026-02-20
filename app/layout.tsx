@@ -2,7 +2,11 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
 import { SiteChrome } from "@/components/site/SiteChrome";
-import { resolveSiteUrl } from "@/lib/site/url";
+import type { SiteHeaderLink } from "@/components/site/SiteHeader";
+import { getPublicPostsBySilo, getPublicSiloGroupsBySiloId, getPublicSilos } from "@/lib/db";
+import { SITE_DESCRIPTION, SITE_LOCALE, SITE_NAME, SITE_URL } from "@/lib/site";
+import { normalizeSiloGroup } from "@/lib/silo/groups";
+import type { Post, SiloGroup } from "@/lib/types";
 
 const body = Manrope({
   subsets: ["latin"],
@@ -10,37 +14,196 @@ const body = Manrope({
   weight: ["400", "500", "600", "700"],
 });
 
-const defaultSiteUrl = resolveSiteUrl();
+const ogLocale = SITE_LOCALE.replace("-", "_");
+const twitterSite = process.env.NEXT_PUBLIC_TWITTER_SITE?.trim() || undefined;
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: {
-    default: "Lindisse | Guia definitivo para nail designers",
-    template: "%s | Lindisse",
+    default: SITE_NAME,
+    template: `%s | ${SITE_NAME}`,
   },
   icons: {
     icon: [{ url: "/favicon.ico", type: "image/x-icon", sizes: "any" }],
     shortcut: [{ url: "/favicon.ico", type: "image/x-icon" }],
     apple: [{ url: "/favicon.ico" }],
   },
-  description:
-    "Guias, reviews e comparativos para nail designers comprarem melhor, com metodologia transparente e foco em E-E-A-T.",
-  metadataBase: new URL(defaultSiteUrl),
+  description: SITE_DESCRIPTION,
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     type: "website",
-    siteName: "Lindisse",
-    title: "Lindisse | Guia definitivo para nail designers",
-    description:
-      "Análises técnicas, testes reais e recomendações para manicure, gel e equipamentos.",
-    url: defaultSiteUrl,
+    siteName: SITE_NAME,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    url: SITE_URL,
+    locale: ogLocale,
+  },
+  twitter: {
+    card: "summary_large_image",
+    site: twitterSite,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+function buildHeaderLinksFromSilos(siloLinks: SiteHeaderLink[]): SiteHeaderLink[] {
+  const links: SiteHeaderLink[] = [
+    { href: "/", label: "Home" },
+    ...siloLinks,
+    { href: "/sobre", label: "Sobre" },
+    { href: "/contato", label: "Contato" },
+  ];
+  const seen = new Set<string>();
+  return links.filter((link) => {
+    if (!link.href || seen.has(link.href)) return false;
+    seen.add(link.href);
+    return true;
+  });
+}
+
+function normalizeRole(value: unknown): "PILLAR" | "SUPPORT" | "AUX" | null {
+  const normalized = String(value ?? "")
+    .trim()
+    .toUpperCase();
+  if (normalized === "PILLAR" || normalized === "SUPPORT" || normalized === "AUX") return normalized;
+  return null;
+}
+
+function normalizeOrder(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+}
+
+function buildSiloSubmenu(siloSlug: string, posts: Post[], groups: SiloGroup[]): SiteHeaderLink["submenu"] {
+  const groupByKey = new Map(
+    (groups ?? [])
+      .filter((group) => normalizeSiloGroup(group.key))
+      .map((group) => [String(group.key), { label: group.label, order: normalizeOrder(group.menu_order) }])
+  );
+
+  type MenuPost = {
+    label: string;
+    href: string;
+    role: "PILLAR" | "SUPPORT" | "AUX" | null;
+    groupKey: string | null;
+    order: number;
+    visible: boolean;
+  };
+
+  const menuPosts: MenuPost[] = (posts ?? [])
+    .map((post) => {
+      const role = normalizeRole(post.silo_role);
+      const groupKey = role === "PILLAR" || role === "AUX" ? null : normalizeSiloGroup(post.silo_group);
+      const order = normalizeOrder(
+        typeof post.silo_order === "number" ? post.silo_order : post.silo_group_order
+      );
+      return {
+        label: post.title,
+        href: `/${siloSlug}/${post.slug}`,
+        role,
+        groupKey,
+        order,
+        visible: role === "PILLAR" ? true : role === "AUX" ? false : post.show_in_silo_menu !== false,
+      };
+    })
+    .filter((post) => post.visible && Boolean(post.label && post.href));
+
+  if (menuPosts.length === 0) return undefined;
+
+  const sortByOrderThenTitle = (a: MenuPost, b: MenuPost) => {
+    if (a.order !== b.order) return a.order - b.order;
+    return a.label.localeCompare(b.label, "pt-BR");
+  };
+
+  const submenu: NonNullable<SiteHeaderLink["submenu"]> = [];
+
+  const pillarItems = menuPosts
+    .filter((post) => post.role === "PILLAR")
+    .sort(sortByOrderThenTitle)
+    .map((post) => ({ href: post.href, label: post.label }));
+  if (pillarItems.length > 0) {
+    submenu.push({ label: "Comece por aqui", items: pillarItems });
+  }
+
+  const groupedByGroup = new Map<string, MenuPost[]>();
+  for (const post of menuPosts) {
+    if (post.role === "PILLAR") continue;
+    if (!post.groupKey) continue;
+    if (!groupedByGroup.has(post.groupKey)) groupedByGroup.set(post.groupKey, []);
+    groupedByGroup.get(post.groupKey)!.push(post);
+  }
+
+  const sortedGroupEntries = Array.from(groupedByGroup.entries()).sort((a, b) => {
+    const groupA = groupByKey.get(a[0]);
+    const groupB = groupByKey.get(b[0]);
+    const orderA = groupA?.order ?? 999;
+    const orderB = groupB?.order ?? 999;
+    if (orderA !== orderB) return orderA - orderB;
+    const labelA = groupA?.label ?? a[0];
+    const labelB = groupB?.label ?? b[0];
+    return labelA.localeCompare(labelB, "pt-BR");
+  });
+
+  for (const [groupKey, items] of sortedGroupEntries) {
+    submenu.push({
+      label: groupByKey.get(groupKey)?.label ?? "Outros",
+      items: items.sort(sortByOrderThenTitle).map((post) => ({ href: post.href, label: post.label })),
+    });
+  }
+
+  const ungroupedItems = menuPosts
+    .filter((post) => post.role !== "PILLAR" && !post.groupKey)
+    .sort(sortByOrderThenTitle)
+    .map((post) => ({ href: post.href, label: post.label }));
+  if (ungroupedItems.length > 0) {
+    submenu.push({ label: "Outros", items: ungroupedItems });
+  }
+
+  return submenu.length > 0 ? submenu : undefined;
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  let headerLinks: SiteHeaderLink[] = [
+    { href: "/", label: "Home" },
+    { href: "/sobre", label: "Sobre" },
+    { href: "/contato", label: "Contato" },
+  ];
+
+  try {
+    const silos = await getPublicSilos();
+    const siloLinks = await Promise.all(
+      silos
+        .filter((silo) => silo.is_active !== false && silo.show_in_navigation !== false && Boolean(silo.slug))
+        .map(async (silo) => {
+          try {
+            const [posts, groups] = await Promise.all([
+              getPublicPostsBySilo(silo.slug),
+              getPublicSiloGroupsBySiloId(silo.id).catch(() => []),
+            ]);
+            return {
+              href: `/${silo.slug}`,
+              label: silo.name,
+              submenu: buildSiloSubmenu(silo.slug, posts, groups),
+            } as SiteHeaderLink;
+          } catch (submenuError) {
+            console.error("[SITE] failed to build silo submenu", { siloSlug: silo.slug, submenuError });
+            return {
+              href: `/${silo.slug}`,
+              label: silo.name,
+            } as SiteHeaderLink;
+          }
+        })
+    );
+    headerLinks = buildHeaderLinksFromSilos(siloLinks);
+  } catch (error) {
+    console.error("[SITE] failed to load public silos for header", error);
+  }
+
   return (
-    <html lang="pt-BR">
+    <html lang={SITE_LOCALE}>
       <body className={`${body.variable} min-h-screen`}>
-        <SiteChrome>{children}</SiteChrome>
+        <SiteChrome headerLinks={headerLinks}>{children}</SiteChrome>
       </body>
     </html>
   );
 }
+

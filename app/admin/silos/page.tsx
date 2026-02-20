@@ -47,6 +47,7 @@ export default async function AdminSilosPage({
               <th className="px-4 py-3">Slug</th>
               <th className="px-4 py-3">Menu</th>
               <th className="px-4 py-3">Ativo</th>
+              <th className="px-4 py-3">Menu publico</th>
               <th className="px-4 py-3">Ações</th>
             </tr>
           </thead>
@@ -57,6 +58,7 @@ export default async function AdminSilosPage({
                 <td className="px-4 py-3 text-(--muted)">{silo.slug}</td>
                 <td className="px-4 py-3 text-(--muted)">{silo.menu_order ?? 0}</td>
                 <td className="px-4 py-3 text-(--muted)">{silo.is_active ? "Sim" : "Não"}</td>
+                <td className="px-4 py-3 text-(--muted)">{silo.show_in_navigation === false ? "Não" : "Sim"}</td>
                 <td className="px-4 py-3">
                   <Link
                     href={`/admin/silos/${silo.slug}`}
@@ -69,7 +71,7 @@ export default async function AdminSilosPage({
             ))}
             {silos.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-5 text-center text-(--muted-2)">
+                <td colSpan={6} className="px-4 py-5 text-center text-(--muted-2)">
                   Nenhum silo encontrado.
                 </td>
               </tr>

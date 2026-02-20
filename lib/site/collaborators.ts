@@ -28,36 +28,37 @@ export type CollaboratorProfile = {
 export const ANA_LINDA_PROFILE: CollaboratorProfile = {
   id: "ana-linda-ferreira",
   name: "Ana Linda Ferreira",
-  professionalName: "Ana Linda (Lindisse Estetic)",
-  siteRole: "Autora e especialista técnica (unhas em gel, fibra e pedicure)",
+  professionalName: "Ana Linda Ferreira",
+  siteRole: "Autora e editora no Bebe na Rota",
   shortBio:
-    "Manicure e professora desde 2018, especialista em unhas em gel, fibra e pedicure de alto padrão, com experiência prática em testes de equipamentos e ferramentas para nail designers.",
+    "Mae de familia, autora e editora especializada em guias de compra para rotina com bebe, com foco em seguranca, usabilidade e custo-beneficio.",
   fullBio: [
-    "Ana Linda Ferreira é manicure e professora desde 2018, atuando com foco em unhas em gel, fibra e pedicure de alto padrão. Trabalha com procedimentos estéticos nas unhas e possui vivência prática com diferentes equipamentos e ferramentas usados por nail designers, avaliando eficiência, usabilidade e resultados no dia a dia.",
-    "Atende e ensina no Centro de São Paulo (SP), acompanhando de perto as necessidades reais de profissionais e clientes. Além da atuação técnica, é mãe de família e empreendedora, conciliando rotina profissional com compromisso em oferecer um trabalho consistente, seguro e bem executado.",
+    "Ana Linda Ferreira lidera a linha editorial do Bebe na Rota com conteudos praticos para familias que precisam decidir melhor no dia a dia.",
+    "A metodologia combina analise tecnica de produto, leitura de avaliacoes reais e comparacao direta de uso para transformar duvida em decisao clara.",
   ],
   specialties: [
-    "Unhas em gel (aplicação e acabamento)",
-    "Unhas de fibra (aplicação e manutenção)",
-    "Pedicure de alto padrão",
-    "Avaliação prática de equipamentos e ferramentas (cabines, acessórios e itens de rotina)",
+    "Comparativos de carrinhos de bebe",
+    "Seguranca e usabilidade em puericultura",
+    "Guias de compra para familias",
+    "Curadoria de ofertas e marcas",
   ],
-  location: "Centro de São Paulo, SP (Brasil)",
-  experienceSince: 2018,
+  location: "Brasil",
+  experienceSince: 2024,
   image: {
     src: "/ana-linda-ferreira-manicure.webp",
-    alt: "Ana Linda Ferreira, manicure e especialista em unhas em gel, fibra e pedicure",
+    alt: "Ana Linda Ferreira, autora e editora do Bebe na Rota",
     width: 720,
     height: 960,
   },
-  links: [{ label: "Pinterest", href: "https://br.pinterest.com/lindissestetic/" }],
-  reviewedByShort:
-    "Conteúdo escrito por Ana Linda Ferreira, manicure e professora desde 2018, especialista em gel, fibra e pedicure de alto padrão.",
+  links: [],
+  reviewedByShort: "Conteudo revisado por Ana Linda Ferreira.",
   expertBoxShort:
-    "Ana Linda Ferreira - Manicure e professora desde 2018. Especialista em gel, fibra e pedicure de alto padrão.",
-  aliases: ["Ana Linda", "Lindisse Estetic"],
+    "Mae de familia, autora e editora do Bebe na Rota, com foco em escolhas seguras para passeio e rotina com bebe.",
+  aliases: ["Equipe Bebe na Rota", "Equipe editorial Bebe na Rota", "Bebe na Rota"],
 };
 
+// Compatibilidade com imports legados do projeto.
+export const BEBE_NA_ROTA_PROFILE = ANA_LINDA_PROFILE;
 export const COLLABORATORS: CollaboratorProfile[] = [ANA_LINDA_PROFILE];
 
 function normalizeName(value: string) {
@@ -81,8 +82,10 @@ export function findCollaboratorByName(name: string | null | undefined) {
   return null;
 }
 
-export const EDITOR_AUTHOR_OPTIONS = [
-  ANA_LINDA_PROFILE.name,
-  ANA_LINDA_PROFILE.professionalName,
-  "Equipe Lindisse",
-].filter((value): value is string => Boolean(value && value.trim()));
+export const EDITOR_AUTHOR_OPTIONS = Array.from(
+  new Set(
+    [ANA_LINDA_PROFILE.name, ANA_LINDA_PROFILE.professionalName, "Equipe Bebe na Rota"]
+      .filter((value): value is string => Boolean(value && value.trim()))
+      .map((value) => value.trim())
+  )
+);

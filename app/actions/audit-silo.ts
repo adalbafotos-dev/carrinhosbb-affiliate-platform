@@ -1,7 +1,6 @@
 "use server";
 
 import { getAdminSupabase } from "@/lib/supabase/admin";
-import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { isGenericAnchor } from "@/lib/seo/siloRules";
 
@@ -34,6 +33,7 @@ const auditSchema = z.object({
     siloId: z.string().uuid(),
     siloSlug: z.string(),
     force: z.boolean().optional(),
+    skipAI: z.boolean().optional(),
 });
 
 const aiAuditSchema = z
@@ -159,6 +159,68 @@ function clampScore(value: number): number {
     return Math.min(100, Math.max(0, Math.round(value)));
 }
 
+function normalizeLinkType(value: unknown): "INTERNAL" | "EXTERNAL" | "AFFILIATE" | null {
+    if (!value) return null;
+    const upper = String(value).toUpperCase();
+    if (upper === "INTERNAL" || upper === "EXTERNAL" || upper === "AFFILIATE") {
+        return upper as "INTERNAL" | "EXTERNAL" | "AFFILIATE";
+    }
+    if (upper === "AMAZON") return "AFFILIATE";
+    return null;
+}
+
+function mapOccurrenceForClient(
+    occurrence: any,
+    fallbackSiloId: string
+) {
+    return {
+        id: String(occurrence?.id ?? ""),
+        silo_id: String(occurrence?.silo_id ?? fallbackSiloId),
+        source_post_id: String(occurrence?.source_post_id ?? ""),
+        target_post_id: occurrence?.target_post_id ? String(occurrence.target_post_id) : null,
+        anchor_text: occurrence?.anchor_text ?? "[Sem texto]",
+        context_snippet: occurrence?.context_snippet ?? null,
+        start_index: occurrence?.start_index ?? null,
+        end_index: occurrence?.end_index ?? null,
+        occurrence_key: occurrence?.occurrence_key ?? null,
+        href_normalized: occurrence?.href_normalized ?? "",
+        position_bucket: occurrence?.position_bucket ?? null,
+        link_type: normalizeLinkType(occurrence?.link_type),
+        is_nofollow: Boolean(occurrence?.is_nofollow),
+        is_sponsored: Boolean(occurrence?.is_sponsored),
+        is_ugc: Boolean(occurrence?.is_ugc),
+        is_blank: Boolean(occurrence?.is_blank),
+    };
+}
+
+function buildLinkEdgesFromOccurrences(
+    occurrences: Array<any>
+) {
+    const map = new Map<string, { id: string; source_post_id: string; target_post_id: string; occurrence_ids: string[] }>();
+    occurrences.forEach((occ) => {
+        const targetPostId = occ?.target_post_id ? String(occ.target_post_id) : "";
+        const sourcePostId = String(occ?.source_post_id ?? "");
+        const occurrenceId = String(occ?.id ?? "");
+        const linkType = normalizeLinkType(occ?.link_type) ?? "INTERNAL";
+        if (!sourcePostId || !targetPostId || !occurrenceId) return;
+        if (linkType !== "INTERNAL") return;
+
+        const key = `${sourcePostId}::${targetPostId}`;
+        const existing = map.get(key);
+        if (!existing) {
+            map.set(key, {
+                id: `edge-${sourcePostId}-${targetPostId}`,
+                source_post_id: sourcePostId,
+                target_post_id: targetPostId,
+                occurrence_ids: [occurrenceId],
+            });
+            return;
+        }
+        existing.occurrence_ids.push(occurrenceId);
+    });
+    return Array.from(map.values());
+}
+
 function buildSuggestedAnchor(
     targetTitle?: string | null,
     targetKeyword?: string | null
@@ -202,14 +264,16 @@ function buildDeterministicAudit(input: {
         reasons.push("ANCHOR_GENERIC");
     }
 
-    const anchorTooShort = anchorWords.length <= 2 && intersectCount(anchorWords, targetWords) === 0;
+    const overlapAnchor = intersectCount(anchorWords, targetWords);
+    const overlapContext = intersectCount(contextWords, targetWords);
+    // Short anchors are only critical when neither the anchor nor surrounding context
+    // helps identify the destination topic.
+    const anchorTooShort = anchorWords.length <= 2 && overlapAnchor === 0 && overlapContext === 0;
     if (anchorTooShort) {
         score -= 20;
         reasons.push("ANCHOR_TOO_SHORT");
     }
 
-    const overlapAnchor = intersectCount(anchorWords, targetWords);
-    const overlapContext = intersectCount(contextWords, targetWords);
     const mismatch = Boolean(targetWords.length && overlapAnchor === 0 && overlapContext === 0);
     if (mismatch) {
         score -= 35;
@@ -426,7 +490,7 @@ function buildRecommendation(action: string, suggestedAnchor?: string) {
         return "Remova ou reduza este link para evitar excesso ou padrao de spam.";
     }
     if (action === "ADD_INTERNAL_LINK") {
-        return "Adicione um link do suporte para o Pilar com ancora descritiva.";
+        return "Adicione um link do post de suporte/apoio para o Pilar com ancora descritiva.";
     }
     return "Link OK. Manter.";
 }
@@ -527,7 +591,7 @@ function getHierarchyViolationReason(args: {
 
 export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
     const supabase = getAdminSupabase();
-    const { siloId, siloSlug, force } = payload;
+    const { siloId, siloSlug, force, skipAI } = payload;
     let aiStatus: "skipped" | "success" | "failed" = "skipped";
 
     try {
@@ -587,6 +651,16 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
                 occurrences = data ?? [];
             }
         }
+        const occurrenceById = new Map(
+            (occurrences ?? []).map((occ) => [String(occ.id), occ])
+        );
+        const buildGraphSnapshotForClient = () => {
+            const occurrenceList = (occurrences ?? []).map((occ) => mapOccurrenceForClient(occ, siloId));
+            return {
+                occurrences: occurrenceList,
+                linkEdges: buildLinkEdgesFromOccurrences(occurrenceList),
+            };
+        };
 
         const { data: siloPosts } = await supabase
             .from("silo_posts")
@@ -652,6 +726,7 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
                     .limit(1);
 
                 if ((linkAuditsCached ?? []).length > 0) {
+                    const graphSnapshot = buildGraphSnapshotForClient();
                     return {
                         success: true,
                         message: "Auditoria ja esta atualizada (Cache).",
@@ -659,6 +734,8 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
                         linkAudits: (linkAuditsCached || []).map((audit) => ({
                             occurrenceId: audit.occurrence_id,
                             occurrence_id: audit.occurrence_id,
+                            source_post_id: occurrenceById.get(String(audit.occurrence_id))?.source_post_id ?? null,
+                            target_post_id: occurrenceById.get(String(audit.occurrence_id))?.target_post_id ?? null,
                             score: audit.score,
                             label: audit.label,
                             reasons: audit.reasons,
@@ -669,6 +746,8 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
                             spam_risk: audit.spam_risk,
                             intent_match: audit.intent_match,
                         })),
+                        occurrences: graphSnapshot.occurrences,
+                        linkEdges: graphSnapshot.linkEdges,
                         siloAudit: siloAuditList?.[0] ?? null,
                     };
                 }
@@ -722,6 +801,10 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
         const supports = Array.from(normalizedHierarchy.map.entries())
             .filter(([, entry]) => entry.role === "SUPPORT")
             .map(([postId]) => postId);
+        const aux = Array.from(normalizedHierarchy.map.entries())
+            .filter(([, entry]) => entry.role === "AUX")
+            .map(([postId]) => postId);
+        const supportAndAux = [...supports, ...aux];
 
         const issues: SiloIssue[] = [];
         let healthScore = 100;
@@ -752,24 +835,26 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             }
         });
 
-        const supportsWithoutPillar: string[] = [];
+        const supportOrAuxWithoutPillar: string[] = [];
         if (pillarId) {
-            supports.forEach((supId) => {
+            supportAndAux.forEach((postId) => {
                 const hasLink = internalOccurrences.some(
-                    (o) => o.source_post_id === supId && o.target_post_id === pillarId
+                    (o) => o.source_post_id === postId && o.target_post_id === pillarId
                 );
-                if (!hasLink) supportsWithoutPillar.push(supId);
+                if (!hasLink) supportOrAuxWithoutPillar.push(postId);
             });
         }
 
-        if (supportsWithoutPillar.length) {
-            healthScore -= Math.min(30, supportsWithoutPillar.length * 10);
-            supportsWithoutPillar.forEach((supId) => {
+        if (supportOrAuxWithoutPillar.length) {
+            healthScore -= Math.min(30, supportOrAuxWithoutPillar.length * 10);
+            supportOrAuxWithoutPillar.forEach((postId) => {
+                const role = normalizedHierarchy.map.get(postId)?.role ?? "SUPPORT";
+                const roleLabel = role === "AUX" ? "Apoio" : "Suporte";
                 issues.push({
                     severity: "high",
-                    message: "Suporte nao linka para o Pilar.",
+                    message: `${roleLabel} nao linka para o Pilar.`,
                     action: "Adicione um link para o Pilar com ancora descritiva.",
-                    targetPostId: supId,
+                    targetPostId: postId,
                 });
             });
         }
@@ -785,11 +870,11 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
         }
 
         if (pillarMissingSupports.length) {
-            healthScore -= Math.min(20, pillarMissingSupports.length * 5);
+            healthScore -= Math.min(8, pillarMissingSupports.length * 2);
             issues.push({
-                severity: "high",
-                message: "Pilar nao distribui links para todos os suportes.",
-                action: "Inclua links do Pilar para cada suporte.",
+                severity: "low",
+                message: "Recomendado: Pilar distribuir links para suportes quando fizer sentido.",
+                action: "Inclua links do Pilar para suportes publicados ao longo da evolucao do silo.",
                 targetPostId: pillarId ?? undefined,
             });
         }
@@ -865,7 +950,7 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             }
         });
 
-        const supportsMissingPillarSet = new Set(supportsWithoutPillar);
+        const supportsMissingPillarSet = new Set(supportOrAuxWithoutPillar);
 
         const linkAuditsBase = internalOccurrences.map((occ) => {
             const targetPost = postsMap.get(occ.target_post_id!);
@@ -905,7 +990,7 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
 
         type AiAuditResult = z.infer<typeof aiAuditSchema>;
         let aiResult: AiAuditResult | null = null;
-        if (internalOccurrences.length) {
+        if (internalOccurrences.length && !skipAI) {
             try {
                 const { auditSiloWithAI } = await import("@/lib/silo/aiAuditService");
 
@@ -948,6 +1033,8 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
                 console.error("AI Integration failed:", e);
                 aiStatus = "failed";
             }
+        } else if (skipAI) {
+            aiStatus = "skipped";
         }
 
         const aiByOccurrence = new Map<string, AiAuditResult["linkSuggestions"][number]>();
@@ -965,6 +1052,7 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             return {
                 silo_id: siloId,
                 occurrence_id: occurrence.id,
+                source_post_id: occurrence.source_post_id,
                 score: merged.score,
                 label: merged.label,
                 reasons: merged.reasons,
@@ -1032,8 +1120,8 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
         if (mismatchCount > 0) maxScore = Math.min(maxScore, 95);
         if (mismatchCount >= 3) maxScore = Math.min(maxScore, 80);
         if (genericAnchorCount >= 5) maxScore = Math.min(maxScore, 70);
-        if (supportsWithoutPillar.length) maxScore = Math.min(maxScore, 60);
-        if (pillarMissingSupports.length) maxScore = Math.min(maxScore, 70);
+        if (supportOrAuxWithoutPillar.length) maxScore = Math.min(maxScore, 60);
+        if (pillarMissingSupports.length) maxScore = Math.min(maxScore, 92);
         if (hierarchyViolationByOccurrenceId.size > 0) maxScore = Math.min(maxScore, 65);
         if (hierarchyViolationByOccurrenceId.size >= 3) maxScore = Math.min(maxScore, 55);
 
@@ -1098,7 +1186,7 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
                 mismatch_count: mismatchCount,
                 generic_anchor_count: genericAnchorCount,
                 spam_risk_high_count: spamRiskHighCount,
-                supports_without_pillar_count: supportsWithoutPillar.length,
+                supports_without_pillar_count: supportOrAuxWithoutPillar.length,
                 pillar_missing_supports_count: pillarMissingSupports.length,
                 hierarchy_violations_count: hierarchyViolationByOccurrenceId.size,
                 ai_status: aiStatus,
@@ -1128,8 +1216,8 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             sample_occurrence_ids_input: internalOccurrences.slice(0, 5).map((occ) => occ.id),
             sample_occurrence_ids_output: finalLinkAudits.slice(0, 5).map((audit) => audit.occurrence_id),
         });
+        const graphSnapshot = buildGraphSnapshotForClient();
 
-        revalidatePath(`/admin/silos/${siloSlug}`);
         return {
             success: true,
             message: aiStatus === "success" ? "Auditoria inteligente concluida!" : "Auditoria padrao concluida.",
@@ -1137,6 +1225,8 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
             linkAudits: finalLinkAudits.map((audit) => ({
                 occurrenceId: audit.occurrence_id,
                 occurrence_id: audit.occurrence_id,
+                source_post_id: audit.source_post_id ?? null,
+                target_post_id: audit.target_post_id ?? null,
                 score: audit.score,
                 label: audit.label,
                 reasons: audit.reasons,
@@ -1147,6 +1237,8 @@ export async function auditSiloAction(payload: z.infer<typeof auditSchema>) {
                 spam_risk: audit.spam_risk,
                 intent_match: audit.intent_match,
             })),
+            occurrences: graphSnapshot.occurrences,
+            linkEdges: graphSnapshot.linkEdges,
             siloAudit: siloAuditPayload,
         };
     } catch (error: any) {

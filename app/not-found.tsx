@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <div className="rounded-3xl border border-(--border) bg-(--paper) p-8">
+    <div className="brand-card rounded-3xl p-8">
       <h1 className="text-2xl font-semibold">Página não encontrada</h1>
       <p className="mt-2 text-sm text-(--muted)">
         Verifique o endereço ou volte para a home.

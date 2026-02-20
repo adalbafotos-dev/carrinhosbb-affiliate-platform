@@ -220,7 +220,7 @@ export function PostToc({ contentSelector = ".content", title = "Índice" }: Pos
 
       {/* Desktop: Sticky Sidebar */}
       <aside className="sticky top-3 hidden h-fit w-full max-w-[232px] self-start md:block">
-        <div className="max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-2xl border border-(--border) bg-transparent px-4 py-4">
+        <div className="brand-card max-h-[calc(100dvh-1.5rem)] overflow-hidden rounded-2xl px-4 py-4">
           <div className="mb-3 flex items-center gap-2 border-b border-(--border) pb-2.5">
             <List size={16} className="text-(--brand-accent)" />
             <span className="text-xs font-bold uppercase tracking-wide text-(--muted-2)">{title}</span>
