@@ -199,7 +199,7 @@ export default function HomePage() {
       <section data-home-scroll className="border-t border-[rgba(193,149,86,0.4)] px-4 pt-10 md:pt-12">
         <div className="mx-auto w-full max-w-6xl space-y-5">
           <h2 className="text-3xl font-semibold leading-tight text-(--ink) md:text-4xl">O que você encontra aqui</h2>
-          <ul className="space-y-3 text-sm leading-relaxed text-(--muted) md:text-base">
+          <ul className="grid gap-3 text-sm leading-relaxed text-(--muted) md:grid-cols-3 md:gap-5 md:text-base">
             {WHAT_YOU_FIND.map((item) => (
               <li key={item} className="flex gap-3">
                 <span aria-hidden="true" className="mt-2 h-2 w-2 shrink-0 rounded-full bg-(--brand-hot)" />
