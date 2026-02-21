@@ -6,9 +6,10 @@ import { resolveSiteUrl } from "@/lib/site/url";
 import { SITE_NAME } from "@/lib/site";
 
 export const revalidate = 3600;
+export const dynamic = "force-static";
 
 const siteUrl = resolveSiteUrl();
-const homeTitle = "Bebê na Rota | Guias e checklists para a rotina com bebê";
+const homeTitle = "Passeios, Carro e Rotina com Bebê | Bebê na Rota";
 const homeDescription =
   "Carrinhos, cadeirinhas, slings e berços portáteis explicados com clareza. Guias por cenário, checklists e critérios transparentes para o dia a dia.";
 const homeSocialImage = "/logomarca-bebe-na-rota.webp";
@@ -167,11 +168,10 @@ export default function HomePage() {
       >
         <div className="mx-auto w-full max-w-6xl">
           <div className="max-w-4xl space-y-6">
-            <h1 className="text-4xl font-semibold leading-tight text-(--ink) md:text-6xl">Um mapa claro para a sua rota com bebê</h1>
+            <h1 className="text-4xl font-semibold leading-tight text-(--ink) md:text-6xl">Guias práticos para passeios, carro e rotina com bebê</h1>
             <p className="text-base leading-relaxed text-(--muted) md:text-lg">
-              A rotina com bebê é cheia de detalhes que parecem pequenos, mas mudam tudo: espaço, deslocamento, segurança no
-              carro, sono fora de casa e conforto no colo. Aqui você encontra guias organizados por cenário, com linguagem
-              simples e critérios objetivos.
+              Aqui você encontra guias organizados por cenário para entender diferenças, cuidados e uso real de carrinhos,
+              cadeirinhas, slings e berços portáteis. Linguagem simples, critérios claros e navegação direta.
             </p>
 
             <div className="flex flex-wrap gap-3">
@@ -189,9 +189,6 @@ export default function HomePage() {
               </Link>
             </div>
 
-            <p className="text-sm leading-relaxed text-(--muted-2)">
-              Quando houver indicação com link de afiliado, isso será sinalizado com transparência.
-            </p>
           </div>
         </div>
       </section>

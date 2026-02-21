@@ -13,6 +13,8 @@ import { ANA_LINDA_PROFILE, findCollaboratorByName } from "@/lib/site/collaborat
 import { SITE_NAME, isStandardAffiliateDisclosure } from "@/lib/site";
 
 export const revalidate = 3600;
+export const dynamic = "force-static";
+export const dynamicParams = true;
 
 const getPublishedPost = cache(async (siloSlug: string, postSlug: string) => getPublicPostBySlug(siloSlug, postSlug));
 const collaboratorsPageUrl = `${resolveSiteUrl().replace(/\/$/, "")}/colaboradores`;

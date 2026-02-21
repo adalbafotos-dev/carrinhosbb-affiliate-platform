@@ -9,6 +9,8 @@ import { resolveSiteUrl } from "@/lib/site/url";
 import { buildCanonicalUrl, buildSiloCanonicalPath } from "@/lib/seo/canonical";
 
 export const revalidate = 3600;
+export const dynamic = "force-static";
+export const dynamicParams = true;
 
 const getCachedSilo = cache(async (siloSlug: string) => getPublicSiloBySlug(siloSlug));
 const getCachedPosts = cache(async (siloSlug: string) => getPublicPostsBySilo(siloSlug));
