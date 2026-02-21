@@ -15,6 +15,7 @@ import { SITE_NAME, isStandardAffiliateDisclosure } from "@/lib/site";
 export const revalidate = 3600;
 
 const getPublishedPost = cache(async (siloSlug: string, postSlug: string) => getPublicPostBySlug(siloSlug, postSlug));
+const collaboratorsPageUrl = `${resolveSiteUrl().replace(/\/$/, "")}/colaboradores`;
 
 function normalizeName(value: string | null | undefined) {
   if (!value) return "";
@@ -78,7 +79,8 @@ function buildAuthor(post: PostWithSilo) {
     author.alternateName = collaborator.professionalName;
   }
   if (collaborator.image?.src) author.image = collaborator.image.src;
-  if (collaborator.links?.length) author.sameAs = collaborator.links.map((link) => link.href);
+  author.url = collaboratorsPageUrl;
+  author.sameAs = Array.from(new Set([collaboratorsPageUrl, ...(collaborator.links?.map((link) => link.href) ?? [])]));
   return author;
 }
 
@@ -91,7 +93,8 @@ function buildReviewedBy(post: PostWithSilo) {
   const reviewer: Record<string, any> = { "@type": "Person", name: reviewedBy };
   const collaborator = findCollaboratorByName(reviewedBy);
   if (collaborator?.image?.src) reviewer.image = collaborator.image.src;
-  if (collaborator?.links?.length) reviewer.sameAs = collaborator.links.map((link) => link.href);
+  reviewer.url = collaboratorsPageUrl;
+  reviewer.sameAs = Array.from(new Set([collaboratorsPageUrl, ...(collaborator?.links?.map((link) => link.href) ?? [])]));
   return reviewer;
 }
 

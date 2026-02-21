@@ -18,6 +18,8 @@ const body = Manrope({
 const ogLocale = SITE_LOCALE.replace("-", "_");
 const twitterSite = process.env.NEXT_PUBLIC_TWITTER_SITE?.trim() || undefined;
 const siteUrl = resolveSiteUrl();
+const isPreviewDeployment = process.env.VERCEL_ENV === "preview";
+const allowIndexing = !isPreviewDeployment && process.env.NEXT_PUBLIC_ALLOW_INDEXING !== "false";
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
@@ -46,6 +48,16 @@ export const metadata: Metadata = {
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
   },
+  robots: allowIndexing
+    ? {
+        index: true,
+        follow: true,
+      }
+    : {
+        index: false,
+        follow: false,
+        nocache: true,
+      },
 };
 
 function buildHeaderLinksFromSilos(siloLinks: SiteHeaderLink[]): SiteHeaderLink[] {
