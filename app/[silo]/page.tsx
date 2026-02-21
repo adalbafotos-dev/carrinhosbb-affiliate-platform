@@ -212,7 +212,7 @@ export default async function PublicSiloHubPage({ params }: { params: Promise<{ 
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold text-(--ink)">Mais guias deste tema</h2>
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {posts.map((post) => (
+            {posts.map((post, index) => (
               <article
                 key={post.id}
                 className="brand-card group overflow-hidden rounded-2xl border border-[rgba(165,119,100,0.24)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_40px_rgba(43,44,48,0.18)]"
@@ -223,7 +223,8 @@ export default async function PublicSiloHubPage({ params }: { params: Promise<{ 
                       <img
                         src={resolvePostCover(post) || ""}
                         alt={resolvePostCoverAlt(post)}
-                        loading="lazy"
+                        loading={index < 2 ? "eager" : "lazy"}
+                        fetchPriority={index === 0 ? "high" : "auto"}
                         className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]"
                       />
                     ) : (

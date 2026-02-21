@@ -5,10 +5,10 @@ import { useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { BrandBeamCard } from "@/components/site/BrandBeamCard";
 import { BorderBeam } from "@/components/ui/border-beam";
-import type { PostWithSilo } from "@/lib/types";
+import type { PublicHomePost } from "@/lib/types";
 
 type HomeSearchResultsProps = {
-  posts: PostWithSilo[];
+  posts: PublicHomePost[];
   maxResults?: number;
 };
 
@@ -16,7 +16,7 @@ function normalize(text: string | null | undefined) {
   return (text ?? "").toLocaleLowerCase("pt-BR").trim();
 }
 
-function matchesQuery(post: PostWithSilo, query: string) {
+function matchesQuery(post: PublicHomePost, query: string) {
   const needle = normalize(query);
   if (!needle) return false;
 
@@ -28,7 +28,7 @@ function matchesQuery(post: PostWithSilo, query: string) {
   );
 }
 
-function resolvePostCover(post: PostWithSilo) {
+function resolvePostCover(post: PublicHomePost) {
   return post.hero_image_url || post.cover_image || post.og_image_url || null;
 }
 
@@ -61,7 +61,7 @@ export function HomeSearchResults({ posts, maxResults = 10 }: HomeSearchResultsP
           {results.map((post, index) => {
             const cover = resolvePostCover(post);
             const coverAlt = post.hero_image_alt || post.title;
-            const href = post.silo ? `/${post.silo.slug}/${post.slug}` : "#";
+            const href = post.silo ? `/${post.silo.slug}/${post.slug}` : "/#posts-mais-novos";
 
             return (
               <Link

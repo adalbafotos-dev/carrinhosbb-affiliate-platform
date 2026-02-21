@@ -199,6 +199,7 @@ export function SiteHeader({ links: linksProp }: { links?: SiteHeaderLink[] }) {
                 width={184}
                 height={56}
                 sizes="184px"
+                priority
                 className="h-10 w-auto object-contain"
               />
             </Link>
@@ -239,6 +240,7 @@ export function SiteHeader({ links: linksProp }: { links?: SiteHeaderLink[] }) {
                   width={220}
                   height={66}
                   sizes="220px"
+                  priority
                   className="h-12 w-auto object-contain"
                 />
               </Link>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
+import Image from "next/image";
 import { getPublicPostBySlug, listAllPostParams } from "@/lib/db";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { PostToc } from "@/components/site/PostToc";
@@ -444,11 +445,14 @@ export default async function PostPage({ params }: { params: Promise<{ silo: str
 
           {post.hero_image_url ? (
             <div className="mt-6 overflow-hidden rounded-xl">
-              <img
+              <Image
                 src={post.hero_image_url}
                 alt={post.hero_image_alt || post.title}
+                width={1200}
+                height={630}
+                priority
+                sizes="(max-width: 768px) 100vw, 1200px"
                 className="h-auto w-full object-cover"
-                loading="lazy"
               />
             </div>
           ) : null}

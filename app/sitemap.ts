@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { listAllPostParams, getPublicSilos } from "@/lib/db";
+import { listAllPostSitemapEntries, getPublicSilos } from "@/lib/db";
 import { resolveSiteUrl } from "@/lib/site/url";
 
 export const revalidate = 3600;
@@ -7,7 +7,7 @@ export const revalidate = 3600;
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const siteUrl = resolveSiteUrl();
 
-  const [silos, posts] = await Promise.all([getPublicSilos(), listAllPostParams()]);
+  const [silos, posts] = await Promise.all([getPublicSilos(), listAllPostSitemapEntries()]);
 
   const now = new Date();
 
@@ -28,7 +28,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const postUrls = posts.map((p) => ({
     url: `${siteUrl}/${p.silo}/${p.slug}`,
-    lastModified: now,
+    lastModified: p.lastModified ? new Date(p.lastModified) : now,
   }));
 
   return [...base, ...siloUrls, ...postUrls];

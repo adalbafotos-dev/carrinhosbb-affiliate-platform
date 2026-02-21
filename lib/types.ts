@@ -83,6 +83,13 @@ export type PostWithSilo = Post & {
   silo: Pick<Silo, "slug" | "name"> | null;
 };
 
+export type PublicHomePost = Pick<
+  Post,
+  "id" | "title" | "slug" | "target_keyword" | "meta_description" | "hero_image_url" | "hero_image_alt" | "cover_image" | "og_image_url" | "updated_at"
+> & {
+  silo: Pick<Silo, "slug" | "name"> | null;
+};
+
 export type SiloBatch = {
   id: string;
   silo_id: string;

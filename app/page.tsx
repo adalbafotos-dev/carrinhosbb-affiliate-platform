@@ -6,16 +6,17 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { BrandBeamCard } from "@/components/site/BrandBeamCard";
 import { HomeSearchResults } from "@/components/site/HomeSearchResults";
 import { resolveSiteUrl } from "@/lib/site/url";
-import { SITE_BRAND_TAGLINE, SITE_DESCRIPTION, SITE_NAME } from "@/lib/site";
+import { SITE_DESCRIPTION, SITE_NAME } from "@/lib/site";
 
 export const revalidate = 3600;
 
 const siteUrl = resolveSiteUrl();
-const homeSocialImage = "/favicon.ico";
+const homeTitle = `${SITE_NAME} | Guias e comparativos para bebê`;
+const homeSocialImage = "/logomarca-bebe-na-rota.webp";
 const twitterSite = process.env.NEXT_PUBLIC_TWITTER_SITE?.trim() || undefined;
 
 export const metadata: Metadata = {
-  title: SITE_BRAND_TAGLINE,
+  title: homeTitle,
   description: SITE_DESCRIPTION,
   alternates: {
     canonical: "/",

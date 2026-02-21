@@ -1,5 +1,5 @@
 import { getPublicSupabase } from "@/lib/supabase/public";
-import type { Post, PostLink, PostWithSilo, Silo, SiloBatch, SiloBatchPost, SiloGroup } from "@/lib/types";
+import type { Post, PostLink, PostWithSilo, PublicHomePost, Silo, SiloBatch, SiloBatchPost, SiloGroup } from "@/lib/types";
 import type { SiloPost } from "@/lib/types/silo";
 import { resolveDefaultEeat } from "@/lib/editor/defaultEeat";
 import { isUuid } from "@/lib/uuid";
@@ -423,12 +423,12 @@ export async function getPublicPostsBySilo(siloSlug: string): Promise<Post[]> {
   return (data ?? []) as Post[];
 }
 
-export async function listLatestPublicPosts(limit = 8): Promise<Array<PostWithSilo>> {
+export async function listLatestPublicPosts(limit = 8): Promise<Array<PublicHomePost>> {
   if (!hasPublicEnv()) return [];
   const supabase = getPublicSupabase();
   const { data, error } = await supabase
     .from("posts")
-    .select("*, silos: silo_id (slug, name)")
+    .select("id,title,slug,target_keyword,meta_description,hero_image_url,hero_image_alt,cover_image,og_image_url,updated_at,silos: silo_id (slug, name)")
     .eq("published", true)
     .order("updated_at", { ascending: false })
     .limit(limit);
@@ -436,9 +436,18 @@ export async function listLatestPublicPosts(limit = 8): Promise<Array<PostWithSi
   if (error) throw error;
 
   return (data ?? []).map((row: any) => ({
-    ...(row as Post),
+    id: row.id,
+    title: row.title,
+    slug: row.slug,
+    target_keyword: row.target_keyword,
+    meta_description: row.meta_description,
+    hero_image_url: row.hero_image_url,
+    hero_image_alt: row.hero_image_alt,
+    cover_image: row.cover_image,
+    og_image_url: row.og_image_url,
+    updated_at: row.updated_at,
     silo: row.silos ? { slug: row.silos.slug, name: row.silos.name } : null,
-  })) as Array<PostWithSilo>;
+  })) as Array<PublicHomePost>;
 }
 
 export async function getPublicPostBySlug(siloSlug: string, postSlug: string): Promise<PostWithSilo | null> {
@@ -484,6 +493,31 @@ export async function listAllPostParams(): Promise<Array<{ silo: string; slug: s
   return (posts ?? [])
     .map((p: any) => ({ silo: siloMap.get(p.silo_id) ?? "", slug: p.slug }))
     .filter((x: any) => Boolean(x.silo && x.slug));
+}
+
+export async function listAllPostSitemapEntries(): Promise<Array<{ silo: string; slug: string; lastModified: string | null }>> {
+  if (!hasPublicEnv()) return [];
+  const supabase = getPublicSupabase();
+
+  const { data: posts, error: postError } = await supabase
+    .from("posts")
+    .select("slug,silo_id,updated_at,published_at")
+    .eq("published", true);
+
+  if (postError) throw postError;
+
+  const { data: silos, error: siloError } = await supabase.from("silos").select("id,slug");
+  if (siloError) throw siloError;
+
+  const siloMap = new Map<string, string>((silos ?? []).map((s: any) => [s.id, s.slug]));
+
+  return (posts ?? [])
+    .map((post: any) => ({
+      silo: siloMap.get(post.silo_id) ?? "",
+      slug: String(post.slug ?? ""),
+      lastModified: typeof post.updated_at === "string" ? post.updated_at : typeof post.published_at === "string" ? post.published_at : null,
+    }))
+    .filter((entry: any) => Boolean(entry.silo && entry.slug));
 }
 
 // --- Admin (server-only; uses Service Role) ---

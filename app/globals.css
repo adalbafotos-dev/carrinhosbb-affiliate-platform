@@ -5,7 +5,7 @@
   src: url("/YuseiMagic-Regular.woff2") format("woff2");
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
 }
 
 @font-face {
@@ -13,7 +13,7 @@
   src: url("/Barriecito-Regular.woff2") format("woff2");
   font-style: normal;
   font-weight: 400;
-  font-display: swap;
+  font-display: optional;
 }
 
 :root {
@@ -81,7 +81,12 @@ input[type="submit"][class*="bg-(--brand-hot)"],
   color: rgba(0, 0, 0, 0.68);
 }
 
-h1, h3 {
+h1 {
+  font-family: var(--font-reading);
+  letter-spacing: -0.01em;
+}
+
+h3 {
   font-family: "Yusei Magic", var(--font-reading);
   letter-spacing: -0.01em;
 }
@@ -1357,10 +1362,10 @@ a {
   height: 100dvh;
   top: 0;
   transform: translateX(-50%);
-  background-image: url("/background-hero-lindisse.webp");
-  background-size: cover;
-  background-position: center top;
-  background-repeat: no-repeat;
+  background:
+    radial-gradient(1200px 520px at 12% 6%, rgba(19, 104, 99, 0.12), transparent 72%),
+    radial-gradient(980px 420px at 88% 0%, rgba(237, 147, 102, 0.2), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0.6) 55%, transparent 100%);
 }
 
 .home-hero-shell::after {
@@ -1373,9 +1378,14 @@ a {
   height: 100dvh;
   top: 0;
   transform: translateX(-50%);
-  background-image: url("/carnaval-sparkles.svg");
-  background-size: 92% auto;
-  background-position: center top;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(19, 104, 99, 0.2) 0 2px, transparent 2px),
+    radial-gradient(circle at 28% 8%, rgba(237, 147, 102, 0.22) 0 2px, transparent 2px),
+    radial-gradient(circle at 43% 16%, rgba(19, 104, 99, 0.14) 0 2px, transparent 2px),
+    radial-gradient(circle at 58% 10%, rgba(237, 147, 102, 0.2) 0 2px, transparent 2px),
+    radial-gradient(circle at 72% 18%, rgba(19, 104, 99, 0.14) 0 2px, transparent 2px),
+    radial-gradient(circle at 86% 10%, rgba(237, 147, 102, 0.2) 0 2px, transparent 2px);
+  background-size: 100% 100%;
   background-repeat: no-repeat;
   opacity: 0.62;
   animation:
@@ -1422,7 +1432,6 @@ a {
 @media (max-width: 767px) {
   .home-hero-shell::after {
     content: none;
-    background-image: none;
     animation: none;
   }
 }
@@ -1433,7 +1442,7 @@ a {
   }
 
   .home-hero-shell::after {
-    background-size: 90% auto;
+    background-size: 100% 100%;
   }
 }
 
