@@ -31,7 +31,7 @@ function SearchBar({ className = "" }: { className?: string }) {
     <form
       action="/"
       method="get"
-      className={`brand-card flex items-center gap-2 rounded-2xl px-3 py-2 ${className}`}
+      className={`relative flex items-center gap-2 rounded-2xl border border-(--border) bg-[rgba(248,247,245,0.7)] backdrop-blur-md px-3 py-2 shadow-sm ${className}`}
     >
       <Search size={16} className="shrink-0 text-(--brand-accent)" />
       <input
@@ -52,7 +52,7 @@ function SearchBar({ className = "" }: { className?: string }) {
 
 function MobileMenu({ links, onNavigate }: { links: SiteHeaderLink[]; onNavigate: () => void }) {
   return (
-    <div className="menu-panel-pop brand-card mt-3 space-y-3 rounded-2xl p-3 backdrop-blur">
+    <div className="menu-panel-pop relative mt-3 space-y-3 rounded-2xl border border-(--border) bg-[rgba(248,247,245,0.85)] p-3 backdrop-blur shadow-lg">
       <SearchBar />
       <nav className="grid grid-cols-1 gap-2" aria-label="Navegacao principal">
         {links.map((link) => (
@@ -60,7 +60,7 @@ function MobileMenu({ links, onNavigate }: { links: SiteHeaderLink[]; onNavigate
             <Link
               href={link.href}
               onClick={onNavigate}
-              className="brand-card block rounded-xl px-3 py-2 text-sm font-medium text-(--muted-2) hover:brightness-95 hover:text-(--brand-hot)"
+              className="block rounded-xl border border-transparent bg-[rgba(255,255,255,0.5)] px-3 py-2 text-sm font-medium text-(--ink) transition-colors hover:border-(--border) hover:bg-white hover:text-(--brand-hot)"
             >
               {link.label}
             </Link>
@@ -99,14 +99,14 @@ function DesktopNavItem({ link }: { link: SiteHeaderLink }) {
     <div className={`relative ${hasSubmenu ? "group" : ""}`}>
       <Link
         href={link.href}
-        className="brand-card rounded-xl px-3 py-2 text-sm font-medium text-(--muted-2) hover:brightness-95 hover:text-(--brand-hot)"
+        className="inline-block rounded-xl border border-transparent px-3 py-2 text-sm font-medium text-(--ink) transition-all hover:bg-white hover:text-(--brand-hot) hover:shadow-sm"
       >
         {link.label}
       </Link>
 
       {hasSubmenu ? (
         <div className="pointer-events-none invisible absolute left-0 top-full z-40 w-[360px] translate-y-1 pt-2 opacity-0 transition-all duration-100 group-hover:pointer-events-auto group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
-          <div className="brand-card rounded-2xl p-3 shadow-[0_14px_40px_rgba(30,40,60,0.18)]">
+          <div className="relative rounded-2xl border border-(--border) bg-[rgba(248,247,245,0.95)] backdrop-blur-md p-3 shadow-[0_14px_40px_rgba(30,40,60,0.18)]">
             <div className="max-h-[58vh] space-y-3 overflow-y-auto pr-1">
               {link.submenu!.map((group) => (
                 <section key={`${link.href}-${group.label}`} className="space-y-1.5">
@@ -214,23 +214,20 @@ export function SiteHeader({ links: linksProp }: { links?: SiteHeaderLink[] }) {
       </header>
 
       <header
-        className={`sticky top-0 z-50 hidden transition-[background-color,border-color,backdrop-filter] duration-200 ease-out md:block ${
-          isDesktopCompact
+        className={`sticky top-0 z-50 hidden transition-[background-color,border-color,backdrop-filter] duration-200 ease-out md:block ${isDesktopCompact
             ? "border-b border-transparent bg-transparent backdrop-blur-none"
             : "border-b border-(--border) bg-[rgba(255,255,255,0.88)] backdrop-blur"
-        }`}
+          }`}
       >
         <div
-          className={`mx-auto w-full max-w-6xl px-4 transition-[padding] duration-200 ease-out ${
-            isDesktopCompact ? "py-2" : "py-3"
-          }`}
+          className={`mx-auto w-full max-w-6xl px-4 transition-[padding] duration-200 ease-out ${isDesktopCompact ? "py-2" : "py-3"
+            }`}
         >
           <div
-            className={`transition-[max-height,opacity,transform] duration-200 ease-out ${
-              isDesktopCompact
+            className={`transition-[max-height,opacity,transform] duration-200 ease-out ${isDesktopCompact
                 ? "pointer-events-none max-h-0 -translate-y-2 overflow-hidden opacity-0"
                 : "max-h-[240px] translate-y-0 overflow-visible opacity-100"
-            }`}
+              }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <Link href="/" aria-label={`${SITE_NAME} - Home`} className="inline-flex items-center">
@@ -249,7 +246,7 @@ export function SiteHeader({ links: linksProp }: { links?: SiteHeaderLink[] }) {
 
             <nav
               aria-label="Navegacao principal"
-              className="brand-card mt-3 flex items-center rounded-2xl p-2"
+              className="relative mt-3 flex items-center rounded-2xl border border-(--border) bg-[rgba(248,247,245,0.6)] backdrop-blur-md p-2 shadow-sm"
             >
               <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                 {primaryLinks.map((link) => (
@@ -268,11 +265,10 @@ export function SiteHeader({ links: linksProp }: { links?: SiteHeaderLink[] }) {
           </div>
 
           <div
-            className={`overflow-hidden transition-[max-height,opacity,transform] duration-200 ease-out ${
-              isDesktopCompact
+            className={`overflow-hidden transition-[max-height,opacity,transform] duration-200 ease-out ${isDesktopCompact
                 ? "max-h-[72px] translate-y-0 opacity-100"
                 : "pointer-events-none max-h-0 -translate-y-2 opacity-0"
-            }`}
+              }`}
           >
             <div className="flex items-center justify-end">
               <MenuToggleButton

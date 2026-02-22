@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import "./globals.css";
 import { SiteChrome } from "@/components/site/SiteChrome";
+import { AnimatedEffects } from "@/components/site/AnimatedEffects";
 import type { SiteHeaderLink } from "@/components/site/SiteHeader";
 import { getPublicPostsBySilo, getPublicSiloGroupsBySiloId, getPublicSilos } from "@/lib/db";
 import { SITE_DESCRIPTION, SITE_LOCALE, SITE_NAME } from "@/lib/site";
@@ -50,14 +51,14 @@ export const metadata: Metadata = {
   },
   robots: allowIndexing
     ? {
-        index: true,
-        follow: true,
-      }
+      index: true,
+      follow: true,
+    }
     : {
-        index: false,
-        follow: false,
-        nocache: true,
-      },
+      index: false,
+      follow: false,
+      nocache: true,
+    },
 };
 
 function buildHeaderLinksFromSilos(siloLinks: SiteHeaderLink[]): SiteHeaderLink[] {
@@ -215,6 +216,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang={SITE_LOCALE}>
       <body className={`${body.variable} min-h-screen`}>
+        <AnimatedEffects />
         <SiteChrome headerLinks={headerLinks}>{children}</SiteChrome>
       </body>
     </html>
