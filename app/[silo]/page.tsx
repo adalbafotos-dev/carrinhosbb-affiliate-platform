@@ -73,7 +73,7 @@ function formatPostDate(post: Post): string {
 function resolveSummary(post: Post): string {
   const summary = post.meta_description || post.excerpt;
   if (summary && summary.trim().length > 0) return summary.trim();
-  return "Abrir guia completo.";
+  return "Abrir post completo.";
 }
 
 function resolvePostCover(post: Post): string | null {
@@ -199,7 +199,7 @@ export default async function PublicSiloHubPage({ params }: { params: Promise<{ 
                 href={`/${currentSilo.slug}/${pillarPost.slug}`}
                 className="mt-4 inline-flex items-center rounded-xl bg-(--brand-hot) px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95"
               >
-                Ler guia
+                Ver post
               </Link>
             </aside>
           ) : null}
@@ -208,11 +208,11 @@ export default async function PublicSiloHubPage({ params }: { params: Promise<{ 
 
       {posts.length === 0 ? (
         <section className="brand-card rounded-2xl p-6 text-sm text-(--muted)">
-          Estamos preparando os primeiros guias deste tema.
+          Estamos preparando os primeiros posts deste tema.
         </section>
       ) : (
         <section className="space-y-4">
-          <h2 className="text-2xl font-semibold text-(--ink)">Mais guias deste tema</h2>
+          <h2 className="text-2xl font-semibold text-(--ink)">Mais posts deste tema</h2>
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
             {posts.map((post, index) => (
               <article
@@ -236,7 +236,7 @@ export default async function PublicSiloHubPage({ params }: { params: Promise<{ 
 
                     <div className="absolute left-3 top-3 flex items-center gap-2 text-[11px]">
                       <span className="rounded-full bg-white/90 px-2.5 py-1 font-semibold text-(--ink)">
-                        {isPillar(post) ? "Principal" : "Guia"}
+                        {isPillar(post) ? "Principal" : "Post"}
                       </span>
                     </div>
                   </div>
@@ -256,7 +256,7 @@ export default async function PublicSiloHubPage({ params }: { params: Promise<{ 
                     </p>
 
                     <span className="inline-flex items-center rounded-lg border border-[rgba(165,119,100,0.28)] bg-white/80 px-3 py-1.5 text-xs font-semibold text-(--ink) transition group-hover:border-(--brand-hot) group-hover:text-(--brand-hot)">
-                      Ler guia
+                      Ver post
                     </span>
                   </div>
                 </Link>

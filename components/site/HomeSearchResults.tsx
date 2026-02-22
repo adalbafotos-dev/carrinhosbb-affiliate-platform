@@ -48,7 +48,7 @@ export function HomeSearchResults({ posts, maxResults = 10 }: HomeSearchResultsP
       <BrandBeamCard as="div" className="rounded-3xl p-6">
         <p className="text-xs uppercase tracking-wide text-(--muted-2)">Busca</p>
         <h2 className="mt-2 text-2xl font-semibold text-(--ink)">Resultados para &quot;{query}&quot;</h2>
-        <p className="mt-2 text-sm text-(--muted)">{results.length} resultado(s) encontrado(s) nos guias mais recentes.</p>
+        <p className="mt-2 text-sm text-(--muted)">{results.length} resultado(s) encontrado(s) nos posts mais recentes.</p>
       </BrandBeamCard>
 
       {results.length === 0 ? (
@@ -91,7 +91,7 @@ export function HomeSearchResults({ posts, maxResults = 10 }: HomeSearchResultsP
                     {post.meta_description || "Abrir artigo para ver detalhes e comparativos."}
                   </p>
                   <span className="mt-auto inline-flex w-fit items-center rounded-full bg-(--brand-hot) px-4 py-2 text-sm font-semibold text-(--paper)">
-                    Abrir guia
+                    Ver post
                   </span>
                 </div>
                 <BorderBeam
